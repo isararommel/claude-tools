@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(agy:*)",
+      "Bash(vibe:*)"
+    ],
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/*.secret)",
+      "Read(~/.ssh/**)"
+    ]
+  }
+}

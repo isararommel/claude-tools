@@ -1,0 +1,43 @@
+# Projektwerte für die Agenten-Normen – gehört dem Projekt (einrichten.sh legt die Datei nur an, wenn sie fehlt).
+# Platzhalter @@…@@ füllt einrichten.sh aus seinen Optionen. Platzhalter {inhaberin} wird durch den Anzeigenamen ersetzt.
+
+[projekt]
+name = "@@NAME@@"
+testbefehl = "@@TESTBEFEHL@@"
+inhaberin = ""  # Leer = "die Inhaberin"; Anzeigename für Meldungen (z. B. "bitte {inhaberin} fragen")
+
+[pfade]
+# Nie an externe Teams; nur Rollen mit sperrpfade-lesen = "ja" (Präfixe relativ zum Projekt).
+gesperrt = [
+@@SPERRLISTE@@]
+# Geheimnis-Muster (Dateinamen-Globs) – niemand liest sie.
+geheimnisse = [".env", "*.env", "*.secret", "*.key", "*.pem", "*.ppk", "id_rsa*", "id_ed25519*", "id_ecdsa*", "secrets.env"]
+# Bestehende Testdateien (Globs) – Fähigkeit tests-aendern.
+tests = ["tests/**", "test/**", "**/test_*.py", "**/*_test.py", "**/*.test.js", "**/*.test.ts", "Tests/**"]
+# Lauf-Ordner der Teams außerhalb des Projekts (Umgebungsvariablen erlaubt).
+lauf_ordner = ["${TMPDIR}/vibe-runs", "${TMPDIR}/agy-runs", "/tmp/vibe-runs", "/tmp/agy-runs"]
+# Wegwerf-Pfade, in denen rm ohne Rückfrage erlaubt ist (N01). Relativ zum Projekt: Ordner samt Inhalt;
+# absolut: nur der Inhalt (die Temp-Wurzel selbst nie). Keine Quell-, Daten- oder Konfigurationsordner eintragen.
+loeschbar = [".venv", "build", ".pytest_cache", "__pycache__", "node_modules", "${TMPDIR}", "/tmp/vibe-runs", "/tmp/agy-runs", "/tmp/claude-501"]
+# Externe Pfade, die gelesen werden dürfen (nur Lesen, kein Schreiben). Standard: claude-tools.
+lesbar_extern = ["~/Documents/Projekte/claude-tools"]
+
+[pruefen]
+# Nicht prüfen (Präfixe): Erzeugtes, Archiv, gesperrte Daten, die Normen selbst.
+ausschliessen = [".git/", ".venv/", "node_modules/", "dist/", "normen/"]
+# Hinweis, wenn ein Diff größer ist (Scope Creep).
+diff_max_dateien = 12
+diff_max_zeilen = 400
+
+[quelle]
+# Quelle für Aktualisierung (wird von einrichten.sh gesetzt).
+pfad = "~/Documents/Projekte/claude-tools"
+
+[rueckmeldung]
+# Ziel-Repository für Rückmeldungen (meldungen werden per gh issue erstellt).
+# Muss ein PRIVATES Repository sein. Leer = Rückmeldung nicht möglich.
+repo = ""
+
+# Projektabweichungen von rollen.toml, z. B.:
+# [rollen.mistral-team.faehigkeiten]
+# sperrpfade-lesen = "ja"

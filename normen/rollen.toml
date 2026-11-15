@@ -1,0 +1,83 @@
+# Rollen und Verantwortlichkeiten – wer darf was, wer verantwortet was.
+# Gemeinsam für alle Projekte (Quelle: agenten-normen). Projektabweichungen in projekt.toml [rollen.<name>].
+#
+# Fähigkeiten: "ja" | "fragen" | "nein" (fehlt = "nein").
+#   "fragen" heißt: Claude Code fragt {inhaberin} vor der Aktion; bei externen Werkzeugen (ohne Rückfrage-Kanal) wirkt es wie "nein".
+#   schreiben            Dateien im Projekt anlegen/ändern (externe Rollen: nur Pfade aus .normen-auftrag)
+#   tests-aendern        bestehende Testdateien ändern oder löschen (neue Tests anlegen fällt unter "schreiben")
+#   loeschen             destruktive Befehle (N01)
+#   pakete               Abhängigkeiten installieren/ergänzen (N05)
+#   git-commit / git-push  auf dem eigenen Arbeitsbranch
+#   main                 commit/push/merge auf main bzw. master (N11)
+#   sperrpfade-lesen     Pfade aus projekt.toml [pfade].gesperrt lesen (personenbezogene Daten, Forschungsdaten)
+#   geheimnisse-lesen    .env, *.secret, Schlüssel (niemand – Geheimnisse entstehen auf dem Server)
+#   ausserhalb-schreiben außerhalb des Projektordners schreiben (Ausnahme: [pfade].lauf_ordner)
+#   einstellungen        ~/.claude, ~/.vibe, ~/.gemini, ~/.antigravity ändern (Lesen ist frei)
+#   einstellungen-lesen  diese Ordner lesen (Claude und seine eigenen Sub-Agenten; externe Teams nie)
+#   rueckmelden          Rückmeldung als Issue senden (`normen.py melden` ohne --trocken; nach außen gerichtet)
+#   auto-modus           Agenten ohne Freigaben starten (niemand)
+# frei_schreiben: Pfade außerhalb des Projekts, die die Rolle ohne Rückfrage schreiben darf (Globs, ~ und $VAR erlaubt).
+# auftrag_pflicht = true: Die Rolle schreibt nur Pfade, die der Orchestrator in .normen-auftrag freigegeben hat
+#   (`python3 normen/normen.py auftrag --rolle <rolle> --dateien …`); ohne diese Datei darf sie nichts schreiben.
+
+[rollen.inhaberin]
+art = "mensch"
+verantwortet = [
+  "Ziele und Abnahme; letzte Entscheidung bei Zielkonflikten",
+  "Freigabe von Abhängigkeiten, destruktiven Aktionen, Merge nach main außerhalb des Prüftors, Änderungen an Einstellungen",
+  "Ausführen von Skripten auf dem Server",
+  "Änderungen an normen.toml/rollen.toml bestätigen; begründete Ausnahmen gegenlesen",
+]
+faehigkeiten = { schreiben = "ja", tests-aendern = "ja", loeschen = "ja", pakete = "ja", git-commit = "ja", git-push = "ja", main = "ja", sperrpfade-lesen = "ja", geheimnisse-lesen = "ja", ausserhalb-schreiben = "ja", einstellungen = "ja", einstellungen-lesen = "ja", rueckmelden = "ja" }
+
+[rollen.claude]
+art = "agent"
+werkzeug = "Claude Code (Opus) – Orchestrator"
+verantwortet = [
+  "Planen, Schnittstellen festlegen, Aufträge an Teams schreiben (inkl. .normen-auftrag und Pflichtsätzen aus `normen.py auftrag`)",
+  "Tests schreiben und pflegen (Teams dürfen bestehende Tests nicht ändern)",
+  "Ergebnisse prüfen: Diff lesen, Testbefehl und `normen.py pruefen --diff` selbst ausführen – Teams nie ungeprüft glauben",
+  "Arbeitet auf einem eigenen Branch (commit und push dort); Merge nach main per PR über `normen.py merge <PR>` (Prüftor: Testbefehl, `pruefen --diff origin/main`), vorher Diff-Review; direkt nur mit Rückfrage ({inhaberin})",
+]
+faehigkeiten = { schreiben = "ja", tests-aendern = "ja", loeschen = "fragen", pakete = "fragen", git-commit = "ja", git-push = "ja", main = "fragen", sperrpfade-lesen = "ja", ausserhalb-schreiben = "fragen", einstellungen = "fragen", einstellungen-lesen = "ja", rueckmelden = "fragen" }
+# Löschen im Projekt ohne Rückfrage, wenn alle Ziele aus git wiederherstellbar sind (getrackt, unverändert);
+# sonst sperrt der Hook mit "erst committen". Außerhalb des Projekts, Globs, Variablen, sudo, git reset/clean: wie "loeschen".
+loeschen_wiederherstellbar = true
+# Projekt-Gedächtnis von Claude Code und Temp-Ordner (Scratchpad) – kein Risiko, keine Einstellungen.
+frei_schreiben = ["~/.claude/projects/*/memory", "${TMPDIR}", "/tmp/claude-501"]
+
+[rollen.mistral-team]
+art = "agent"
+auftrag_pflicht = true
+werkzeug = "Mistral Vibe (vibe) über Claude-Agent mistral-team"
+verantwortet = [
+  "Umsetzung nach Spezifikation – nur die Dateien aus .normen-auftrag",
+  "Neue Unit-Tests, wenn der Auftrag sie verlangt; Testläufe; zweites Code-Review",
+  "Bericht mit ausgeführtem Testbefehl und Ergebnis (N04)",
+]
+faehigkeiten = { schreiben = "ja", sperrpfade-lesen = "nein" }
+hinweis = "Forschungsdaten nur, wenn ein Auftrag sie ausdrücklich braucht – dann in projekt.toml freigeben."
+
+[rollen.gemini-analyst]
+art = "agent"
+auftrag_pflicht = true
+werkzeug = "Google Antigravity (agy, Gemini) über Claude-Agent gemini-analyst"
+verantwortet = [
+  "Analyse, Konzept-gegen-Code, Architektur-Zweitmeinung – Standard: nur lesen",
+  "Doku schreiben, wenn der Auftrag es erlaubt (nur Pfade aus .normen-auftrag)",
+]
+faehigkeiten = { schreiben = "ja", sperrpfade-lesen = "nein" }
+hinweis = "Nie Geheimnisse, personenbezogene Daten oder Forschungsdaten (Google)."
+
+[rollen.explore]
+art = "agent"
+werkzeug = "Claude-Unteragent Explore (Haiku)"
+verantwortet = ["Schnelle Suche im Projekt, nur lesen"]
+faehigkeiten = { sperrpfade-lesen = "ja", einstellungen-lesen = "ja" }
+
+[rollen.lokal]
+art = "agent"
+auftrag_pflicht = true
+werkzeug = "Lokale Modelle (Ollama/OpenClaw) – künftig"
+verantwortet = ["Zuarbeit nach Auftrag; gleiche Grenzen wie mistral-team, Forschungsdaten erlaubt (bleibt auf eigener Hardware)"]
+faehigkeiten = { schreiben = "ja", sperrpfade-lesen = "ja" }

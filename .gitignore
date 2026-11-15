@@ -1,0 +1,5 @@
+.normen-auftrag
+*.bak-*
+*.vorlage
+.normen/
+.claude/settings.local.json

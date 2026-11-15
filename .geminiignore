@@ -1,0 +1,6 @@
+# Von Gemini/Antigravity nicht zu lesende Pfade (zusätzlich zu .gitignore). Erzeugt aus claude-tools/multi-ki.
+.env
+*.env
+*.secret
+*.key
+*.pem
