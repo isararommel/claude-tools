@@ -64,6 +64,9 @@ bekommen, der in beiden Welten gleich und beschreibbar ist.
 
 ## Zwei Wege (Entscheidung der Inhaberin)
 
+**Entschieden am 16.11.2026: Weg 2 (vibe/agy ausnehmen), fürs Erste. Die Sandbox ist nicht aktiviert;** vor dem Einschalten
+`excludedCommands` interaktiv prüfen.
+
 Die Sandbox schließt L2 (Bash und Unterprozesse schreiben überall / gehen überall ins Netz) wirksam – belegt durch Kernel-Fehler und
 Netz-Sperren. Ohne Anpassungen bricht sie aber den Ablauf (Teams, Temp-Ordner, `einrichten.sh`).
 

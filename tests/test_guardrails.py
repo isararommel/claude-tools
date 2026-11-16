@@ -334,5 +334,69 @@ with tempfile.TemporaryDirectory() as t:
     check("G6 Matcher ergänzt", "mcp__.*" in pre[0]["matcher"] and pre[0]["matcher"].startswith("Bash|"), pre[0]["matcher"])
     check("G6 eigene Einstellung bleibt", einst.get("enableAllProjectMcpServers") is True)
 
+    # G9 (L9): N02 – geänderte Erwartungswerte (Hinweis) und ersatzlos gelöschte Asserts (Fehler) in Testdateien
+    git = ("git", "-c", "user.name=t", "-c", "user.email=t@t")
+    sh(*git, "checkout", "-q", "-b", "g9", cwd=repo)
+    tdatei, cdatei = repo / "tests/test_rechnen.py", repo / "rechnen.py"
+    tdatei.parent.mkdir(exist_ok=True)
+    basis = ("def test_a():\n    assert add(1, 2) == 3\n    self.assertEqual(mul(2, 2), 4)\n    check(\"x\", f(1) == 1)\n\n\n"
+             "def test_b():\n    assert sub(3, 1) == 2\n")
+    tdatei.write_text(basis)
+    cdatei.write_text("def f():\n    assert x == 1\n    return 1\n")
+    sh(*git, "add", "-A", cwd=repo)
+    sh(*git, "commit", "-qm", "g9-basis", "--no-verify", cwd=repo)
+
+    def pruefen_g9(text, staged=False, code=None):
+        tdatei.write_text(text)
+        cdatei.write_text(code or "def f():\n    assert x == 1\n    return 1\n")
+        if staged:
+            sh(*git, "add", "-A", cwd=repo)
+        aus = sh(sys.executable, "normen/normen.py", "pruefen", "--staged" if staged else "--diff", cwd=repo).stdout
+        if staged:
+            sh(*git, "reset", "-q", cwd=repo)
+        zeilen = [z for z in aus.splitlines() if "N02-TESTS-SIND-TABU" in z and "Assert" in z]
+        return ([z for z in zeilen if "] fehler:" in z], [z for z in zeilen if "] hinweis:" in z])
+
+    f, h = pruefen_g9(basis.replace("== 3", "== 4"))
+    check("G9 Erwartungswert geändert → Hinweis", not f and h and "Assert geändert" in h[0], str((f, h)))
+    f, h = pruefen_g9(basis.replace("mul(2, 2), 4)", "mul(2, 2), 5)"))
+    check("G9 assertEqual geändert → Hinweis", not f and len(h) == 1, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n", "    pass\n"))
+    check("G9 Assert gelöscht → Fehler", f and "Assert entfernt" in f[0], str((f, h)))
+    f, h = pruefen_g9(basis.replace('    check("x", f(1) == 1)\n', ""))
+    check("G9 check() gelöscht → Fehler", bool(f), str((f, h)))
+    umgestellt = "def test_b():\n    assert sub(3, 1) == 2\n\n\n" + basis.split("\n\n\n")[0] + "\n"
+    f, h = pruefen_g9(umgestellt)
+    check("G9 verschoben → nichts", not f and not h, str((f, h)))
+    f, h = pruefen_g9(basis + "\n\ndef test_c():\n    assert add(2, 2) == 4\n")
+    check("G9 Assert ergänzt → nichts", not f and not h, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n",
+                                    "    # normen-ausnahme: N02-TESTS-SIND-TABU – doppelt zu test_a\n    pass\n"))
+    check("G9 begründet gelöscht → kein Fehler", not f, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n", "    pass\n"), staged=True)
+    check("G9 --staged: Assert gelöscht → Fehler", bool(f), str((f, h)))
+    f, h = pruefen_g9(basis, code="def f():\n    return 1\n")
+    check("G9 Assert außerhalb von Tests → nichts", not f and not h, str((f, h)))
+    zwei_weg = basis.replace("    assert sub(3, 1) == 2\n", "    pass\n").replace("    assert add(1, 2) == 3\n",
+                                                                                  "    # normen-ausnahme: N02-TESTS-SIND-TABU – doppelt\n")
+    f, h = pruefen_g9(zwei_weg)
+    check("G9 zwei gelöscht, eine Begründung → Fehler", bool(f), str((f, h)))
+    # Aufteilen/Umbenennen: Asserts wandern in eine andere Testdatei → nichts; ganze Testdatei gelöscht → Fehler
+    neu_datei = repo / "tests/test_rechnen_b.py"
+    neu_datei.write_text("def test_b():\n    assert sub(3, 1) == 2\n")
+    f, h = pruefen_g9(basis.replace("\n\n\ndef test_b():\n    assert sub(3, 1) == 2\n", "\n"))
+    check("G9 in andere Datei verschoben → nichts", not f and not h, str((f, h)))
+    neu_datei.unlink()
+    tdatei.unlink()
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 Testdatei gelöscht → Fehler", any("Assert entfernt" in z and "] fehler:" in z for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").write_text("Test gestrichen.\n# normen-ausnahme: N02-TESTS-SIND-TABU – x\n" * 4)
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 gelöscht, vier Begründungen im Diff → kein Fehler", not any("Assert entfernt" in z and "] fehler:" in z
+                                                                         for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").unlink()
+    tdatei.write_text(basis)
+    cdatei.write_text("def f():\n    assert x == 1\n    return 1\n")
+
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)

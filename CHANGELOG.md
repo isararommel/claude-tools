@@ -4,6 +4,18 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v8 – in Arbeit
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)
+
+### Neu
+- **Asserts in Tests (G9):** `pruefen --diff`/`--staged` vergleicht entfernte und neue Assert-Zeilen (`assert`, `assertX(`,
+  `expect(`, `check(`, `XCTAssert…(`, `pytest.raises`) über alle Testdateien des Diffs: geänderte Asserts → Hinweis, ersatzlos
+  entfernte → Fehler. Jede Zeile `normen-ausnahme: N02-TESTS-SIND-TABU – Begründung` im Diff entschuldigt genau ein entferntes Assert.
+  Grenze: Erwartungswerte in Tabellenzeilen (z. B. `("befehl", "ja")`) sind keine Assert-Zeilen und werden nicht erkannt.
+
+---
+
 ## v7 – 2026-11-16
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)

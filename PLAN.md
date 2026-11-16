@@ -55,9 +55,13 @@ Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Ad
 ✅ **G7 Sandbox-Spike gemessen** (`docs/plaene/sandbox-spike.md`, nur `-p`-Modus): Sandbox sperrt Schreiben/Netz wirksam;
 vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `excludedCommands` nahm im `-p`-Modus nichts aus;
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
-**Entscheidung der Inhaberin offen:** einer der zwei Wege im Bericht; vorher interaktiv prüfen (Rückfragen, Hintergrund-Sub-Agenten,
-`excludedCommands` interaktiv, Mindestmenge der Freigaben).
-Nächste Pakete (je mit Rückfrage zum Start): G9, G10, G11 laut Entwurf;
+**Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
+Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
+**v8 in Arbeit** (Branch `normen-v8`, freigegeben „G9–G11 go“ am 16.11.):
+- **G9** N02-Asserts in `pruefen` (Tests in `tests/test_guardrails.py`, Version 8, CHANGELOG) → mistral-team.
+- **G10** Lese-Modus für Vibe-Aufträge (`--agent ask` messen) und Lauf-Protokoll je Delegation (PID statt `pgrep`, „sauber“
+  statt leerer Statusdatei, nie „gescheitert“ bei laufendem Prozess) → Opus; Agent-Definition nur in der Quelle, Kopie mit Rückfrage.
+- **G11** Worktree-Spike im Wegwerf-Klon (Bericht gemessen/dokumentiert/offen) → Opus.
 `meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
