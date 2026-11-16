@@ -71,7 +71,8 @@ with tempfile.TemporaryDirectory() as t:
     schreibt_geschuetzt = ["sed -i '' s/a/b/ .claude/settings.json", "echo x > normen/x.toml", "echo x >> CLAUDE.md",
                            "tee AGENTS.md < /tmp/a", "cp /tmp/a.json .claude/settings.json", "mv /tmp/x .githooks/pre-commit",
                            "cd normen && echo x > kurz.md", "printf x 2>/dev/null > .vibe/hooks.toml", "touch .normen-auftrag",
-                           "rm -f normen/kurz.md", "ln -s /tmp/x .claude/agents"]
+                           "rm -f normen/kurz.md", "ln -s /tmp/x .claude/agents", 'echo "a;b" > CLAUDE.md',
+                           'echo "a|b" > AGENTS.md', "echo x &> normen/x.toml", "> normen/x.toml"]
     for befehl in schreibt_geschuetzt:
         check(f"G3 claude fragt: {befehl}", hook(repo, "claude", "claude", befehl) == "fragen")
         check(f"G3 vibe sperrt: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
@@ -80,6 +81,14 @@ with tempfile.TemporaryDirectory() as t:
                         "git diff -- normen/ 2>&1 | head", "echo x > notizen.txt"]
     for befehl in liest_geschuetzt:
         check(f"G3 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
+
+    # Betriebsbefehle des Orchestrators: müssen nach jedem Paket „ja“ bleiben (Hook ist fail-closed)
+    for befehl in ['bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh . --test "make test"',
+                   "python3 normen/normen.py auftrag --rolle mistral-team --dateien a.py", "python3 normen/normen.py auftrag --ende",
+                   "python3 normen/normen.py pruefen --diff", "python3 normen/normen.py merge 7", "python3 normen/normen.py selbsttest",
+                   "make test", 'git commit -q -m "x"', "git push -q -u origin arbeit", "git add -A tests",
+                   'make test 2>&1 | grep -E "ok,|FAIL"', "python3 normen/normen.py pruefen --diff | tail -2"]:
+        check(f"Betrieb ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
 
     # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
     extern = Path(t) / "werkzeuge"
@@ -101,7 +110,8 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in fehlalarm:
         check(f"Fehlalarm behoben: {befehl}", hook_in(extern, befehl) == "ja")
     weiter_gesperrt = ["echo x > quelle/a.md", "git status > status.txt", 'echo x > "$GIBT_ES_NICHT_V7/a.md"',
-                       f"echo x > {extern}/quelle/a.md", "sed -i '' s/a/b/ quelle/a.md", "cd quelle && echo x > a.md"]
+                       f"echo x > {extern}/quelle/a.md", "sed -i '' s/a/b/ quelle/a.md", "cd quelle && echo x > a.md",
+                       'echo "a|b" > quelle/a.md', 'echo "a;b" > quelle/a.md', "> quelle/a.md"]
     for befehl in weiter_gesperrt:
         check(f"lesbar_extern weiter gesperrt: {befehl}", hook_in(extern, befehl) == "nein")
     check("lesbar_extern aus dem Projekt: Ziel extern gesperrt", hook_in(repo, f"echo x > {extern}/quelle/a.md") == "nein")

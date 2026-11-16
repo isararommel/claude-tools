@@ -237,6 +237,20 @@ def _maskiert(seg: str) -> str:
     return "".join(out)
 
 
+# Kettentrenner ohne die Umleitungen &>, >&, 2>&1 (anders als SEGMENT); angewandt auf den maskierten Text.
+_KETTE = re.compile(r"&&|\|\||[;|\n]|(?<![<>])&(?![>&])")
+
+
+def _segmente(cmd: str) -> list[str]:
+    """Teilbefehle einer Kette – Trenner in Anführungszeichen zählen nicht (`echo "a|b" > x` bleibt ein Teilbefehl)."""
+    aus, start = [], 0
+    for m in _KETTE.finditer(_maskiert(cmd)):
+        aus.append(cmd[start:m.start()])
+        start = m.end()
+    aus.append(cmd[start:])
+    return aus
+
+
 def _tokenliste(seg: str) -> list[str]:
     """Tokenize mit punctuation_chars: >, >>, &> … sind eigene Token; ValueError bei unbalancierten Quotes."""
     lexer = shlex.shlex(seg, posix=True, punctuation_chars=True)
@@ -252,7 +266,7 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
     """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
     None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
     install, rsync; Basisordner je Kette über cd."""
-    segmente = SEGMENT.split(cmd)
+    segmente = _segmente(cmd)
     zuweisungen: dict[str, str] = {}
     for seg in segmente:
         try:
@@ -289,30 +303,28 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
             orig = _tokenliste(seg)
             mask = _tokenliste(_maskiert(seg))
         except ValueError:
-            continue  # unbalancierte Anführungszeichen: Teilbefehl überspringen
-        if len(orig) != len(mask):
+            orig = mask = None
+        if orig is None or len(orig) != len(mask):
+            if ">" in _maskiert(seg):  # nicht zerlegbar, aber mit echter Umleitung: Ziel unbekannt (streng)
+                ziele.append(None)
             continue
         worte = list(zip(orig, mask))
-        j = 0
-        while j < len(worte) and _ist_operator(worte[j][1]):
-            j += 1
-        if j >= len(worte):
-            continue
-        befehl = worte[j][0]
-        j += 1
-        if befehl == "sudo" and j < len(worte) and not _ist_operator(worte[j][1]):
-            befehl = worte[j][0]
-            j += 1
+        befehl: str | None = None
         args: list[str] = []
         umleitungen: list[str] = []
+        j = 0
         while j < len(worte):
             tok, msk = worte[j]
+            naechstes_wort = j + 1 < len(worte) and not _ist_operator(worte[j + 1][1])
             if _ist_operator(msk):
-                if ">" in tok and tok != ">&" and j + 1 < len(worte) and not _ist_operator(worte[j + 1][1]):
-                    umleitungen.append(worte[j + 1][0])  # > ziel, >> ziel, &> ziel, 2> ziel
+                if tok.endswith(">&") or tok == ">&":
+                    j += 2 if naechstes_wort else 1  # 2>&1, >&2: Dateideskriptor, keine Datei
+                    continue
+                if ">" in tok and naechstes_wort:
+                    umleitungen.append(worte[j + 1][0])  # > ziel, >> ziel, &> ziel, 2> ziel – auch am Anfang
                     j += 2
                     continue
-                if tok.startswith("<") and j + 1 < len(worte) and not _ist_operator(worte[j + 1][1]):
+                if tok.startswith("<") and naechstes_wort:
                     j += 2  # Eingabeumleitung: verbraucht das nächste Wort, ist kein Schreibziel
                     continue
                 j += 1
@@ -320,8 +332,13 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
             if tok in ("0", "1", "2") and j + 1 < len(worte) and _ist_operator(worte[j + 1][1]) and ">" in worte[j + 1][0]:
                 j += 1  # fd-Präfix (2>…): keine Datei
                 continue
-            args.append(tok)
+            if befehl is None and tok != "sudo":
+                befehl = tok
+            elif befehl is not None:
+                args.append(tok)
             j += 1
+        if befehl is None:
+            befehl = ""
         if befehl == "cd":
             for a in args:
                 if not a.startswith("-"):
