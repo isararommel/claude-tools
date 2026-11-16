@@ -89,6 +89,22 @@ with tempfile.TemporaryDirectory() as t:
     check("claude cp nach ~/.claude fragt", hook(repo, "claude", "claude", B("cp a.md ~/.claude/agents/")) == "fragen")
     check("claude sed -i ~/.claude fragt", hook(repo, "claude", "claude", B("sed -i '' 's/a/b/' ~/.claude/CLAUDE.md")) == "fragen")
     check("claude find -delete fragt", hook(repo, "claude", "claude", B("find ~/.claude/agents -name x -delete")) == "fragen")
+    # Issue #22: Auftrag an gemini-analyst verlangt keine Abnahmebefehle (agy headless), mistral-team weiterhin schon
+    ga = normen(repo, "auftrag", "--rolle", "gemini-analyst").stdout
+    check("gemini-analyst ohne Abnahmebefehle", "führt Claude selbst aus" in ga and "pruefen --diff` ohne Fehler" not in ga,
+          ga[-300:])
+    mt = normen(repo, "auftrag", "--rolle", "mistral-team").stdout
+    check("mistral-team mit Abnahmebefehlen", "pruefen --diff` ohne Fehler" in mt, mt[-300:])
+    # Issue #23: Lesen aus ~/.gemini (agy-Bildmodus) ist frei, echtes Schreiben fragt weiter
+    for c in ['find "$HOME/.gemini/antigravity-cli/brain" -newer "$RUN/start" -type f 2>/dev/null',
+              'cp -n ~/.gemini/antigravity-cli/brain/a/bild_k1_1.jpg docs/gemini/kandidaten/bild_k1.jpg',
+              'find "$HOME/.gemini/x" -type f -print0 | while IFS= read -r -d "" f; do cp -n "$f" "$Z/x.jpg"; done',
+              'rsync -a ~/.gemini/antigravity-cli/brain/ /tmp/sicherung/', 'tail -n 5 ~/.vibe/logs/vibe.log > "$RUN/log.txt"']:
+        check(f"claude liest frei: {c[:40]}", hook(repo, "claude", "claude", B(c)) == "ja")
+    for c in ['cp -t ~/.gemini/x a b', 'install --target-directory=~/.vibe/agents a.toml', 'cp a "$HOME/.claude/agents/b.md"',
+              'find ~/.gemini -execdir rm {} +', 'find ~/.gemini -fprint ~/.gemini/x', 'echo x >> "$HOME/.gemini/settings.json"',
+              'ls | tee ~/.claude/x', 'rsync -a /tmp/x/ ~/.claude/agents/', 'mv ~/.gemini/a /tmp/b']:
+        check(f"claude schreibt fragt: {c[:40]}", hook(repo, "claude", "claude", B(c)) == "fragen")
     check("claude Gedächtnis per Bash ja",
           hook(repo, "claude", "claude", B("echo x > ~/.claude/projects/-x/memory/a.md")) == "ja")
     check("claude Write ~/.claude fragt",
@@ -106,10 +122,17 @@ with tempfile.TemporaryDirectory() as t:
     check("lesbar_extern lesen ja", hook(repo, "claude", "claude", R(str(extern / "agenten-normen/x.md"))) == "ja")
     check("lesbar_extern schreiben nein", hook(repo, "claude", "claude", W(str(extern / "agenten-normen/x.md"))) == "nein")
     check("anderswo außerhalb fragt", hook(repo, "claude", "claude", W("/opt/anderswo/x.md")) == "fragen")
+    # Auch per Bash nicht (vorher Lücke: cd … && sed -i … ging durch)
+    for c in [f"cd {extern} && sed -i '' s/a/b/ agenten-normen/x.md", f"cp a.md {extern}/agenten-normen/",
+              f"echo x > {extern}/agenten-normen/x.md", f"git -C {extern} commit -m x", f"cd {extern}; git add -A"]:
+        check(f"lesbar_extern per Bash nein: {c[-35:]}", hook(repo, "claude", "claude", B(c)) == "nein")
+    for c in [f"cat {extern}/agenten-normen/x.md", f"grep -rn x {extern} 2>&1 | head", f"git -C {extern} log --oneline -3",
+              f"diff {extern}/a normen/a >/dev/null", f"bash {extern}/einrichten.sh . --test x"]:
+        check(f"lesbar_extern per Bash lesen ja: {c[-35:]}", hook(repo, "claude", "claude", B(c)) == "ja")
 
     # 4. herkunft.toml, pruefen-Hinweise, aktualisieren
     h = (repo / "normen/herkunft.toml").read_text()
-    check("herkunft: Version", "version = 4" in h)
+    check("herkunft: Version", "version = 5" in h)
     check("herkunft: drei Prüfsummen", h.count(' = "') >= 3 and '"normen/normen.py"' in h)
     check("herkunft: kein lokaler Pfad", str(Path.home()) not in h and str(ROOT) not in h)
     aus = normen(repo, "pruefen", "--nur-melden").stdout
@@ -120,7 +143,7 @@ with tempfile.TemporaryDirectory() as t:
     r = normen(repo, "aktualisieren", "--quelle", str(ROOT))
     check("aktualisieren verweigert bei Handänderung", r.returncode == 1 and "normen/rollen.toml" in r.stderr, r.stderr)
     r = normen(repo0, "aktualisieren", "--quelle", str(ROOT))
-    check("aktualisieren läuft", r.returncode == 0 and "v4 → v4" in r.stdout, r.stdout + r.stderr)
+    check("aktualisieren läuft", r.returncode == 0 and "v5 → v5" in r.stdout, r.stdout + r.stderr)
     r = normen(repo0, "aktualisieren", "--quelle", str(Path(t) / "gibtsnicht"))
     check("aktualisieren: Quelle fehlt", r.returncode == 1)
 

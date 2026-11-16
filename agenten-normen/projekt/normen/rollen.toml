@@ -67,6 +67,8 @@ verantwortet = [
   "Doku schreiben, wenn der Auftrag es erlaubt (nur Pfade aus .normen-auftrag)",
 ]
 faehigkeiten = { schreiben = "ja", sperrpfade-lesen = "nein" }
+# agy darf headless nur freigegebene Befehle ausführen (--settings ersetzt die Allow-Liste); Abnahmebefehle führt Claude aus (Issue #22).
+abnahme_durch_claude = true
 hinweis = "Nie Geheimnisse, personenbezogene Daten oder Forschungsdaten (Google)."
 
 [rollen.explore]

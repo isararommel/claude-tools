@@ -11,8 +11,8 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 4
-stand = "2026-11-15"
+version = 5
+stand = "2026-11-16"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
   "Recherche 14.11.2026: Fehlermuster Claude Code / Mistral Vibe / Gemini CLI + Antigravity (ImpossibleBench, System Cards, GitHub-Issues, Vorfälle)",
@@ -231,9 +231,11 @@ faehigkeiten = ["git-commit", "git-push", "einstellungen"]
   [[norm.muster]]
   ziel = "befehl"
   faehigkeit = "einstellungen"
-  # Nur schreibende Befehle in den Einstellungsordnern der Agenten; reines Lesen (ls, cat, grep, diff …) ist frei.
-  # Ausnahme: Claudes Projekt-Gedächtnis (~/.claude/projects/<projekt>/memory). ~/.ssh und ~/.config/gh: siehe N03.
-  regex = '''((^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|sed\s+-i|perl\s+-[a-z]*i)\b[^;&|\n]*|>>?\s*|\bfind\b[^;&|\n]*)(~|\$HOME|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b([^;&|\n]*\s-(delete|exec))?'''
+  # Nur schreibende Befehle in den Einstellungsordnern der Agenten; reines Lesen (ls, cat, grep, diff, find, cp AUS dem Ordner …) ist frei.
+  # mv/rm/touch/mkdir/chmod/tee/sed -i …: an jeder Stelle; cp/ln/install/rsync: nur mit dem Ordner als Ziel (letztes Argument
+  # oder -t/--target-directory); Umleitung > / >>; find nur mit schreibenden Aktionen (-delete, -exec, -execdir, -ok, -fprint …).
+  # Ausnahme: Claudes Projekt-Gedächtnis (~/.claude/projects/<projekt>/memory). ~/.ssh und ~/.config/gh: siehe N03. (Issue #23)
+  regex = '''((^|[;&|`(\s])(sudo\s+)?(mv|rm|rmdir|touch|mkdir|chmod|chown|tee|truncate|sed\s+-i|perl\s+-[a-z]*i)\b[^;&|\n]*(~|\$HOME|\$\{HOME\}|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b|(^|[;&|`(\s])(sudo\s+)?(cp|ln|install|rsync)\b[^;&|\n]*\s["']?(~|\$HOME|\$\{HOME\}|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b[^\s;&|]*["']?\s*($|[;&|)\n])|(^|[;&|`(\s])(sudo\s+)?(cp|ln|install|mv)\b[^;&|\n]*(\s-t\s*|--target-directory[=\s]\s*)["']?(~|\$HOME|\$\{HOME\}|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b|>>?\s*["']?(~|\$HOME|\$\{HOME\}|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b|\bfind\b[^;&|\n]*(~|\$HOME|\$\{HOME\}|/Users/[^/\s]+|/home/[^/\s]+)/\.(claude(?!/projects/[^/\s]+/memory\b)|vibe|gemini|antigravity)\b[^;&|\n]*\s-(delete|exec|execdir|ok|okdir|fprint0?|fprintf|fls)\b)'''
   meldung = "Schreiben in Einstellungsordnern der Agenten (Lesen ist frei)."
   [[norm.muster]]
   ziel = "befehl"

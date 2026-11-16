@@ -31,15 +31,18 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
 
 3. Ergebnis auslesen:
    - `tail -n 80 "$RUN/antwort.txt"`
-   - `python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('exit_code'),d.get('error'),d.get('cost_usd'),d['usage'])"`
-   - Exit-Code 3 = Zeitlimit erreicht. Dann einmal mit `-c` und einem Fortsetzungs-Prompt (gleiche Optionen) weitermachen.
-   - „Reading API keys from the macOS Keychain“ ist normal. Log-Warnungen „Model ... is not available“ beim Start sind bekannt und harmlos (laut Sitzungsjournal laufen die richtigen Modelle).
+   - `python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('exit_code'),d.get('error'),d.get('cost_usd'),d.get('steps'),d.get('config',{}).get('active_model'),d['usage'])"`
+   - `outcome` sagt, warum Vibe aufhörte: `turn_limit` = alle `--max-turns` verbraucht (Auftrag zu groß → Claude soll ihn teilen), sonst Zeitlimit (`--time-limit`). Die Zahl der Runden steht in `steps` – genau diese Zahl berichten, nicht schätzen. Nur beim Zeitlimit einmal mit `-c` und einem Fortsetzungs-Prompt fortsetzen; bei `turn_limit` an Claude melden.
+   - **Modell prüfen:** `config.active_model` muss das Modell des Teamleiters sein (Mistral Large). Steht dort etwas anderes (z. B. `mistral-medium-3.5`) oder meldet `antwort.txt` „Model … is not available“, ist Vibe auf ein schwächeres Modell ausgewichen: im Bericht als Erstes nennen (Issue #25).
+   - **Hooks prüfen:** Meldet `antwort.txt` beim Start einen Fehler zu `hooks.toml` (z. B. „name: Field required“), greifen die Normen-Hooks nicht. Dann Status „gescheitert“ und an Claude melden – das Ergebnis nicht als normal abliefern.
+   - „Reading API keys from the macOS Keychain“ ist normal.
 
 4. Kurz prüfen (erlaubt, kein Selbst-Erledigen): `git status --short` VOR und NACH dem Lauf vergleichen – fehlt danach eine Datei, die vorher da war, sofort an Claude melden. Außerdem `git diff --stat`, bei Code-Aufträgen den Testbefehl aus dem Auftrag (nur die letzten Zeilen). Prüfe, dass nur erlaubte Dateien geändert wurden.
 
 ## Bericht an Claude (kompakt, Deutsch)
 
 - Status: erfolgreich / teilweise / gescheitert (mit wörtlicher Fehlermeldung)
+- Modell (`active_model`), `outcome` und Runden (`steps`) aus export.json – wörtlich
 - Geänderte Dateien (aus `git status`) und Testergebnis
 - Vibes Zusammenfassung, höchstens 20 Zeilen
 - Verbrauch: Tokens und Kosten aus export.json

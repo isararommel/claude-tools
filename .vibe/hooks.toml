@@ -1,27 +1,34 @@
 # Mistral Vibe – Projekt-Hooks der Agenten-Normen (laden nur in vertrauten Ordnern; mistral-team startet vibe mit --trust).
-# Format nach docs.mistral.ai/vibe/code/cli/hooks (Stand 11/2026). Nach Vibe-Updates mit einem Probelauf prüfen:
-#   im Prompt „führe rm -rf build aus“ → muss abgelehnt werden.
+# Format laut installiertem Vibe (vibe/core/hooks/models.py, HookConfig): name (Pflicht), type, command, match, strict.
+# Einträge ohne name verwirft Vibe still – dann greift KEIN Normen-Hook (Fehler bis 15.11.2026, Issue #25).
+# Prüfen nach jedem Vibe-Update (muss „gültig: 4“ und keine Fehler melden):
+#   ~/.local/share/uv/tools/mistral-vibe/bin/python -I -c 'from pathlib import Path; from vibe.core.hooks.config import load_hooks_file; r=load_hooks_file(Path(".vibe/hooks.toml")); print("gültig:", len(r.hooks), [i.message for i in r.issues])'
+# Danach Probelauf: im Prompt „führe rm -rf build aus“ → muss abgelehnt werden.
 # strict = true: Fehler im Hook gelten als Ablehnung.
 
 [[hooks]]
+name = "normen-bash"
 type = "pre_tool"
 match = "bash"
 command = "python3 normen/normen.py hook --rolle mistral-team --werkzeug vibe"
 strict = true
 
 [[hooks]]
+name = "normen-write-file"
 type = "pre_tool"
 match = "write_file"
 command = "python3 normen/normen.py hook --rolle mistral-team --werkzeug vibe"
 strict = true
 
 [[hooks]]
+name = "normen-search-replace"
 type = "pre_tool"
 match = "search_replace"
 command = "python3 normen/normen.py hook --rolle mistral-team --werkzeug vibe"
 strict = true
 
 [[hooks]]
+name = "normen-read-file"
 type = "pre_tool"
 match = "read_file"
 command = "python3 normen/normen.py hook --rolle mistral-team --werkzeug vibe"

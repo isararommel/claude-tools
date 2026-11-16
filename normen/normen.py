@@ -150,6 +150,32 @@ def _lesbar_extern(cfg) -> list[Path]:
     return aus
 
 
+# Schreibende Shell-Befehle (wie im N10-Muster): schreiben an jeder Stelle bzw. als Ziel, Umleitung, git-Schreibbefehle.
+_SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+(-[cC]\s+\S+\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
+
+
+def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None:
+    """Gibt den lesbar_extern-Ordner zurück, in den ein Bash-Befehl schreiben könnte (sonst None). Bewusst streng:
+    jeder Teilbefehl mit Schreibverb oder Umleitung, der den Ordner nennt (auch per cd oder git -C), zählt."""
+    if not ordner:
+        return None
+    for q in ordner:
+        formen = {str(q)}
+        if str(q).startswith("/private/"):          # macOS: realpath macht aus /var, /tmp, /etc → /private/…
+            formen.add(str(q)[len("/private"):])
+        home = str(Path.home())
+        if str(q).startswith(home + "/"):
+            rest = str(q)[len(home):]
+            formen |= {"~" + rest, "$HOME" + rest, "${HOME}" + rest}
+        nennt = [f for f in formen if f in cmd]
+        if not nennt and not (Path(os.path.realpath(cwd)) == q or q in Path(os.path.realpath(cwd)).parents):
+            continue
+        # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
+        if re.search(_SCHREIB_VERB, cmd) or re.search(r">>?\s*[^&\s]", re.sub(r"\d?>&\d|[0-9]?>\s*/dev/null", "", cmd)):
+            return q
+    return None
+
+
 # Befehlsketten in Einzelbefehle trennen (für Ausnahmen je Teilbefehl).
 SEGMENT = re.compile(r"&&|\|\||[;|&\n]")
 
@@ -297,6 +323,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple
             gruende.append((e, f"{text} [Fähigkeit {faehigkeit}: {e} für Rolle {rolle}]"))
 
     for cmd in befehle:
+        if (q := _bash_schreibt_extern(cmd, cwd, _lesbar_extern(cfg))) is not None:
+            gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Befehl schreibt möglicherweise in {q} ([pfade].lesbar_extern – nur lesen)"))
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
@@ -853,8 +881,12 @@ def cmd_auftrag(a) -> int:
     gesperrt = pj.get("pfade", {}).get("gesperrt", [])
     if gesperrt and darf(cfg, a.rolle, "sperrpfade-lesen") != "ja":
         z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
-    z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
-             "beide Befehle mit Ergebnis in den Bericht.")
+    if cfg["rollen"][a.rolle].get("abnahme_durch_claude"):
+        z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
+                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
+    else:
+        z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
+                 "beide Befehle mit Ergebnis in den Bericht.")
     print("\n".join(z))
     return 0
 

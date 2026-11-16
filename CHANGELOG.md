@@ -4,6 +4,22 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v5 – 2026-11-16
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`; zusätzlich `.vibe/hooks.toml` übernehmen und die Agent-Definitionen nach `~/.claude/agents/` kopieren)
+
+### Behoben
+- **Vibe-Hooks waren wirkungslos (#25):** In `.vibe/hooks.toml` fehlte bei allen vier Einträgen das Pflichtfeld `name`; Vibe 3.x verwarf sie still, die Normen-Hooks griffen in Vibe nicht. Jetzt mit `name`, geprüft mit dem Lader der installierten Vibe-Version (Prüfbefehl steht in der Datei).
+- **N10 zu streng (#23):** Reines Lesen aus `~/.gemini` usw. (`find … -newer`, `cp -n ~/.gemini/… docs/…`) löste eine Rückfrage aus. `find` zählt nur noch mit schreibenden Aktionen (`-delete`, `-exec`, `-execdir`, `-ok`, `-fprint` …), `cp`/`ln`/`install`/`rsync` nur mit dem Einstellungsordner als Ziel (auch `-t`/`--target-directory`). Neu erkannt: `>> "$HOME/…"` mit Anführungszeichen.
+- **N06 zu locker:** `[pfade].lesbar_extern` galt nur für Edit/Write; Bash-Befehle (`cd … && sed -i …`, `cp … <ordner>/`, `git -C <ordner> commit`, Umleitung) gingen durch. Jetzt gesperrt.
+- **agy-Schreibmodus (#22):** `normen.py auftrag --rolle gemini-analyst` verlangt keine Abnahmebefehle mehr (neues Rollenfeld `abnahme_durch_claude`); agy headless darf nur freigegebene Befehle ausführen.
+
+### Agent-Definitionen (`multi-ki/benutzer/agents/`)
+- `gemini-analyst.md`: Freigabeliste um Lesebefehle ergänzt (`--settings` ersetzt die globale agy-Liste), Bildmodus mit `read_file`-Freigabe für Lauf- und Bildordner, Bildgröße je Seitenverhältnis.
+- `mistral-team.md`: Modell (`active_model`), `outcome` und `steps` aus `export.json` prüfen und berichten; „Model … not available“ und `hooks.toml`-Fehler nicht mehr als harmlos behandeln.
+
+---
+
 ## v4 – 2026-11-15
 
 **Aktualisieren nötig:** ja
