@@ -46,7 +46,7 @@ bash ~/Documents/Projekte/claude-tools/multi-ki/einrichten.sh <projekt> \
 ## Stand der Agent-Dateien
 - `benutzer/agents/*.md` sind Kopien der echten Fassungen aus `~/.claude/agents/` (Stand 14.11.2026, inkl. `command(make test)` in der
   agy-Freigabeliste). Abgleich mit `~/.claude/agents/`: Claude darf lesen (Normen v4), ändern nur mit Zustimmung der Inhaberin; siehe `benutzer/agents/LIES-MICH.md`.
-- `gemini-analyst.md` enthält seit 14.11.2026 einen **Bildmodus**: agy erzeugt mit `generate_image` 3–5 Kandidaten (JPG, 1024 px),
+- `gemini-analyst.md` enthält seit 14.11.2026 einen **Bildmodus**: agy erzeugt mit `generate_image` 3–5 Kandidaten (JPG, Größe je Seitenverhältnis, z. B. 1:1 → 1024 × 1024, 16:9 → 1376 × 768; seit agy 1.5.9 mit read_file-Freigabe),
   der Agent kopiert sie mit `cp -n` nach `docs/gemini/kandidaten/`.
 
 - Seit 15.11.2026: **Claude schreibt die Prompt-Datei selbst** (Write-Werkzeug, Lauf-Ordner unter `$TMPDIR`), die Schnittstellen starten nur

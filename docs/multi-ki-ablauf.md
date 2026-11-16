@@ -165,7 +165,7 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 # „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“
 RUN="${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
-ALLOW='{"permissions":{"allow":["command(git log)","command(git log*)","command(git diff)","command(git diff*)","command(git status)","command(git status*)","command(git show*)","command(swift build)","command(swift build*)","command(swift test)","command(swift test*)"]}}'
+ALLOW='{"permissions":{"allow":["command(git log)","command(git log*)","command(git diff)","command(git diff*)","command(git status)","command(git status*)","command(git show*)","command(swift build)","command(swift build*)","command(swift test)","command(swift test*)","command(python3 normen/normen.py pruefen)","command(python3 normen/normen.py pruefen*)","command(ls)","command(ls *)","command(cat *)","command(head *)","command(tail *)","command(wc *)","command(grep *)","command(rg *)","command(pwd)","command(tree)","command(tree *)"]}}'
 
 # Analyse (nur lesen; im Prompt: „Ändere keine Dateien.“)
 agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \
