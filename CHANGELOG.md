@@ -4,7 +4,7 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
-## v7 – in Arbeit
+## v7 – 2026-11-16
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)
 
