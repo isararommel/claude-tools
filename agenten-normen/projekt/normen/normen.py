@@ -463,6 +463,83 @@ def _ohne_textdaten(cmd: str) -> str:
     return "\n".join(aus)
 
 
+_HEREDOC_AUF = re.compile(r"(?<!<)<<-?\s*(['\"]?)(\w+)\1")
+_AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
+_INTERPRETER = re.compile(r"python3?(\.\d+)?|bash|sh|zsh|node|perl|ruby")
+_PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
+_PRAEFIX_WORT = {"time", "nice", "nohup", "command"}
+
+
+def _praefixe_ueberspringen(w: list[str]) -> int:
+    """Index des ersten Wortes nach Präfixen vor dem eigentlichen Befehl:
+    NAME=wert, time, env (samt -i, -u NAME und NAME=wert), nice, nohup, command."""
+    i = 0
+    while i < len(w):
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or w[i] in _PRAEFIX_WORT:
+            i += 1
+        elif w[i] == "env":
+            i += 1
+            while i < len(w) and (w[i] == "-i" or (w[i] == "-u" and i + 1 < len(w))
+                                  or _PRAEFIX_ZUWEISUNG.fullmatch(w[i])):
+                i += 2 if w[i] == "-u" else 1
+        else:
+            break
+    return i
+
+
+def _ist_interpreter_zeile(z: str, pos: int) -> bool:
+    """True, wenn der Befehl vor dem Heredoc-Operator an Position pos ein Interpreter ist (dessen Rumpf ist Code)."""
+    teil = z[:pos]
+    try:
+        w = shlex.split(teil)
+    except ValueError:
+        w = teil.split()
+    i = _praefixe_ueberspringen(w)
+    return i < len(w) and bool(_INTERPRETER.fullmatch(w[i].rsplit("/", 1)[-1]))
+
+
+def _ohne_heredoc_daten(cmd: str) -> str:
+    """Entfernt Heredoc-Rümpfe, die per Ausgabe-Umleitung in eine Datei geschrieben werden (reine Daten);
+    Aufrufzeile und Endmarke bleiben. Rümpfe von Interpreter-Aufrufen (python3, bash, sh, zsh, …), Heredocs
+    ohne Umleitung und Aufrufzeilen mit Kette (`| bash`, `&& …`, `; …`) bleiben – dort gilt die Zeilenprüfung."""
+    zeilen, aus, i = cmd.split("\n"), [], 0
+    while i < len(zeilen):
+        z = zeilen[i]
+        m = _HEREDOC_AUF.search(z)
+        if (m and len(_segmente(z)) == 1 and not _ist_interpreter_zeile(z, m.start())
+                and _AUSGABE_UMLEITUNG.search(z)):
+            ende = m.group(2)
+            aus.append(z)
+            i += 1
+            while i < len(zeilen) and zeilen[i].strip() != ende:
+                i += 1
+            if i < len(zeilen):
+                aus.append(zeilen[i])  # Endmarke bleibt
+                i += 1
+            continue
+        aus.append(z)
+        i += 1
+    return "\n".join(aus)
+
+
+def _heredoc_rumpf(cmd: str, seg: str) -> str | None:
+    """Rumpf des Heredocs aus der Aufrufzeile seg innerhalb des ganzen Befehls cmd (None = nicht erkennbar)."""
+    m = _HEREDOC_AUF.search(seg)
+    if m is None:
+        return None
+    ende = m.group(2)
+    zeilen = cmd.split("\n")
+    start = next((k for k, z in enumerate(zeilen) if seg.strip() and seg.strip() in z), None)
+    if start is None:
+        return None
+    rumpf = []
+    for z in zeilen[start + 1:]:
+        if z.strip() == ende:
+            return "\n".join(rumpf)
+        rumpf.append(z)
+    return None
+
+
 def _rolle_frei(rinfo: dict, ziel: Path) -> bool:
     """Ziel liegt in [rollen.X].frei_schreiben (Globs, ~ und Umgebungsvariablen erlaubt)."""
     for g in rinfo.get("frei_schreiben", []):
@@ -503,14 +580,14 @@ def _auftrag_globs() -> list[str] | None:
     return [z.strip() for z in AUFTRAG.read_text(encoding="utf-8").splitlines() if z.strip() and not z.startswith("#")]
 
 
-def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple[str, list[str]]:
-    """Liefert (ja|fragen|nein, Gründe)."""
+def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: int = 0) -> tuple[str, list[str]]:
+    """Liefert (ja|fragen|nein, Gründe). _tiefe: Verschachtelung der bash/sh/zsh -c-Rekursion (ab 3 „fragen“)."""
     pf = cfg["projekt"].get("pfade", {})
     rinfo = cfg["rollen"].get(rolle, {})
     befehle: list[str] = []
     pfade: list[str] = []
     _sammeln(eingabe, {"command", "cmd", "script"}, befehle)
-    befehle = [_ohne_textdaten(c) for c in befehle]
+    befehle = [_ohne_heredoc_daten(_ohne_textdaten(c)) for c in befehle]
     _sammeln(eingabe, {"file_path", "path", "absolute_path", "filePath", "notebook_path", "paths", "target_file", "file"}, pfade)
     art = _art(tool, befehle)
     gruende: list[tuple[str, str]] = []
@@ -561,9 +638,9 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple
         for s in pf.get("gesperrt", []):
             if s and s in cmd:
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
-        if rolle != "skript":  # S06: Skripte außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
-            for seg in SEGMENT.split(cmd):
-                gruende.extend(_skript_im_befehl(cfg, seg, cwd))
+        if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
+            for seg in _segmente(cmd):  # _segmente: Trenner in Anführungszeichen bleiben im Teilbefehl
+                gruende.extend(_skript_im_befehl(cfg, seg, cmd, cwd, rolle, _tiefe))
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -729,8 +806,8 @@ def _ist_sys_executable(node) -> bool:
 
 
 class _Skript:
-    def __init__(self, cfg, skript: Path, baum: ast.Module, cwd: str):
-        self.cfg, self.skript, self.lauf, self.cwd = cfg, skript, skript.parent, cwd
+    def __init__(self, cfg, baum: ast.Module, cwd: str, lauf: Path | None, skript: Path | None = None):
+        self.cfg, self.lauf, self.cwd, self.skript = cfg, lauf, cwd, skript
         self.funde: list[tuple[str, str]] = []
         anzahl: dict[str, int] = {}
         self.knoten: dict[str, ast.expr] = {}
@@ -799,7 +876,7 @@ class _Skript:
             self.fund("fragen", node, "Schreibziel nicht statisch bestimmbar")
             return
         z = Path(os.path.realpath(p))
-        if z != self.lauf and self.lauf not in z.parents:
+        if self.lauf is None or z != self.lauf and self.lauf not in z.parents:
             self.fund("nein", node, f"schreibt außerhalb des Lauf-Ordners: {z}")
 
     def lesen(self, quelle, node):
@@ -961,14 +1038,14 @@ def _befehl_stufe(cfg, w: list[str], cwd: str) -> tuple[str, str]:
     return "fragen", f"`{befehl}` nicht in der Positivliste"
 
 
-def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
-    """Code-Mode-Skript per AST prüfen (S06): (ja|fragen|nein, Gründe)."""
+def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str) -> tuple[str, list[str]]:
+    """Quelltext per AST prüfen (S06): (ja|fragen|nein, Gründe). lauf=None → Inline-Code: jedes aufgelöste
+    Schreibziel liegt außerhalb des Lauf-Ordners; __file__ ist dann nicht auflösbar."""
     try:
-        skript = Path(os.path.realpath(pfad))
-        baum = ast.parse(skript.read_text(encoding="utf-8"), str(skript))
-    except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as e:
-        return "nein", [f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})"]
-    s = _Skript(cfg, skript, baum, cwd)
+        baum = ast.parse(quelltext, name)
+    except (SyntaxError, ValueError) as e:
+        return "nein", [f"S06-CODE-MODE: {name} nicht prüfbar ({type(e).__name__}: {e})"]
+    s = _Skript(cfg, baum, cwd, lauf, Path(name) if lauf is not None else None)
     for node in ast.walk(baum):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             s.importe(node)
@@ -979,38 +1056,81 @@ def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
     return max((f[0] for f in s.funde), key=lambda x: RANG[x]), [f[1] for f in s.funde]
 
 
-def _skript_im_befehl(cfg, seg: str, cwd: str) -> list[tuple[str, str]]:
-    """`python3 [-I …] <datei>.py …` mit Datei außerhalb des Projekts → Befunde aus skript_pruefen."""
+def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
+    """Code-Mode-Skript per AST prüfen (S06): (ja|fragen|nein, Gründe)."""
+    try:
+        skript = Path(os.path.realpath(pfad))
+        quelltext = skript.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return "nein", [f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})"]
+    return code_pruefen(cfg, quelltext, skript.parent, cwd, str(skript))
+
+
+def _skript_im_befehl(cfg, seg: str, cmd: str, cwd: str, rolle: str, tiefe: int = 0) -> list[tuple[str, str]]:
+    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd): `python3 … <datei>.py`
+    mit Datei außerhalb des Projekts, `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST) sowie
+    `bash|sh|zsh -c CODE` (rekursiv bewertet). Liefert Befunde (stufe, grund)."""
     try:
         w = shlex.split(seg)
-    except ValueError:  # z. B. `python3 x.py "a|b"`: SEGMENT trennt im Zitat – Python-Aufruf nie ungeprüft durchlassen
-        if re.match(r"\s*(\S*/)?python3?(\.\d+)?(\s|$)", seg):
-            return [("fragen", "S06-CODE-MODE: Python-Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Skript nicht prüfbar")]
+    except ValueError:  # z. B. `python3 x.py "a|b"`: unbalanciertes Zitat im Code – nie ungeprüft durchlassen
+        if re.search(r"(^|\s)(\S*/)?python3?(\.\d+)?(\s|$)", seg) or re.search(r"(^|\s)(?:ba|z)?sh\s+-c(?:\s|$)", seg):
+            return [("fragen", "S06-CODE-MODE: Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Code nicht prüfbar")]
         return []
-    if not w or not PYTHON.match(w[0].rsplit("/", 1)[-1]):
+    i = _praefixe_ueberspringen(w)  # NAME=wert, time, env …, nice, nohup, command vor dem Interpreter
+    if i >= len(w):
         return []
-    i = 1
-    while i < len(w):
-        if w[i] in ("-c", "-m", "-"):
+    prog = w[i].rsplit("/", 1)[-1]
+    rest = w[i + 1:]
+    if PYTHON.match(prog):
+        j = 0
+        while j < len(rest):
+            a = rest[j]
+            if a == "-c":
+                if j + 1 >= len(rest):
+                    return [("fragen", "S06-CODE-MODE: python3 -c ohne Code – nicht prüfbar")]
+                code = _VAR_RX.sub(lambda m: os.environ.get(m.group(1) or m.group(2), "X"), rest[j + 1])
+                stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} -c)")
+                return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+            if a == "-":
+                if _HEREDOC_AUF.search(seg) is None:
+                    return []  # python3 - ohne Heredoc (stdin): wie bisher nicht prüfbar
+                rumpf = _heredoc_rumpf(cmd, seg)
+                if rumpf is None:
+                    return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht erkennbar – nicht prüfbar")]
+                stufe, gruende = code_pruefen(cfg, rumpf, None, cwd, f"Inline-Code ({prog} - <<Heredoc)")
+                return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+            if a == "-m":
+                return []
+            if a in ("-X", "-W"):
+                j += 2
+            elif a.startswith("-"):
+                j += 1
+            else:
+                break
+        if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _HEREDOC_AUF.search(seg):
+            rumpf = _heredoc_rumpf(cmd, seg)  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
+            if rumpf is None:
+                return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht erkennbar – nicht prüfbar")]
+            stufe, gruende = code_pruefen(cfg, rumpf, None, cwd, f"Inline-Code ({prog} <<Heredoc)")
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        if j >= len(rest) or not rest[j].endswith(".py"):
             return []
-        if w[i] in ("-X", "-W"):
-            i += 2
-        elif w[i].startswith("-"):
-            i += 1
-        else:
-            break
-    if i >= len(w) or not w[i].endswith(".py"):
-        return []
-    roh = os.path.expanduser(os.path.expandvars(w[i]))
-    if "$" in roh:
-        return [("fragen", f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({w[i]}) – nicht prüfbar")]
-    datei = Path(os.path.realpath(Path(cwd) / roh))
-    if datei == ROOT or ROOT in datei.parents:
-        if not datei.exists():  # z. B. `cd <anderswo> && python3 x.py`: relativ zum Hook-cwd falsch aufgelöst
-            return [("fragen", f"S06-CODE-MODE: Skript {w[i]} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
-        return []  # Projektskripte wie bisher
-    stufe, gruende = skript_pruefen(cfg, datei, cwd)
-    return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        roh = os.path.expanduser(os.path.expandvars(rest[j]))
+        if "$" in roh:
+            return [("fragen", f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({rest[j]}) – nicht prüfbar")]
+        datei = Path(os.path.realpath(Path(cwd) / roh))
+        if datei == ROOT or ROOT in datei.parents:
+            if not datei.exists():  # z. B. `cd <anderswo> && python3 x.py`: relativ zum Hook-cwd falsch aufgelöst
+                return [("fragen", f"S06-CODE-MODE: Skript {rest[j]} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
+            return []  # Projektskripte wie bisher
+        stufe, gruende = skript_pruefen(cfg, datei, cwd)
+        return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+    if prog in ("bash", "sh", "zsh") and len(rest) >= 2 and rest[0] == "-c":
+        if tiefe >= 3:
+            return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
+        stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[1]}, cwd, _tiefe=tiefe + 1)
+        return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+    return []
 
 
 def cmd_skript(a) -> int:

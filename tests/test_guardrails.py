@@ -115,6 +115,12 @@ with tempfile.TemporaryDirectory() as t:
         ("cat > CLAUDE.md <<'EOF'\nx\nEOF", "fragen"),
         ('python3 -c "import urllib.request"', "fragen"),
         ("bash -c 'rm -rf /tmp/normen-g4'", "fragen"),
+        # Rückschritte: Heredoc mit Umleitung UND Kette ist kein reiner Datenrumpf; python3 ohne `-` liest den Heredoc als Code
+        ("cat <<'EOF' 2>/dev/null | bash\ngit push --force\nEOF", "fragen"),
+        ("cat > /tmp/normen-g4.sh <<'EOF' && bash /tmp/normen-g4.sh\ngit push --force\nEOF", "fragen"),
+        ("cat <<'EOF' > /tmp/normen-g4.txt; bash\ngit push --force\nEOF", "fragen"),
+        ("python3 <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
+        ("python3 /dev/stdin <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
     ]
     for befehl, soll in inline:
         check(f"G4-A {soll}: {befehl[:60]!r}", hook(repo, "claude", "claude", befehl) == soll)
