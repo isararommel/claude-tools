@@ -37,7 +37,7 @@ Vor der Ausführung offene Parameter in **einer einzigen gebündelten Frage** an
 
 1. **Zweck und Sprache:** Was ist das Ziel des Repositorys und welche Projektsprache gilt für Code und Dokumentation? *(Vorschlag: Deutsch für Doku, Englisch für Code).*
 2. **Testbefehl:** Welcher Befehl führt die Testsuite aus? *(Vorschlag: `make test`, `pytest`, `swift test` oder `npm test` – muss sofort lauffähig und grün sein).*
-3. **Sensible Pfade:** Welche Pfade enthalten vertrauliche Informationen, Geheimnisse, Kundendaten oder Forschungsdaten? *(Vorschlag: `daten/`, `secrets/`, `*.env`).*
+3. **Sensible Pfade:** Welche Pfade enthalten vertrauliche Informationen, Geheimnisse, Kundendaten oder Forschungsdaten, und welche Textmarker kennzeichnen Forschungsdaten (z. B. `PROBAND-`)? *(Vorschlag: `daten/`, `secrets/`, `*.env`).*
 4. **Sichtbarkeit:** Bleibt das Repository privat oder wird es öffentlich?
 5. **Team-Freigaben:** Dürfen Mistral Vibe (`mistral-team`) und Google Antigravity (`gemini-analyst`) eingesetzt werden? *(Hinweis: Google Antigravity nie bei personenbezogenen Daten oder Forschungsdaten).*
 6. **Rückmeldungs-Repository:** Welches private GitHub-Repository dient als Ziel für `normen.py melden`? *(Muss ein privates Repository der Inhaberin sein).*
@@ -72,6 +72,8 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 - `[pfade].gesperrt`: Vollständige Liste sensibler Pfade (Zugriff für externe Teams gesperrt).
 - `[pfade].loeschbar`: Erlaubte Wegwerfpfade für schadlose `rm`-Befehle (z. B. `.venv`, `build`, `.pytest_cache`, `node_modules`, `${TMPDIR}`).
 - `[pfade].lesbar_extern`: Standardmäßig `["~/Documents/Projekte/claude-tools"]` (Lesen gestattet, Schreiben strikt gesperrt).
+- `[pfade].forschungsdaten`: Pfad-Globs (z. B. `daten/roh/**`) und Textmarker (z. B. `PROBAND-`) – für Antigravity gesperrt, Mistral Vibe fragt.
+- `[mcp].fragen` / `[mcp].nein`: Globs über volle MCP-Werkzeugnamen (z. B. `mcp__*__container_restart`) für Rückfrage bzw. Sperrung; Unbekanntes erlaubt, `nein` vor `fragen`.
 - `[rueckmeldung].repo`: Privates Ziel-Repository für Fehlermeldungen (z. B. `inhaberin/werkzeuge-privat`). **Muss ein privates Repository sein!**
 - `[quelle].pfad`: Pfad zur lokalen Vorlage (`~/Documents/Projekte/claude-tools`).
 
@@ -106,6 +108,7 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 Vor dem ersten Commit folgende Punkte ausführen und prüfen:
 
 - [ ] **Testbefehl:** Eigener Testbefehl läuft erfolgreich durch (`make test`).
+- [ ] **Selbsttest:** `python3 normen/normen.py selbsttest` meldet „gesperrt“ für `claude` und `vibe` (beweist aktive Hooks).
 - [ ] **Normen-Prüfung:** `python3 normen/normen.py pruefen --diff` meldet keine Fehler.
 - [ ] **Auftrags-Simulation:**
   ```bash

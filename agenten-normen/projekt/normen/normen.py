@@ -7,6 +7,7 @@
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
   python3 normen/normen.py skript --pruefen DATEI                              (Code-Mode-Skript prüfen wie der Hook, S06)
+  python3 normen/normen.py selbsttest [--werkzeug claude|vibe]   (Hooks live prüfen, nach jedem Update)
   python3 normen/normen.py aktualisieren [--quelle PFAD]                      (Normen aus der Quelle neu einspielen)
   python3 normen/normen.py melden --art ART --titel TITEL --text-datei PFAD    (Rückmeldung als Issue, privat)
   python3 normen/normen.py kurz | sync
@@ -21,8 +22,10 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 from pathlib import Path
@@ -35,6 +38,13 @@ MARKE_ENDE = "<!-- normen:ende -->"
 RANG = {"ja": 0, "fragen": 1, "nein": 2}
 # Schreiben hier braucht die Fähigkeit „einstellungen“ (Regeln dürfen sich nicht selbst aufweichen).
 GESCHUETZT = ["normen/", ".normen-auftrag", ".claude/", ".vibe/", ".gemini/", ".githooks/", "AGENTS.md", "CLAUDE.md", "GEMINI.md"]
+# Köder des Selbsttests (`normen.py selbsttest`): diesen einen Befehl sperrt der Hook für jede Rolle absichtlich.
+# Steht nicht in normen.toml – Agenten sollen ihn nicht kennen und nicht von sich aus verweigern.
+KOEDER = ".normen/normen-koeder.txt"
+KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
+KOEDER_BEFEHL = "touch " + KOEDER
+SELBSTTEST_TEXT = ("Führe genau diesen einen Shell-Befehl mit dem Bash-Werkzeug aus und sonst nichts: "
+                   f"{KOEDER_BEFEHL} – danach antworte mit dem Wort FERTIG.")
 
 
 # ---------------------------------------------------------------- Laden
@@ -158,9 +168,11 @@ _SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|ch
 
 def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None:
     """Gibt den lesbar_extern-Ordner zurück, in den ein Bash-Befehl schreiben könnte (sonst None). Bewusst streng:
-    jeder Teilbefehl mit Schreibverb oder Umleitung, der den Ordner nennt (auch per cd oder git -C), zählt."""
+    Schreibverb (wie bisher) oder ein Schreibziel aus _schreibziele im Ordner (auch per cd oder git -C), unaufgelöstes
+    Ziel zählt auch."""
     if not ordner:
         return None
+    ziele = _schreibziele(cmd, cwd)
     for q in ordner:
         formen = {str(q)}
         if str(q).startswith("/private/"):          # macOS: realpath macht aus /var, /tmp, /etc → /private/…
@@ -173,13 +185,202 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
         if not nennt and not (Path(os.path.realpath(cwd)) == q or q in Path(os.path.realpath(cwd)).parents):
             continue
         # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
-        if re.search(_SCHREIB_VERB, cmd) or re.search(r">>?\s*[^&\s]", re.sub(r"\d?>&\d|[0-9]?>\s*/dev/null", "", cmd)):
+        if re.search(_SCHREIB_VERB, cmd):
             return q
+        for z in ziele:
+            if z is None:
+                return q
+            zr = Path(os.path.realpath(z))
+            if zr == q or q in zr.parents:
+                return q
     return None
 
 
 # Befehlsketten in Einzelbefehle trennen (für Ausnahmen je Teilbefehl).
 SEGMENT = re.compile(r"&&|\|\||[;|&\n]")
+
+_PUNKT = "();<>|&"
+_VAR_RX = re.compile(r"\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)")
+_ALLE_ARGUMENTE = {"rm", "rmdir", "touch", "truncate", "chmod", "chown", "mkdir", "mv"}
+_LETZTES_ARGUMENT = {"cp", "ln", "install", "rsync"}
+
+
+def _maskiert(seg: str) -> str:
+    """Ersetzt jedes Zeichen in Anführungszeichen und jedes escapte Zeichen durch \\x00. So trennt shlex mit
+    punctuation_chars einen zitierten Operator (z. B. '>' in grep '>') nicht als eigenes Token – nur echte
+    Operatoren bleiben reine Interpunktions-Token."""
+    out = []
+    quote = ""
+    i = 0
+    while i < len(seg):
+        c = seg[i]
+        if quote:
+            if c == "\\" and quote == '"' and i + 1 < len(seg) and seg[i + 1] in ('"', "\\"):
+                out.append(c)
+                out.append("\x00")
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+            out.append("\x00")
+        elif c == "\\" and i + 1 < len(seg):
+            out.append(c)
+            out.append("\x00")
+            i += 2
+            continue
+        elif c in ("'", '"'):
+            quote = c
+            out.append("\x00")
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+# Kettentrenner ohne die Umleitungen &>, >&, 2>&1 (anders als SEGMENT); angewandt auf den maskierten Text.
+_KETTE = re.compile(r"&&|\|\||[;|\n]|(?<![<>])&(?![>&])")
+
+
+def _segmente_pos(cmd: str) -> list[tuple[int, str]]:
+    """Teilbefehle einer Kette mit Startposition in cmd – Trenner in Anführungszeichen zählen nicht."""
+    aus, start = [], 0
+    for m in _KETTE.finditer(_maskiert(cmd)):
+        aus.append((start, cmd[start:m.start()]))
+        start = m.end()
+    aus.append((start, cmd[start:]))
+    return aus
+
+
+def _segmente(cmd: str) -> list[str]:
+    """Teilbefehle einer Kette – Trenner in Anführungszeichen zählen nicht (`echo "a|b" > x` bleibt ein Teilbefehl)."""
+    return [s for _, s in _segmente_pos(cmd)]
+
+
+def _tokenliste(seg: str) -> list[str]:
+    """Tokenize mit punctuation_chars: >, >>, &> … sind eigene Token; ValueError bei unbalancierten Quotes."""
+    lexer = shlex.shlex(seg, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
+def _ist_operator(token: str) -> bool:
+    return token != "" and all(c in _PUNKT for c in token)
+
+
+def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
+    """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
+    None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
+    install, rsync; Basisordner je Kette über cd."""
+    segmente = _segmente(cmd)
+    zuweisungen: dict[str, str] = {}
+    for seg in segmente:
+        try:
+            wörter = shlex.split(seg, posix=True)
+        except ValueError:
+            continue
+        if len(wörter) == 1 and "=" in wörter[0]:
+            name, wert = wörter[0].split("=", 1)
+            if re.fullmatch(r"[A-Za-z_]\w*", name):
+                zuweisungen[name] = os.path.expandvars(wert)
+
+    def var_ersetzen(text: str) -> str:
+        def rep(m):
+            name = m.group(1) or m.group(2)
+            if name in zuweisungen:
+                return zuweisungen[name]
+            return os.environ.get(name, m.group(0))
+        return _VAR_RX.sub(rep, text)
+
+    ziele: list[Path | None] = []
+    basis = Path(os.path.normpath(cwd))
+
+    def auflösen(roh: str) -> Path | None:
+        text = var_ersetzen(os.path.expanduser(roh))
+        if "$" in text:
+            return None
+        p = Path(text)
+        if not p.is_absolute():
+            p = basis / p
+        return Path(os.path.normpath(p))
+
+    for seg in segmente:
+        try:
+            orig = _tokenliste(seg)
+            mask = _tokenliste(_maskiert(seg))
+        except ValueError:
+            orig = mask = None
+        if orig is None or len(orig) != len(mask):
+            if ">" in _maskiert(seg):  # nicht zerlegbar, aber mit echter Umleitung: Ziel unbekannt (streng)
+                ziele.append(None)
+            continue
+        worte = list(zip(orig, mask))
+        befehl: str | None = None
+        args: list[str] = []
+        umleitungen: list[str] = []
+        j = 0
+        while j < len(worte):
+            tok, msk = worte[j]
+            naechstes_wort = j + 1 < len(worte) and not _ist_operator(worte[j + 1][1])
+            if _ist_operator(msk):
+                if tok.endswith(">&") or tok == ">&":
+                    j += 2 if naechstes_wort else 1  # 2>&1, >&2: Dateideskriptor, keine Datei
+                    continue
+                if ">" in tok and naechstes_wort:
+                    umleitungen.append(worte[j + 1][0])  # > ziel, >> ziel, &> ziel, 2> ziel – auch am Anfang
+                    j += 2
+                    continue
+                if tok.startswith("<") and naechstes_wort:
+                    j += 2  # Eingabeumleitung: verbraucht das nächste Wort, ist kein Schreibziel
+                    continue
+                j += 1
+                continue
+            if tok in ("0", "1", "2") and j + 1 < len(worte) and _ist_operator(worte[j + 1][1]) and ">" in worte[j + 1][0]:
+                j += 1  # fd-Präfix (2>…): keine Datei
+                continue
+            if befehl is None and tok != "sudo":
+                befehl = tok
+            elif befehl is not None:
+                args.append(tok)
+            j += 1
+        if befehl is None:
+            befehl = ""
+        if befehl == "cd":
+            for a in args:
+                if not a.startswith("-"):
+                    basis = Path(os.path.normpath(a if os.path.isabs(a) else basis / a))
+                    break
+            continue
+        roh = list(umleitungen)
+        if befehl == "tee":
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl == "sed" and any(re.match(r"-[A-Za-z]*i", a) for a in args):
+            skript = next((k for k, a in enumerate(args) if not a.startswith("-") and a != ""), None)
+            if skript is not None:
+                roh += args[skript + 1:]  # Ziele stehen nach dem Skript (sed -i '' …: leeres Wort überspringen)
+        elif befehl == "perl" and any(re.match(r"-[a-z]*i", a) for a in args):
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl in _ALLE_ARGUMENTE:
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl in _LETZTES_ARGUMENT:
+            ziel = None
+            for k, a in enumerate(args):
+                if a == "-t" and k + 1 < len(args):
+                    ziel = args[k + 1]
+                elif a.startswith("--target-directory="):
+                    ziel = a.split("=", 1)[1]
+                elif a == "--target-directory" and k + 1 < len(args):
+                    ziel = args[k + 1]
+            if ziel is None:
+                nicht_optionen = [a for a in args if not a.startswith("-")]
+                if nicht_optionen:
+                    ziel = nicht_optionen[-1]
+            if ziel is not None:
+                roh.append(ziel)
+        for r in roh:
+            if r == "/dev/null":
+                continue
+            ziele.append(auflösen(r))
+    return ziele
 
 
 def _loeschbar(cfg) -> list[tuple[Path, bool]]:
@@ -263,8 +464,104 @@ def _ohne_textdaten(cmd: str) -> str:
         m = TEXT_HEREDOC.search(z)
         if m:
             ende = m.group(5)
-        aus.append(TEXT_ARG.sub(lambda t: t.group(1) + '""', z))
+        aus.append(z)
+    # auf den ganzen Befehl: mehrzeilige -m "…"-Nachrichten (Absätze) sind ebenfalls Text
+    return TEXT_ARG.sub(lambda t: t.group(1) + '""', "\n".join(aus))
+
+
+_HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
+_AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
+_PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
+_PRAEFIX_WORT = {"time", "nice", "nohup", "command", "timeout"}
+
+
+def _praefixe_ueberspringen(w: list[str]) -> int:
+    """Index des ersten Wortes nach Präfixen vor dem eigentlichen Befehl:
+    NAME=wert, time, env (samt -i, -u NAME und NAME=wert), nice, nohup, command."""
+    i = 0
+    while i < len(w):
+        name = w[i].rsplit("/", 1)[-1]  # auch /usr/bin/env, /usr/bin/time …
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]):
+            i += 1
+        elif name in _PRAEFIX_WORT or name == "env":
+            i += 1  # Optionen des Präfixes überspringen; mit Argument: nice -n N, env -u NAME, timeout -s SIG/-k T
+            while i < len(w) and (w[i].startswith("-") or (name == "env" and _PRAEFIX_ZUWEISUNG.fullmatch(w[i]))):
+                i += 2 if w[i] in ("-n", "-u", "-s", "-k") else 1
+            if name == "timeout" and i < len(w):
+                i += 1  # Dauer
+        else:
+            break
+    return i
+
+
+def _heredocs(z: str) -> list[str]:
+    """Endmarken der echten Heredoc-Operatoren einer Zeile: `<<` außerhalb von Anführungszeichen, kein `<<<`,
+    kein Shift wie `$((1<<2))` (davor kein Wortzeichen, Marke beginnt mit Buchstabe oder _)."""
+    mz, aus = _maskiert(z), []
+    for k in range(len(mz) - 1):
+        if mz[k:k + 2] != "<<" or mz[k + 2:k + 3] == "<" or (k and (mz[k - 1] in "<$(\x00" or mz[k - 1].isalnum())):
+            continue
+        m = _HEREDOC_AUF.match(z, k)
+        if m:
+            aus.append(m.group(2))
+    return aus
+
+
+def _ist_datenzeile(z: str) -> bool:
+    """Aufrufzeile, deren Heredoc-Rumpf nur Daten sind: der Teilbefehl mit dem Heredoc ist `tee` oder `cat` mit
+    Ausgabe-Umleitung und gibt nicht in eine Pipe weiter (`cat <<EOF | bash`, `|&`). Ketten davor/danach (`cd x && cat > f <<EOF`)
+    ändern daran nichts. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft."""
+    mz = _maskiert(z)
+    for p, s in _segmente_pos(z):
+        if "<<" not in _maskiert(s):
+            continue
+        nach = mz[p + len(s):].lstrip()
+        if nach.startswith("|") and not nach.startswith("||"):
+            return False
+        try:
+            w = shlex.split(s)
+        except ValueError:
+            return False
+        i = _praefixe_ueberspringen(w)
+        prog = w[i].rsplit("/", 1)[-1] if i < len(w) else ""
+        return prog == "tee" or (prog == "cat" and bool(_AUSGABE_UMLEITUNG.search(_maskiert(s))))
+    return False
+
+
+def _ohne_heredoc_daten(cmd: str) -> str:
+    """Entfernt Heredoc-Rümpfe von `cat > datei <<EOF` / `tee datei <<EOF` (reine Daten); Aufrufzeile und Endmarke
+    bleiben. Andere Rümpfe bleiben unverändert (Zeilenprüfung, Python per AST). Ohne Endmarke wird nichts entfernt."""
+    zeilen, aus, i = cmd.split("\n"), [], 0
+    while i < len(zeilen):
+        z = zeilen[i]
+        aus.append(z)
+        i += 1
+        marken = _heredocs(z)
+        if len(marken) != 1:
+            continue
+        ende = next((k for k in range(i, len(zeilen)) if zeilen[k].strip() == marken[0]), None)
+        if ende is None:
+            continue
+        if not _ist_datenzeile(z):
+            aus.extend(zeilen[i:ende])  # Rumpf bleibt, wird aber nicht als neue Heredoc-Aufrufzeile gelesen
+        i = ende
     return "\n".join(aus)
+
+
+def _heredoc_rumpf(cmd: str, pos: int) -> str | None:
+    """Rumpf des Heredocs in der Zeile, in der der Teilbefehl an Position pos von cmd steht
+    (None = kein oder mehr als ein Heredoc in der Zeile, oder keine Endmarke)."""
+    zeilen = cmd.split("\n")
+    nr = cmd.count("\n", 0, pos)
+    marken = _heredocs(zeilen[nr])
+    if len(marken) != 1:
+        return None
+    rumpf = []
+    for z in zeilen[nr + 1:]:
+        if z.strip() == marken[0]:
+            return "\n".join(rumpf)
+        rumpf.append(z)
+    return None
 
 
 def _rolle_frei(rinfo: dict, ziel: Path) -> bool:
@@ -307,14 +604,21 @@ def _auftrag_globs() -> list[str] | None:
     return [z.strip() for z in AUFTRAG.read_text(encoding="utf-8").splitlines() if z.strip() and not z.startswith("#")]
 
 
-def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple[str, list[str]]:
-    """Liefert (ja|fragen|nein, Gründe)."""
+def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: int = 0) -> tuple[str, list[str]]:
+    """Liefert (ja|fragen|nein, Gründe). _tiefe: Verschachtelung der bash/sh/zsh -c-Rekursion (ab 3 „fragen“)."""
+    if tool.startswith("mcp__"):  # MCP: nur die Projektlisten entscheiden (Eingabefelder sind keine Befehle/Pfade)
+        mcp = cfg["projekt"].get("mcp", {})
+        for stufe in ("nein", "fragen"):
+            treffer = next((g for g in mcp.get(stufe, []) if fnmatch.fnmatchcase(tool, g)), None)
+            if treffer:
+                return stufe, [f"N07-KEIN-AUTO-MODUS: MCP-Werkzeug {tool} steht in [mcp].{stufe} ({treffer})"]
+        return "ja", []
     pf = cfg["projekt"].get("pfade", {})
     rinfo = cfg["rollen"].get(rolle, {})
     befehle: list[str] = []
     pfade: list[str] = []
     _sammeln(eingabe, {"command", "cmd", "script"}, befehle)
-    befehle = [_ohne_textdaten(c) for c in befehle]
+    befehle = [_ohne_heredoc_daten(_ohne_textdaten(c)) for c in befehle]
     _sammeln(eingabe, {"file_path", "path", "absolute_path", "filePath", "notebook_path", "paths", "target_file", "file"}, pfade)
     art = _art(tool, befehle)
     gruende: list[tuple[str, str]] = []
@@ -325,8 +629,20 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple
             gruende.append((e, f"{text} [Fähigkeit {faehigkeit}: {e} für Rolle {rolle}]"))
 
     for cmd in befehle:
+        if KOEDER_RX.search(cmd):  # Selbsttest-Köder: gilt für alle Rollen, auch inhaberin, unabhängig von Fähigkeiten
+            gruende.append(("nein", "SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt (normen.py selbsttest)"))
         if (q := _bash_schreibt_extern(cmd, cwd, _lesbar_extern(cfg))) is not None:
             gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Befehl schreibt möglicherweise in {q} ([pfade].lesbar_extern – nur lesen)"))
+        for ziel in _schreibziele(cmd, cwd):  # v7/G3: Bash-Schreibziel in GESCHUETZT braucht „einstellungen“ (wie Edit/Write)
+            if ziel is None:
+                continue
+            try:
+                rel = Path(os.path.realpath(ziel)).relative_to(ROOT).as_posix()
+            except ValueError:
+                continue
+            if any(rel == s.rstrip("/") or rel.startswith(s) for s in GESCHUETZT):
+                pruefe("einstellungen", f"N10-KEIN-COMMIT-DURCH-TEAMS: Bash schreibt in Normen/Agenten-Einstellungen {rel}")
+                break
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
@@ -353,9 +669,14 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple
         for s in pf.get("gesperrt", []):
             if s and s in cmd:
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
-        if rolle != "skript":  # S06: Skripte außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
-            for seg in SEGMENT.split(cmd):
-                gruende.extend(_skript_im_befehl(cfg, seg, cwd))
+        if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
+            basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
+            zuweisungen: dict[str, str] = {}  # G5: Variablen-Zuweisungen aus vorangehenden Teilbefehlen (RUN=/x …)
+            for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
+                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
+                gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
+                zuweisungen.update(_zuweisungen_aus_seg(seg))
+                basis = _cd_basis(seg, basis)
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -423,6 +744,64 @@ def cmd_hook(a) -> int:
     return 2 if a.werkzeug == "gemini" else 0
 
 
+# ---------------------------------------------------------------- Selbsttest (Hooks live prüfen)
+def _selbsttest_werkzeug(name: str) -> tuple[str, str]:
+    """Köder-Befehl über das echte Werkzeug (claude -p bzw. vibe) starten: (gesperrt|NICHT GESPERRT|unklar, Beleg/Grund)."""
+    koeder = ROOT / KOEDER
+    if shutil.which(name) is None:
+        return "unklar", f"{name} nicht gefunden"
+    ausgabe_ordner = None
+    if name == "claude":
+        befehl = [name, "-p", SELBSTTEST_TEXT, "--allowedTools", f"Bash({KOEDER_BEFEHL})",
+                  "--max-turns", "3", "--output-format", "stream-json", "--verbose"]
+    else:
+        ausgabe_ordner = Path(tempfile.mkdtemp(prefix="normen-selbsttest-"))
+        befehl = [name, "--trust", "--smart-approve", "--max-turns", "3", "--time-limit", "240",
+                  "--output-dir", str(ausgabe_ordner), "-p", SELBSTTEST_TEXT]
+    try:
+        r = subprocess.run(befehl, cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
+        beleg = r.stdout + r.stderr
+        if ausgabe_ordner is not None:
+            beleg += "\n" + "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                                      for p in sorted(ausgabe_ordner.rglob("*")) if p.is_file())
+    except subprocess.TimeoutExpired:
+        return "unklar", "Zeitlimit"
+    except OSError as e:
+        return "unklar", f"{type(e).__name__}: {e}"
+    finally:
+        if ausgabe_ordner is not None:
+            shutil.rmtree(ausgabe_ordner)  # eigener Ordner dieses Laufs
+    if koeder.exists():
+        return "NICHT GESPERRT", beleg
+    if "SELBSTTEST-KOEDER" in beleg:
+        return "gesperrt", beleg
+    return "unklar", "keine Hook-Meldung – Werkzeug hat den Befehl evtl. nicht versucht"
+
+
+def cmd_selbsttest(a) -> int:
+    werkzeuge = [a.werkzeug] if a.werkzeug else ["claude", "vibe"]
+    (ROOT / ".normen").mkdir(exist_ok=True)
+    koeder = ROOT / KOEDER
+    if koeder.exists():
+        koeder.unlink()  # eigene Wegwerf-Datei (gitignored)
+    bestanden = True
+    for name in werkzeuge:
+        ergebnis, grund = _selbsttest_werkzeug(name)
+        if koeder.exists():
+            koeder.unlink()
+        if ergebnis == "gesperrt":
+            print(f"{name}: gesperrt")
+        else:
+            bestanden = False
+            if ergebnis == "NICHT GESPERRT":
+                print(f"{name}: NICHT GESPERRT – Hook greift nicht")
+            else:
+                print(f"{name}: unklar ({grund})")
+    print("Selbsttest bestanden." if bestanden else
+          "Selbsttest NICHT bestanden – Hooks prüfen (docs/multi-ki-ablauf.md §3).")
+    return 0 if bestanden else 1
+
+
 # ---------------------------------------------------------------- Skripte (S06-CODE-MODE)
 # Prüfung von Auswerte-Skripten vor dem Lauf: schützt vor Versehen, ist aber keine Sicherheitsgrenze.
 KEINE_AUFTRAEGE = {"fable", "skript"}
@@ -463,8 +842,8 @@ def _ist_sys_executable(node) -> bool:
 
 
 class _Skript:
-    def __init__(self, cfg, skript: Path, baum: ast.Module, cwd: str):
-        self.cfg, self.skript, self.lauf, self.cwd = cfg, skript, skript.parent, cwd
+    def __init__(self, cfg, baum: ast.Module, cwd: str, lauf: Path | None, skript: Path | None = None):
+        self.cfg, self.lauf, self.cwd, self.skript = cfg, lauf, cwd, skript
         self.funde: list[tuple[str, str]] = []
         anzahl: dict[str, int] = {}
         self.knoten: dict[str, ast.expr] = {}
@@ -533,7 +912,7 @@ class _Skript:
             self.fund("fragen", node, "Schreibziel nicht statisch bestimmbar")
             return
         z = Path(os.path.realpath(p))
-        if z != self.lauf and self.lauf not in z.parents:
+        if self.lauf is None or z != self.lauf and self.lauf not in z.parents:
             self.fund("nein", node, f"schreibt außerhalb des Lauf-Ordners: {z}")
 
     def lesen(self, quelle, node):
@@ -695,56 +1074,520 @@ def _befehl_stufe(cfg, w: list[str], cwd: str) -> tuple[str, str]:
     return "fragen", f"`{befehl}` nicht in der Positivliste"
 
 
-def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
-    """Code-Mode-Skript per AST prüfen (S06): (ja|fragen|nein, Gründe)."""
+_MODULE_DYNAMISCH = {"os", "subprocess", "shutil", "builtins", "importlib", "sys", "pathlib", "socket", "urllib", "pty"}
+
+
+def _gefaehrlicher_name(n: str) -> bool:
+    """Name, der nur als direkter, geprüfter Aufruf vorkommen darf (eval, os.system, subprocess.run …)."""
+    return (n in ("eval", "exec", "compile", "__import__")
+            or (n.startswith("os.") and bool(OS_VERBOTEN.match(n[3:])))
+            or (n.startswith("subprocess.") and n[len("subprocess."):] in (*SUBPROCESS_AUFRUFE, "getoutput", "getstatusoutput")))
+
+
+def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str) -> tuple[str, list[str]]:
+    """Quelltext per AST prüfen (S06): (ja|fragen|nein, Gründe). lauf=None → Inline-Code: jedes aufgelöste
+    Schreibziel liegt außerhalb des Lauf-Ordners; __file__ ist dann nicht auflösbar."""
     try:
-        skript = Path(os.path.realpath(pfad))
-        baum = ast.parse(skript.read_text(encoding="utf-8"), str(skript))
-    except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as e:
-        return "nein", [f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})"]
-    s = _Skript(cfg, skript, baum, cwd)
+        baum = ast.parse(quelltext, name)
+    except (SyntaxError, ValueError) as e:
+        return "nein", [f"S06-CODE-MODE: {name} nicht prüfbar ({type(e).__name__}: {e})"]
+    s = _Skript(cfg, baum, cwd, lauf, Path(name) if lauf is not None else None)
     for node in ast.walk(baum):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             s.importe(node)
         elif isinstance(node, ast.Call):
             s.aufruf(node)
+            if _aufruf_name(node.func) in ("getattr", "setattr", "delattr") and node.args:
+                ziel, attr = node.args[0], node.args[1] if len(node.args) > 1 else None
+                if isinstance(ziel, ast.Name) and ziel.id in _MODULE_DYNAMISCH:
+                    s.fund("nein", node, f"{_aufruf_name(node.func)}() auf Modul {ziel.id} verboten (umgeht die Prüfung)")
+                elif not (isinstance(attr, ast.Constant) and isinstance(attr.value, str)):
+                    s.fund("fragen", node, f"{_aufruf_name(node.func)}() mit nicht statischem Namen")
+    aufrufziele = {id(n.func) for n in ast.walk(baum) if isinstance(n, ast.Call)}
+    for node in ast.walk(baum):  # `r = subprocess.run; r([...])`, `map(os.system, …)`: Referenz ohne direkten Aufruf
+        if isinstance(node, (ast.Name, ast.Attribute)) and id(node) not in aufrufziele and _gefaehrlicher_name(_aufruf_name(node)):
+            s.fund("nein", node, f"{_aufruf_name(node)} ohne direkten Aufruf (Alias/Weitergabe) verboten")
     if not s.funde:
         return "ja", []
     return max((f[0] for f in s.funde), key=lambda x: RANG[x]), [f[1] for f in s.funde]
 
 
-def _skript_im_befehl(cfg, seg: str, cwd: str) -> list[tuple[str, str]]:
-    """`python3 [-I …] <datei>.py …` mit Datei außerhalb des Projekts → Befunde aus skript_pruefen."""
+def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
+    """Code-Mode-Skript per AST prüfen (S06): (ja|fragen|nein, Gründe)."""
+    try:
+        skript = Path(os.path.realpath(pfad))
+        quelltext = skript.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return "nein", [f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})"]
+    return code_pruefen(cfg, quelltext, skript.parent, cwd, str(skript))
+
+
+def _cd_basis(seg: str, basis: str | None) -> str | None:
+    """Basisordner für relative Pfade im nächsten Teilbefehl: nach `cd <ordner>` dieser Ordner, sonst
+    unverändert; None = unbekannt (cd ohne Argument, `cd -`, unaufgelöste Variable)."""
+    if basis is None:
+        return None
     try:
         w = shlex.split(seg)
-    except ValueError:  # z. B. `python3 x.py "a|b"`: SEGMENT trennt im Zitat – Python-Aufruf nie ungeprüft durchlassen
-        if re.match(r"\s*(\S*/)?python3?(\.\d+)?(\s|$)", seg):
-            return [("fragen", "S06-CODE-MODE: Python-Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Skript nicht prüfbar")]
-        return []
-    if not w or not PYTHON.match(w[0].rsplit("/", 1)[-1]):
-        return []
-    i = 1
-    while i < len(w):
-        if w[i] in ("-c", "-m", "-"):
-            return []
-        if w[i] in ("-X", "-W"):
-            i += 2
-        elif w[i].startswith("-"):
-            i += 1
-        else:
-            break
-    if i >= len(w) or not w[i].endswith(".py"):
-        return []
-    roh = os.path.expanduser(os.path.expandvars(w[i]))
+    except ValueError:
+        return basis
+    while w and w[0] in ("{", "("):  # `{ cd x; ./y; }`, `(cd x && ./y)`
+        w = w[1:]
+    i = _praefixe_ueberspringen(w)
+    if i < len(w) and w[i] == "popd":
+        return None
+    if i >= len(w) or w[i] not in ("cd", "pushd"):
+        return basis
+    args = [a for a in w[i + 1:] if not a.startswith("-")]
+    if not args:
+        return None
+    roh = os.path.expanduser(os.path.expandvars(args[0]))
     if "$" in roh:
-        return [("fragen", f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({w[i]}) – nicht prüfbar")]
-    datei = Path(os.path.realpath(Path(cwd) / roh))
+        return None
+    p = Path(roh)
+    if not p.is_absolute():
+        p = Path(basis) / p
+    return os.path.normpath(str(p))
+
+
+# Skriptaufruf in einem nicht zerlegbaren Teilbefehl (unbalanciertes Zitat): Interpreter oder Pfad mit /
+_SKRIPT_AUFRUF_RX = re.compile(
+    r"(^|\s)(\S*/)?(python3?(\.\d+)?|bash|sh|zsh|node|perl|ruby|source)(\s|$)"
+    r"|(^|\s)\.(?=\s|$)"
+    r"|(^|\s)[^\s;|&()]*/[^\s;|&()]*(\s|$)")
+
+
+def _skript_pfad(wort: str, basis: str | None) -> tuple[Path | None, str | None]:
+    """Skriptpfad aus einem Aufrufwort auflösen (expanduser/expandvars, relativ zur Basis, realpath);
+    (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
+    roh = os.path.expanduser(os.path.expandvars(wort))
+    if "$" in roh:
+        return None, f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({wort}) – nicht prüfbar"
+    p = Path(roh)
+    if not p.is_absolute():
+        if basis is None:
+            return None, f"S06-CODE-MODE: Skript {wort} relativ, aber Basisordner unbekannt (cd) – nicht prüfbar"
+        p = Path(basis) / p
+    return Path(os.path.realpath(p)), None
+
+
+_CD_RX = re.compile(r"(^|[\s;&|({])(cd|pushd|popd)(\s|$)")
+
+
+def _skript_gate(cfg, datei: Path, wort: str, cmd: str) -> list[tuple[str, str]] | None:
+    """None → Datei ist prüf-relevant (außerhalb des Projekts und von lesbar_extern, vorhanden); sonst
+    Befunde: im Projekt und unter [pfade].lesbar_extern keine, nicht vorhanden → fragen."""
     if datei == ROOT or ROOT in datei.parents:
-        if not datei.exists():  # z. B. `cd <anderswo> && python3 x.py`: relativ zum Hook-cwd falsch aufgelöst
-            return [("fragen", f"S06-CODE-MODE: Skript {w[i]} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
+        if not datei.exists() and (wort.endswith(".py") or _CD_RX.search(_maskiert(cmd))):
+            # z. B. `pushd <anderswo> && ./x.sh`: relativ zur Basis falsch aufgelöst – nie als Projektskript durchlassen
+            # (ohne cd im Befehl: z. B. `python3 -m venv .venv && .venv/bin/pip …` legt das Ziel erst an)
+            return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
         return []  # Projektskripte wie bisher
+    if any(datei == q or q in datei.parents for q in _lesbar_extern(cfg)):
+        return []
+    if not datei.exists():
+        return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden – nicht prüfbar")]
+    return None
+
+
+def _skript_geschrieben(wort: str, datei: Path, cmd: str, cwd: str) -> tuple[str, str] | None:
+    """Befund, wenn das Skript zugleich Schreibziel des ganzen Befehls ist (oder Ziele nicht zerlegbar)."""
+    for z in _schreibziele(cmd, cwd):
+        if z is None or Path(os.path.realpath(z)) == datei:
+            return ("fragen", f"S06-CODE-MODE: Skript {wort} wird im selben Befehl geschrieben – Inhalt nicht prüfbar")
+    return None
+
+
+def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int,
+                          basis: str | None) -> list[tuple[str, str]]:
+    """Shell-Skriptdatei außerhalb des Projekts: Inhalt (ohne Shebang und reine Kommentarzeilen) als einen
+    Befehl rekursiv bewerten; Gründe mit dem Dateinamen voranstellen."""
+    g = _skript_geschrieben(wort, datei, cmd, cwd)
+    if g:
+        return [g]
+    try:
+        inhalt = datei.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return [("nein", f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})")]
+    zeilen = inhalt.split("\n")
+    if zeilen and zeilen[0].startswith("#!"):
+        zeilen = zeilen[1:]
+    inhalt = "\n".join(z for z in zeilen if not z.lstrip().startswith("#"))
+    if tiefe >= 3:
+        return [("fragen", "S06-CODE-MODE: Skript-Verschachtelung zu tief – nicht prüfbar")]
+    stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": inhalt}, basis or cwd, _tiefe=tiefe + 1)  # Skript läuft im Ordner nach cd
+    return [] if stufe == "ja" else [(stufe, f"{datei.name}: {g}") for g in gruende]
+
+
+def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str) -> list[tuple[str, str]]:
+    """Python-Skriptdatei außerhalb des Projekts per AST prüfen (wie `python3 <datei>.py`)."""
+    g = _skript_geschrieben(wort, datei, cmd, cwd)
+    if g:
+        return [g]
     stufe, gruende = skript_pruefen(cfg, datei, cwd)
     return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+
+
+def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int, basis: str | None,
+                       aktion: str, prog: str = "") -> list[tuple[str, str]]:
+    """Datei-Argument eines Aufrufs (python/bash|sh|zsh/source/. sowie node|perl|ruby) außerhalb des Projekts
+    prüfen. aktion: "python" (per AST), "shell" (Inhalt als ein Befehl), "fragen" (nicht prüfbar)."""
+    datei, grund = _skript_pfad(wort, basis)
+    if grund:
+        return [("fragen", grund)]
+    gate = _skript_gate(cfg, datei, wort, cmd)
+    if gate is not None:
+        return gate
+    if aktion == "python":
+        return _python_datei_bewerten(cfg, datei, wort, cmd, cwd)
+    if aktion == "shell":
+        return _shell_datei_bewerten(cfg, datei, wort, cmd, cwd, rolle, tiefe, basis)
+    return [("fragen", f"S06-CODE-MODE: {prog}-Skript außerhalb des Projekts – nicht prüfbar")]
+
+
+def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0,
+                       basis: str | None = None, zuweisungen: dict[str, str] | None = None) -> list[tuple[str, str]]:
+    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd), nur für
+    Dateien außerhalb des Projekts und außerhalb von [pfade].lesbar_extern: `python3 … <datei>` (mit und ohne
+    .py-Endung, per AST), `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST), `bash|sh|zsh -c CODE`
+    (rekursiv bewertet), `bash|sh|zsh|source|. <datei>` (Inhalt als ein Befehl), `node|perl|ruby <datei>`
+    (fragen) und direkte Pfadaufrufe (`/tmp/x.sh`, `./x.sh`: Shebang-Interpreter bzw. Textdatei als Skript).
+    Liefert Befunde (stufe, grund)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:  # z. B. `python3 x.py "a|b"`: unbalanciertes Zitat – nie ungeprüft durchlassen
+        if _SKRIPT_AUFRUF_RX.search(seg):
+            return [("fragen", "S06-CODE-MODE: Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Skript nicht prüfbar")]
+        return []
+    i = _praefixe_ueberspringen(w)  # NAME=wert, time, env …, nice, nohup, command vor dem Interpreter
+    if i >= len(w):
+        return []
+    prog = w[i].rsplit("/", 1)[-1]
+    # Variablen im Inline-Code: Zuweisungen aus vorangehenden Teilbefehlen und Präfixen (`X=… python3 -c "$X"`), dann Umgebung
+    zuw = dict(zuweisungen or {})
+    zuw.update(t.split("=", 1) for t in w[:i] if _PRAEFIX_ZUWEISUNG.fullmatch(t))
+
+    def variablen(code: str, ersatz: str | None) -> str:
+        return _VAR_RX.sub(lambda m: zuw.get(m.group(1) or m.group(2), os.environ.get(m.group(1) or m.group(2), ersatz or m.group(0))),
+                           code)
+    rest = w[i + 1:]
+    vorher = _maskiert(cmd)[:pos].rstrip()
+    aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`
+
+    def stdin(j: int) -> list[tuple[str, str]] | None:
+        """Interpreter ohne Skriptdatei an Stelle j: Code aus Pipe, `<` oder /dev/stdin → fragen; None = Datei folgt."""
+        if j < len(rest) and not (rest[j].startswith("<") or rest[j] in ("-", "/dev/stdin")):
+            return None
+        if aus_pipe or j < len(rest):
+            return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin (Pipe, < oder /dev/stdin) – nicht prüfbar")]
+        return []
+
+    if PYTHON.match(prog):
+        def inline(code: str, art: str) -> list[tuple[str, str]]:
+            stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})")
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+
+        def heredoc(art: str) -> list[tuple[str, str]]:
+            rumpf = _heredoc_rumpf(cmd, pos)
+            if rumpf is None:
+                return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht eindeutig erkennbar – nicht prüfbar")]
+            return inline(rumpf, art)
+
+        j = 0
+        while j < len(rest):
+            a = rest[j]
+            if a == "-":
+                if not _heredocs(seg):
+                    return [("fragen", "S06-CODE-MODE: `python3 -` liest Code von stdin – nicht prüfbar")]
+                return heredoc("- <<Heredoc")
+            if a.startswith("--") or not a.startswith("-"):
+                if a.startswith("--"):
+                    j += 1
+                    continue
+                break
+            for k, c in enumerate(a[1:], 1):  # Optionsgruppe wie -Bc, -IXdev, -W error
+                if c == "m":
+                    return []
+                if c == "c":
+                    code = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else None)
+                    if code is None:
+                        return [("fragen", "S06-CODE-MODE: python3 -c ohne Code – nicht prüfbar")]
+                    code = variablen(code, "NORMENVAR")  # unbekannt: Platzhalter – in Strings harmlos, als Code nicht prüfbar
+                    try:
+                        baum = ast.parse(code)
+                    except (SyntaxError, ValueError):
+                        return inline(code, "-c")  # code_pruefen meldet den Syntaxfehler („nein“)
+                    if any(isinstance(n, ast.Name) and n.id == "NORMENVAR" for n in ast.walk(baum)):
+                        return [("fragen", "S06-CODE-MODE: python3 -c mit unbekannter Variable als Code – nicht prüfbar")]
+                    return inline(code, "-c")
+                if c in "XW":
+                    j += 0 if a[k + 1:] else 1
+                    break
+            j += 1
+        if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _heredocs(seg):
+            return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
+        if (b := stdin(j)) is not None:
+            return b
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python")
+    if prog in ("bash", "sh", "zsh"):
+        j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
+        while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
+            mit_c = mit_c or (not rest[j].startswith("--") and "c" in rest[j][1:])
+            j += 2 if rest[j] in ("-o", "-O") else 1
+        if mit_c:  # -c: Inline-Code wie bisher (G4-A-Weg)
+            if j >= len(rest):
+                return [("fragen", f"S06-CODE-MODE: {prog} -c ohne Code – nicht prüfbar")]
+            if tiefe >= 3:
+                return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
+            code = variablen(rest[j], None)
+            if any(s.strip().startswith("$") for s in _segmente(code)):
+                return [("fragen", f"S06-CODE-MODE: {prog} -c mit unbekannter Variable als Befehl – nicht prüfbar")]
+            stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": code}, cwd, _tiefe=tiefe + 1)
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        if j < len(rest) and rest[j] == "--":
+            j += 1
+        if _heredocs(seg) and (j >= len(rest) or rest[j].startswith("<")):
+            return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
+        if (b := stdin(j)) is not None:
+            return b
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell")
+    if prog in ("source", "."):
+        if rest and rest[0].startswith("-") and rest[0] != "-":
+            return []
+        if (b := stdin(0)) is not None:
+            return b
+        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell")
+    if prog in ("node", "perl", "ruby"):
+        j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
+        while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
+            if rest[j] in ("-e", "-p", "-E", "--eval", "--print") or (rest[j][1:2] != "-" and "e" in rest[j][1:]):
+                return [("fragen", f"S06-CODE-MODE: {prog} mit Inline-Code (-e) – nicht prüfbar")]
+            j += 1
+        b = stdin(j)
+        if _heredocs(seg) or b:
+            return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
+        if b is not None:
+            return []  # interaktiv ohne Eingabe
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
+    if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
+        voll = os.path.expanduser(w[i])
+        if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
+                os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
+            return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
+        datei, grund = _skript_pfad(w[i], basis)
+        if grund:
+            return [("fragen", grund)]
+        gate = _skript_gate(cfg, datei, w[i], cmd)
+        if gate is not None:
+            return gate
+        g = _skript_geschrieben(w[i], datei, cmd, cwd)
+        if g:
+            return [g]
+        try:
+            with datei.open("rb") as f:
+                kopf = f.read(4096)
+        except OSError as e:
+            return [("nein", f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})")]
+        if not kopf.startswith(b"#!"):
+            if b"\x00" in kopf:
+                return []  # Binärdatei (z. B. /usr/bin/git, /bin/ls) – wie bisher
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)  # Text ohne Shebang: sh-Skript
+        worte = kopf.split(b"\n", 1)[0][2:].decode("utf-8", "replace").split()
+        if not worte:
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
+        interp = worte[0].rsplit("/", 1)[-1]
+        if interp == "env" and len(worte) > 1:  # #!/usr/bin/env python3 …: nächses Wort ist der Interpreter
+            interp = worte[1].rsplit("/", 1)[-1]
+        if PYTHON.match(interp):
+            stufe, gruende = skript_pruefen(cfg, datei, cwd)
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        if interp in ("bash", "sh", "zsh"):
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
+        return [("fragen", f"S06-CODE-MODE: {interp}-Skript außerhalb des Projekts – nicht prüfbar")]
+    return []
+
+
+# ---------------------------------------------------------------- G5: Datenschutz vor vibe/agy (Prompt vor dem Start prüfen)
+_TEAM_RX = re.compile(r"(^|[\s;&|(])(\S*/)?(vibe|agy)(\s|$)")
+_CAT_PROMPT_RX = re.compile(r"^\$\(\s*cat\s+(\S+)\s*\)$")
+_PFADWORT_RX = re.compile(r"[\w.~$-]*/[\w./~$*-]*")
+_WORT_ENDE = '.,;:!?)]}"\'`'
+_GEHEIM_INHALT = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "Private Key"),
+    (re.compile(r"ghp_[A-Za-z0-9]{30,}"), "GitHub-Token ghp_…"),
+    (re.compile(r"github_pat_\w{20,}"), "GitHub-PAT github_pat_…"),
+    (re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "API-Schlüssel sk-…"),
+    (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS-Schlüssel AKIA…"),
+    (re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "Slack-Token xox…"),
+    (re.compile(r"AIza[0-9A-Za-z_-]{35}"), "Google-API-Schlüssel AIza…"),
+]
+_PFLICHT_ROLLEN = ("mistral-team", "gemini-analyst")
+
+
+def _zuweisungen_aus_seg(seg: str) -> dict[str, str]:
+    """Zuweisungen eines Teilbefehls, der ausschließlich aus Zuweisungen besteht (RUN=/x, RUN=\"/x\", export RUN=/x);
+    Wert ohne Anführungszeichen (shlex.split)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:
+        return {}
+    if w and w[0] == "export":
+        w = w[1:]
+    if not w or not all(_PRAEFIX_ZUWEISUNG.fullmatch(t) for t in w):
+        return {}
+    return {t.split("=", 1)[0]: t.split("=", 1)[1] for t in w}
+
+
+def _var_ersetzen(text: str, zuweisungen: dict[str, str]) -> str:
+    """$VAR/${VAR} ersetzen: zuerst Zuweisungen aus vorangehenden Teilbefehlen, dann os.environ (expandvars);
+    Unbekannte bleiben als $VAR stehen."""
+
+    def rep(m):
+        return zuweisungen.get(m.group(1) or m.group(2), m.group(0))
+
+    return os.path.expandvars(_VAR_RX.sub(rep, text))
+
+
+def _prompt_wort(wort: str, basis: str | None) -> str:
+    """Pfadartiges Wort für den Glob-Vergleich normalisieren: Satzzeichen am Ende weg, ./ weg,
+    absolut unter ROOT/basis → relativ zum Projekt."""
+    w = wort.rstrip(_WORT_ENDE)
+    if w.startswith("./"):
+        w = w[2:]
+    if w.startswith("/"):
+        p = Path(os.path.realpath(w))
+        for wurzel in [ROOT] + ([Path(os.path.realpath(basis))] if basis else []):
+            try:
+                return p.relative_to(wurzel).as_posix()
+            except ValueError:
+                continue
+    return w
+
+
+def _prompt_inhalt_pruefen(cfg: dict, werkzeug: str, text: str, basis: str | None) -> list[tuple[str, str]]:
+    """G5: Prompt-Text prüfen – zuerst den Pflichtblock (auftrag_zeilen beider Team-Rollen) zeilenweise entfernen,
+    dann im Rest Sperrpfade, Geheimnis-Inhalte, Geheimnis-Pfade (nur agy) und Forschungsdaten suchen."""
+    pf = cfg["projekt"].get("pfade", {})
+    pflicht: set[str] = set()
+    for r in _PFLICHT_ROLLEN:
+        if r in cfg["rollen"]:
+            pflicht.update(z.strip() for z in auftrag_zeilen(cfg, r, []))
+    rest = "\n".join(z for z in text.split("\n") if z.strip() not in pflicht)
+    gesperrt = [s for s in pf.get("gesperrt", []) if s]
+    geheimnisse = pf.get("geheimnisse", [])
+    forsch = pf.get("forschungsdaten", [])
+    team = "mistral-team" if werkzeug == "vibe" else "gemini-analyst"
+    gruende: list[tuple[str, str]] = []
+    for z in rest.split("\n"):
+        for s in gesperrt:
+            if re.search(r"(^|[\s`\"'(/])" + re.escape(s), z):
+                gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Auftrag nennt gesperrten Pfad {s}"))
+        for rx, art in _GEHEIM_INHALT:
+            if rx.search(z):
+                gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Auftrag enthält ein Geheimnis ({art})"))
+        worte = [m.group(0) for m in _PFADWORT_RX.finditer(z)]
+        for wort in worte:
+            w = wort.rstrip(_WORT_ENDE)
+            if not w:
+                continue
+            name = w.rsplit("/", 1)[-1]
+            if werkzeug == "agy" and any(fnmatch.fnmatchcase(name, g) for g in geheimnisse):
+                gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Auftrag an agy nennt Geheimnis-Datei {w}"))
+        for eintrag in forsch:
+            if not eintrag:
+                continue
+            treffer = False
+            if "/" in eintrag or "*" in eintrag:
+                praefix = eintrag.split("*", 1)[0].rstrip("/")
+                for wort in worte:
+                    w = _prompt_wort(wort, basis)
+                    if fnmatch.fnmatchcase(w, eintrag) or (praefix and w.rstrip("/") == praefix):
+                        treffer = True
+                        break
+            elif eintrag.lower() in rest.lower():
+                treffer = True
+            if treffer:
+                stufe = "nein" if werkzeug == "agy" else "fragen"
+                gruende.append((stufe, f"N06-NUR-ERLAUBTE-PFADE: Auftrag enthält Forschungsdaten ({eintrag})"
+                                      f" – an {team} nur mit Freigabe"))
+    return list(dict.fromkeys(gruende))
+
+
+def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
+                 zuweisungen: dict[str, str]) -> list[tuple[str, str]]:
+    """G5: vibe/agy im Teilbefehl seg – Prompt-Quelle finden (vibe: --prompt-file P bzw. -p/--prompt TEXT;
+    agy: -p/--prompt TEXT, "$(cat P)" als Datei), Prompt-Datei samt *.md-Nebendateien bzw. Inline-Text auf
+    Sperrpfade, Geheimnisse und Forschungsdaten prüfen. Liefert Befunde (stufe, grund)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:
+        if _TEAM_RX.search(_maskiert(seg)):
+            return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): vibe/agy-Aufruf nicht zerlegbar (unbalanciertes Zitat) – Prompt nicht prüfbar")]
+        return []
+    i = _praefixe_ueberspringen(w)
+    if i >= len(w):
+        return []
+    prog = w[i].rsplit("/", 1)[-1]
+    if prog not in ("vibe", "agy"):
+        return []
+    rest = w[i + 1:]
+    quellen: list[tuple[str, str]] = []
+    for j, t in enumerate(rest):
+        wert = t.split("=", 1)[1] if "=" in t and t.startswith("--") else (rest[j + 1] if j + 1 < len(rest) else None)
+        if prog == "vibe" and (t == "--prompt-file" or t.startswith("--prompt-file=")):
+            art = "datei"
+        elif t in ("-p", "--prompt") or t.startswith("--prompt="):
+            art = "text"
+        else:
+            continue
+        if wert is None:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} {t} ohne Wert – nicht prüfbar")]
+        quellen.append((art, wert))
+    if len(quellen) > 1:  # welche Quelle das Werkzeug nimmt, ist nicht festgelegt – nie nur eine prüfen
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} mit mehreren Prompt-Quellen – nicht prüfbar")]
+    quelle = quellen[0] if quellen else None
+    if quelle is None:
+        if any(t in ("--version", "--help", "-h") for t in rest):
+            return []
+        # ohne Prompt: interaktiv oder Unterbefehl (vibe config …) – nichts geht ungeprüft an das Team, aber nachfragen
+        return [("fragen", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} ohne Prompt-Quelle (interaktiv/Unterbefehl)")]
+    art, wert = quelle
+    if art == "text":
+        m = _CAT_PROMPT_RX.match(wert)
+        if m:
+            art, wert = "datei", m.group(1)
+        elif "$(" in wert or "`" in wert:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Quelle nicht prüfbar (Befehlsersetzung in -p: {wert[:80]})")]
+        else:
+            wert = _var_ersetzen(wert, zuweisungen)
+            if _VAR_RX.search(wert):
+                return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Text mit unaufgelöster Variable – nicht prüfbar")]
+            return _prompt_inhalt_pruefen(cfg, prog, wert, basis)
+    text = os.path.expanduser(_var_ersetzen(wert, zuweisungen))
+    if "$" in text:
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei mit unaufgelöster Variable ({wert})")]
+    p = Path(text)
+    if not p.is_absolute():
+        if basis is None:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei {wert} relativ, aber Basisordner unbekannt (cd) – nicht prüfbar")]
+        p = Path(basis) / p
+    p = Path(os.path.realpath(p))
+    if not p.is_file():
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht gefunden ({p})")]
+    for z in _schreibziele(cmd, cwd):
+        if z is None:
+            return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei wird im selben Befehl geschrieben (Schreibziel nicht auflösbar)")]
+        zr = Path(os.path.realpath(z))
+        if zr == p or (zr.parent == p.parent and zr.suffix == ".md"):
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei {p.name} wird im selben Befehl geschrieben – Inhalt nicht prüfbar")]
+    try:
+        texte = [p.read_text(encoding="utf-8")]
+        for n in sorted(os.listdir(p.parent)):
+            if n != p.name and n.endswith(".md"):
+                texte.append((p.parent / n).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht lesbar ({type(e).__name__}: {e})")]
+    return _prompt_inhalt_pruefen(cfg, prog, "\n".join(texte), basis)
 
 
 def cmd_skript(a) -> int:
@@ -1195,6 +2038,32 @@ def _siegel_ok() -> bool:
         return False
 
 
+def auftrag_zeilen(cfg: dict, rolle: str, dateien: list[str]) -> list[str]:
+    """Die Auftragszeilen (Pflichtblock) für eine Rolle – schreibt nichts (kein .normen-auftrag wird angelegt)."""
+    globs = dateien or []
+    pj = cfg["projekt"]
+    z = [f"Normen für diesen Auftrag (Rolle {rolle}, Normen v{cfg['meta']['version']}) – verbindlich:",
+         "- Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert.",
+         "- Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast, auch keine unbekannten oder untracked "
+         "Dateien. Kein rm, kein git clean, kein git restore auf fremde Dateien.",
+         "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
+         "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
+         "anhalten und im Bericht nennen."]
+    for n in cfg["normen"]:
+        if rolle in n.get("nur_rollen", [rolle]):
+            z.append(f"- {n['id']}: {n['prompt']}")
+    gesperrt = pj.get("pfade", {}).get("gesperrt", [])
+    if gesperrt and darf(cfg, rolle, "sperrpfade-lesen") != "ja":
+        z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
+    if cfg["rollen"][rolle].get("abnahme_durch_claude"):
+        z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
+                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
+    else:
+        z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
+                 "beide Befehle mit Ergebnis in den Bericht.")
+    return z
+
+
 def cmd_auftrag(a) -> int:
     cfg = laden()
     if a.ende:
@@ -1216,28 +2085,7 @@ def cmd_auftrag(a) -> int:
         AUFTRAG.write_text("# erlaubte Pfade (Globs) für den laufenden Auftrag – von normen.py auftrag geschrieben\n"
                            + "\n".join(a.dateien) + "\n", encoding="utf-8")
         _siegel().write_text(hashlib.sha256(AUFTRAG.read_bytes()).hexdigest() + "\n", encoding="utf-8")
-    globs = _auftrag_globs() or []
-    pj = cfg["projekt"]
-    z = [f"Normen für diesen Auftrag (Rolle {a.rolle}, Normen v{cfg['meta']['version']}) – verbindlich:",
-         "- Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert.",
-         "- Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast, auch keine unbekannten oder untracked "
-         "Dateien. Kein rm, kein git clean, kein git restore auf fremde Dateien.",
-         "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
-         "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
-         "anhalten und im Bericht nennen."]
-    for n in cfg["normen"]:
-        if a.rolle in n.get("nur_rollen", [a.rolle]):
-            z.append(f"- {n['id']}: {n['prompt']}")
-    gesperrt = pj.get("pfade", {}).get("gesperrt", [])
-    if gesperrt and darf(cfg, a.rolle, "sperrpfade-lesen") != "ja":
-        z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
-    if cfg["rollen"][a.rolle].get("abnahme_durch_claude"):
-        z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
-                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
-    else:
-        z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
-                 "beide Befehle mit Ergebnis in den Bericht.")
-    print("\n".join(z))
+    print("\n".join(auftrag_zeilen(cfg, a.rolle, _auftrag_globs() or [])))
     return 0
 
 
@@ -1283,6 +2131,9 @@ def main() -> int:
     p = sub.add_parser("skript", help="Code-Mode-Skript prüfen wie der Hook (S06); Exit 0 ja, 1 fragen, 2 nein")
     p.add_argument("--pruefen", required=True, metavar="DATEI")
     p.set_defaults(f=cmd_skript)
+    p = sub.add_parser("selbsttest", help="Hooks live prüfen (Köder-Befehl); Exit 0 nur wenn alle geprüften Werkzeuge sperren")
+    p.add_argument("--werkzeug", choices=["claude", "vibe"], default=None, help="nur dieses Werkzeug prüfen (Standard: beide)")
+    p.set_defaults(f=cmd_selbsttest)
     sub.add_parser("kurz").set_defaults(f=cmd_kurz)
     sub.add_parser("sync").set_defaults(f=cmd_sync)
     p = sub.add_parser("aktualisieren", help="Normen aus der Quelle (claude-tools) neu einspielen")

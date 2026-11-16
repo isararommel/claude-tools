@@ -28,6 +28,16 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 16.11. v7 G1–G6 auf Branch `normen-v7` (Einzelheiten: CHANGELOG „v7 – in Arbeit“): Selbsttest, pre-commit nicht umgehen,
+  Bash-Schreibziele, Inline-Code und fremde Skripte (Advisor- und Gemini-Review eingearbeitet), Datenschutz vor vibe/agy,
+  MCP-Freigaben. G4-A/G4-B/G5 von mistral-team (Large 4), G1–G3/G6 und alle Review-Korrekturen von Opus. Trockenlauf G5 über 71 alte
+  Aufträge: 70 ja, 1 agy-Auftrag mit Geheimnis-Pfad gesperrt (gewollt). Selbsttest nach jedem Paket bestanden.
+
+- ✅ 16.11. Agent-Definitionen (mit „Advisor nie aufrufen“, neu Explore.md) nach `~/.claude/agents/` übernommen; globale
+  CLAUDE.md um Fable ergänzt. Probe `disallowedTools: advisor` (Claude Code 2.1.325): **wirkt nicht** – der Testagent listet
+  `advisor` weiterhin (Selbstauskunft); Sperre bleibt Anweisung.
+- ✅ 16.11. Vibe-Modelle repariert: `~/.vibe/config.toml` mit vollständigen Einträgen (Server-Liste lieferte nur noch
+  GLM-5.3 Flash); Large 4, GLM-5.3, GLM-5.3 Flash getestet. CLAUDE.md dieses Repositorys um PLAN/Fable/Regel 8 ergänzt.
 - ✅ 16.11. Normen v6 (S06 Code Mode mit AST-Prüfung im Hook, S07 Fable als Advisor, `nur_rollen`, Rollen fable/skript,
   PLAN.md-Vorlage, Agent-Definitionen „Advisor nie aufrufen“) – PR #2. `normen.py` schrieb Claude selbst (Vibe wich auf
   Mistral Medium 3.5 aus und änderte nichts).
@@ -36,22 +46,23 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Nächste Aufgaben (in dieser Reihenfolge)
 
-### 1. Guardrail-Ausbau (Normen v7) *(Entwurf fertig, wartet auf Entscheidungen)*
+### 1. Guardrail-Ausbau (Normen v7) *(Entscheidungen 16.11. getroffen, Branch `normen-v7`)*
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
-Normtext-Diffs, offene Fragen (Abschnitt 7). Erst die Fragen mit der Inhaberin klären, dann Paketplan festlegen
-(Advisor-Konsultation 1 und 5), dann Pakete nacheinander (Hook-Pakete seriell). Nach v6 umsetzen.
+Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
+Stand: **G1–G6 und G8 fertig**, zweites Review (Mistral, Zeitlimit) und Advisor-Abnahme eingearbeitet; Wiederholung aller
+408 Bash-Befehle der Sitzungen durch den Hook: Fehlalarme behoben, verbleibende Sperren gewollt (Projektdateien per `python3 - <<PY`).
+1. PR, `normen.py merge` (v7).
+2. Nach dem Merge: alle anderen Claude-Code-Sitzungen informieren (SendMessage; an einer Aufgabengrenze aktualisieren, nicht mitten
+   in einem Team-Lauf): `normen.py aktualisieren`, `normen.py selbsttest`, Projektwerte `[mcp]`/`forschungsdaten` mit der Inhaberin.
+Später (eigene Pakete): G7 Sandbox-Spike, G9, G10, G11 laut Entwurf.
 
-### 2. Nach v6 in den Projekten *(Rückfrage)*
+### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
 
 `normen.py aktualisieren` + `multi-ki/einrichten.sh` je Projekt (CLAUDE-Abschnitt wird nicht ersetzt: PLAN-Zeile, Fable-Zeile und
-Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`). Agent-Definitionen (`multi-ki/benutzer/agents/`, inkl.
-Explore.md) nach `~/.claude/agents/` kopieren. Probe `disallowedTools: advisor` in einer Explore-Kopie (ungetestet).
+Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 
 ## Offene Fragen an die Inhaberin
 
-- Abrechnung des Advisors (Doku: Fable-Advisor wird über Usage Credits abgerechnet).
-- v7: Fragen 1–11 in `docs/plaene/guardrails-v7-entwurf.md` Abschnitt 7 (Paketplan, dcg, Sandbox-Spike, MCP-Regel,
-  Forschungsdaten-Schlüssel, Config-Selbstschutz, Hook-Fehlalarm, Rückfragen im Auto-Modus).
-- Vibe: „Model mistral-large-4-0-3 is not available“ → Lauf auf Mistral Medium 3.5 (16.11., v6-Auftrag ohne Ergebnis); `~/.vibe`-Konfiguration prüfen
-  (Einstellungen → Inhaberin). Außerdem meldet `code-reviewer.toml`: `glm-5-3` ist kein definierter Alias.
+- Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
+- v7: entschieden am 16.11. (Entwurf Abschnitt 8).

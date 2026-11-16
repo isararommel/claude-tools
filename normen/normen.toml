@@ -12,7 +12,7 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 6
+version = 7
 stand = "2026-11-16"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
@@ -20,6 +20,7 @@ grundlage = [
   "Lösch-Vorfall in einem Projekt 12.11.2026 (Pflichtsätze im Multi-KI-Ablauf)",
   "v4 (15.11.2026): Rückmeldung „N10 sperrt reines Lesen“, Rolle neutral (inhaberin), lesbar_extern, aktualisieren, melden",
   "v6 (16.11.2026): Fable als Advisor/Supervisor über Opus (S07), Code Mode für Orchestrierung (S06)",
+  "v7 (16.11.2026): Guardrail-Ausbau – Liveness-Selbsttest (Köder), weitere Pakete laut docs/plaene/guardrails-v7-entwurf.md",
 ]
 rollen_kette = "Fable (Advisor) prüft → Claude/Opus entscheidet und committet → Teams/Explore arbeiten zu → {inhaberin} gibt frei"
 ausnahme_marker = "normen-ausnahme:"
@@ -118,7 +119,7 @@ faehigkeiten = ["pakete"]
 id = "N06-NUR-ERLAUBTE-PFADE"
 stufe = "muss"
 titel = "Nur die Dateien des Auftrags ändern, nichts außerhalb des Projekts"
-prompt = "Ändere nur die Dateien, die der Auftrag nennt (.normen-auftrag). Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert. Gesperrte Pfade nicht lesen."
+prompt = "Ändere nur die Dateien, die der Auftrag nennt (.normen-auftrag). Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert. Gesperrte Pfade nicht lesen und in keinen Auftrag an externe Teams schreiben (der Hook prüft Prompt-Dateien vor vibe/agy)."
 begruendung = "Scope Creep und Überengineering (Anthropic-Doku zu Opus 4.5/4.6), Löschen fremder Dateien (Vorfall 12.11.2026), parallele Arbeit der Nutzerin im Projekt."
 quellen = ["platform.claude.com Prompting Best Practices", "Vorfall in einem Projekt 12.11.2026"]
 durchsetzung = ["hook", "pruefen"]
@@ -252,6 +253,12 @@ faehigkeiten = ["git-commit", "git-push", "einstellungen"]
   # Rückmeldung als Issue ist nach außen gerichtet: Claude fragt vorher, Teams nie. --trocken schreibt nur lokal.
   regex = '''normen\.py\s+melden\b(?![^;&|\n]*--trocken)'''
   meldung = "Rückmeldung senden (Issue im privaten Repository)."
+  [[norm.muster]]
+  ziel = "befehl"
+  faehigkeit = "hooks-umgehen"
+  # v7/G2 (L6): pre-commit/pre-push nicht umgehen – --no-verify, `git commit -n`, core.hooksPath setzen (Lesen mit --get bleibt frei).
+  regex = '''\bgit\b[^;&|\n]*(\s--no-verify\b|\s-c\s+core\.hooksPath=|\sconfig\b(?![^;&|\n]*\s--get)[^;&|\n]*\bcore\.hooksPath\s+\S)|\bgit\s+(-C\s+\S+\s+)*commit\b[^;&|\n]*\s-[a-zA-Z]*n[a-zA-Z]*\b'''
+  meldung = "pre-commit-Hook nicht umgehen (--no-verify, -n, core.hooksPath)."
 
 [[norm]]
 id = "N11-ARBEITSZWEIG"

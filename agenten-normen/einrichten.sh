@@ -91,10 +91,18 @@ for k, werte in b.get("permissions", {}).items():
     alt = p.get(k, []); p[k] = alt + [x for x in werte if x not in alt]
 h = a.setdefault("hooks", {})
 for ereignis, eintraege in b.get("hooks", {}).items():
-    vorhanden = {hk.get("command") for e in h.get(ereignis, []) for hk in e.get("hooks", [])}
     for e in eintraege:
-        if not any(hk.get("command") in vorhanden for hk in e.get("hooks", [])):
+        befehle = {hk.get("command") for hk in e.get("hooks", [])}
+        gleich = [x for x in h.get(ereignis, []) if any(hk.get("command") in befehle for hk in x.get("hooks", []))]
+        if not gleich:
             h.setdefault(ereignis, []).append(e)
+        for x in gleich:  # gleicher Hook-Befehl: fehlende Matcher-Teile der Vorlage ergänzen (z. B. mcp__.*)
+            if "matcher" in e and "matcher" in x:
+                teile = x["matcher"].split("|")
+                x["matcher"] = "|".join(teile + [m for m in e["matcher"].split("|") if m not in teile])
+for k, v in b.items():  # weitere Schlüssel (enableAllProjectMcpServers …) nur setzen, wenn sie fehlen
+    if k not in ("permissions", "hooks"):
+        a.setdefault(k, v)
 if a != json.load(open(z)):
     json.dump(a, open(z, "w"), indent=2, ensure_ascii=False); open(z, "a").write("\n")
 PY

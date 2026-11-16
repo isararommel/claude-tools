@@ -167,3 +167,40 @@ Vorlage `.claude/settings.json`:
     Projektsitzung in claude-tools liegt; Variablen löst der Hook nicht auf) – in v7 mit beheben (Vorschlag) oder als Meldung?
 11. „fragen“-Stufe: Erreichen die Rückfragen des Hooks die Inhaberin im Auto-Modus? (Am 16.11. liefen Änderungen an geschützten
     Dateien ohne sichtbare Rückfrage durch.) Falls nein: als Lücke L11 aufnehmen.
+
+## 8. Entscheidungen der Inhaberin (16.11.2026)
+
+| Frage | Entscheidung |
+|---|---|
+| 1 Paketplan | freigegeben wie Abschnitt 5: G1 → G2 → G3 → G4 → G5 → G6 seriell; G7, G8, G10 parallel; später G9, G11 |
+| 2 dcg | verwerfen (Lizenzzusatz), Ideen nachbauen |
+| 3 Sandbox | Spike G7 ja (nur Messung); vibe/agy dürfen in `excludedCommands` stehen (laufen ohne Sandbox) |
+| 4 MCP | unbekannte MCP-Werkzeuge → ja; nur `[mcp].fragen`/`[mcp].nein` greifen |
+| 5 Forschungsdaten | `[pfade].forschungsdaten` als Pfad-Globs **und** Textmarker |
+| 6 Installationen | später, jeweils einzeln freigeben |
+| 8 Config-Selbstschutz | bei „fragen“ bleiben (kein `permissions.deny`); G3 ergänzt Bash-Schreibziele |
+| 10 Hook-Fehlalarm | in v7 mit beheben – Paket G3 (dort werden Umleitungsziele ohnehin angefasst) |
+| 11 Rückfragen im Auto-Modus | für Bash belegt: Live-Probe 16.11. (Code-Mode-Skript mit `curl` → „fragen“) wurde vorgelegt und freigegeben. Für Edit/Write ebenfalls belegt: die Inhaberin hat die Rückfragen zu den `CLAUDE.md`-Edits gesehen und freigegeben → keine Lücke L11 |
+| 7 Fable-Abrechnung | entschieden: Fable läuft; bei „Advisor unavailable“ gilt S07 |
+
+Nächster Schritt: Advisor-Konsultation 1 zum Paketplan, dann G1 (Liveness mit Köder).
+
+Ergänzung zu G4 (offene Punkte aus v6): `FOO=1 python3 …`, `time python3 …`, Skripte ohne `.py`, „fragen“ bei `argparse`/`csv`
+in Code-Mode-Skripten (Importliste prüfen), Heredoc-Edits (`python3 - <<EOF`).
+Versionierung: ein Merge für v7 (alle Pakete), Version 7 und CHANGELOG mit dem ersten Normänderungs-Commit.
+
+### G4-Messung (16.11.2026, Trockenlauf)
+
+- Python im Projekt unter AST-Prüfung: `normen.py` „nein“ (30 Befunde: Befehlslisten aus Variablen, `.unlink()`, Schreibziele),
+  alle Testdateien „fragen“/„nein“ (`tempfile`, `shutil`, Schreibziele) → **Projektskripte bleiben wie bisher**; streng geprüft
+  werden Inline-Code (A) und Skripte außerhalb des Projekts (B).
+- Bash zeilenweise: `agenten-normen/einrichten.sh` (Zeile mit dem Setzen von core.hooksPath) wäre „nein“ (G2) → Projektskripte und
+  `[pfade].lesbar_extern` nicht zeilenweise prüfen.
+- Fehlalarm aus v6: ein `echo "… && python3 normen/…"` und ein Python-Einzeiler mit `;` in Anführungszeichen → „fragen“, weil die
+  Python-Erkennung die Kette auch in Anführungszeichen trennt → in A beheben (`_segmente`).
+- Fehlalarm live gefunden: Text in einem Heredoc (`cat >> datei <<'EOF'`) wird als Befehl gelesen – Rümpfe von Heredocs an
+  Nicht-Interpreter sind Daten → in A beheben.
+- Python-Einzeiler aus `mistral-team.md` → „ja“.
+- Zuschnitt: **A** Inline (`python3 -c`, `python3 - <<EOF` per AST, `bash|sh -c` rekursiv, Präfixe `FOO=1`/`time`/`env`,
+  Zitat-Fehlalarm, Heredoc-Rümpfe als Daten); **B** Dateien außerhalb des Projekts (`bash|sh <datei>` zeilenweise ohne
+  Heredoc-Rümpfe, Python ohne `.py`, `node` → fragen).

@@ -4,6 +4,36 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v7 – 2026-11-16
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)
+
+### Neu
+- **Selbsttest (G1):** `normen.py selbsttest [--werkzeug claude|vibe]` prüft durch das echte Claude Code und Vibe, ob die Normen-Hooks greifen: ein Köder-Befehl, den nur der Hook sperrt (für alle Rollen, für Agenten unsichtbar). Ergebnis je Werkzeug gesperrt / NICHT GESPERRT / unklar. Pflicht nach jedem Update.
+- **pre-commit nicht umgehen (G2):** N10 sperrt `--no-verify`, `git commit -n` und das Setzen von `core.hooksPath` (neue Fähigkeit `hooks-umgehen`, nur die Inhaberin); `git config --get core.hooksPath` bleibt frei.
+- **Bash-Schreibziele (G3):** Umleitungen, `tee`, `sed -i`, `cp`/`mv`/`ln`/`rm` … auf Normen- und Agenten-Einstellungen (CLAUDE.md, AGENTS.md, `normen/`, `.claude/`, `.vibe/`, `.githooks/`) fragen bei Claude und sind für Teams gesperrt – wie Edit/Write. Fehlalarm bei `[pfade].lesbar_extern` (Lesen mit `>` im Text) behoben.
+- **Inline-Code und fremde Skripte (G4):** `python3 -c`, `python3 [-] <<PY` per AST; `bash|sh|zsh -c` rekursiv; Skriptdateien außerhalb des Projekts (`bash x.sh`, `./x.sh`, `source`, Python ohne `.py`, Shebang) vor dem Lauf; Code über stdin, `node|perl|ruby -e` und fremde node/perl/ruby-Skripte fragen; Präfixe (`FOO=1`, `env`, `time -p`, `nice -n`, `timeout`) und `cd`/`pushd` werden berücksichtigt. Heredoc-Rümpfe von `cat > datei`/`tee` sind Daten (kein Fehlalarm mehr).
+- **Datenschutz vor vibe/agy (G5):** Vor dem Start prüft der Hook Prompt-Datei (samt `*.md` daneben) bzw. `-p`-Text: Sperrpfade und Geheimnis-Inhalte → gesperrt; Geheimnis-Pfade → bei agy gesperrt; Forschungsdaten (neu `[pfade].forschungsdaten`, Pfad-Globs und Textmarker) → agy gesperrt, vibe fragt. Nicht prüfbare Prompt-Quelle → gesperrt. Der Pflichtblock aus `normen.py auftrag` zählt nicht.
+
+- **MCP-Freigaben (G6):** Der Claude-Hook gilt auch für MCP-Werkzeuge (Matcher `mcp__.*`). Entscheidend sind nur die neuen
+  Projektlisten `[mcp].nein` / `[mcp].fragen` (Globs über den vollen Werkzeugnamen, `nein` vor `fragen`); unbekannte MCP-Werkzeuge
+  sind erlaubt, Eingabefelder werden nicht als Befehle oder Pfade gelesen. Vorlage: `enableAllProjectMcpServers: false`.
+  `einrichten.sh` ergänzt in bestehenden Projekten fehlende Matcher-Teile und fehlende Schlüssel (eigene Werte bleiben).
+
+### Geändert
+- N06-Prompt: gesperrte Pfade auch in keinen Auftrag an externe Teams schreiben.
+- Fehlalarm behoben: mehrzeilige `git commit -m "…"`-Nachrichten gelten als Text.
+- `node -e` fragt (bisher frei).
+
+### Hinweise
+- Bestehende Projekte: `normen.py aktualisieren` ergänzt den Hook-Matcher `mcp__.*` in `.claude/settings.json`. Die Projektwerte
+  `[mcp]` und `[pfade].forschungsdaten` legt die Inhaberin selbst in `normen/projekt.toml` an; bis dahin sind beide ohne Wirkung.
+- Live geprüft: Selbsttest (claude, vibe), MCP-Sperre in Claude Code (Werkzeug in `[mcp].nein` → gesperrt). Die beiden Reviews
+  (Gemini, Mistral) blieben unvollständig (Zeitlimit); Restgefahren stehen in `multi-ki-ablauf.md`.
+- Zurückgestellt aus dem Entwurf: `meta.ebenen` in `normen.toml` (Inhalt steht in der Doku).
+
+---
+
 ## v6 – 2026-11-16
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`; zusätzlich `multi-ki/einrichten.sh` für CLAUDE-Abschnitt, Ablauf und PLAN.md;

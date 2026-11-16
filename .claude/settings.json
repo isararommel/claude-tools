@@ -13,7 +13,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -44,5 +44,6 @@
         ]
       }
     ]
-  }
+  },
+  "enableAllProjectMcpServers": false
 }
