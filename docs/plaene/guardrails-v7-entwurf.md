@@ -188,3 +188,19 @@ Nächster Schritt: Advisor-Konsultation 1 zum Paketplan, dann G1 (Liveness mit K
 Ergänzung zu G4 (offene Punkte aus v6): `FOO=1 python3 …`, `time python3 …`, Skripte ohne `.py`, „fragen“ bei `argparse`/`csv`
 in Code-Mode-Skripten (Importliste prüfen), Heredoc-Edits (`python3 - <<EOF`).
 Versionierung: ein Merge für v7 (alle Pakete), Version 7 und CHANGELOG mit dem ersten Normänderungs-Commit.
+
+### G4-Messung (16.11.2026, Trockenlauf)
+
+- Python im Projekt unter AST-Prüfung: `normen.py` „nein“ (30 Befunde: Befehlslisten aus Variablen, `.unlink()`, Schreibziele),
+  alle Testdateien „fragen“/„nein“ (`tempfile`, `shutil`, Schreibziele) → **Projektskripte bleiben wie bisher**; streng geprüft
+  werden Inline-Code (A) und Skripte außerhalb des Projekts (B).
+- Bash zeilenweise: `agenten-normen/einrichten.sh` (Zeile mit dem Setzen von core.hooksPath) wäre „nein“ (G2) → Projektskripte und
+  `[pfade].lesbar_extern` nicht zeilenweise prüfen.
+- Fehlalarm aus v6: ein `echo "… && python3 normen/…"` und ein Python-Einzeiler mit `;` in Anführungszeichen → „fragen“, weil die
+  Python-Erkennung die Kette auch in Anführungszeichen trennt → in A beheben (`_segmente`).
+- Fehlalarm live gefunden: Text in einem Heredoc (`cat >> datei <<'EOF'`) wird als Befehl gelesen – Rümpfe von Heredocs an
+  Nicht-Interpreter sind Daten → in A beheben.
+- Python-Einzeiler aus `mistral-team.md` → „ja“.
+- Zuschnitt: **A** Inline (`python3 -c`, `python3 - <<EOF` per AST, `bash|sh -c` rekursiv, Präfixe `FOO=1`/`time`/`env`,
+  Zitat-Fehlalarm, Heredoc-Rümpfe als Daten); **B** Dateien außerhalb des Projekts (`bash|sh <datei>` zeilenweise ohne
+  Heredoc-Rümpfe, Python ohne `.py`, `node` → fragen).
