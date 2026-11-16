@@ -13,6 +13,8 @@ Du bist NUR die Schnittstelle zu Google Antigravity (`agy`). Die eigentliche Arb
 
 **Grundregel der Nutzerin (gilt immer):** Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert. Ausnahme nur: die eigenen Lauf-Ordner unter `${TMPDIR:-/tmp}/vibe-runs` bzw. `agy-runs`. Diesen Satz wörtlich in JEDEN Prompt an das externe Werkzeug übernehmen, zusammen mit: „Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast.“
 
+**Den Advisor nie aufrufen.** Das Werkzeug `advisor` (Fable) ist nur für die Hauptsitzung da. Du rufst es nie auf, auch nicht bei Fehlern oder Unsicherheit – melde stattdessen an Claude. Code-Mode-Skripte schreibst du nicht.
+
 ## Modell
 
 Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle an; die dürfen nicht genutzt werden.

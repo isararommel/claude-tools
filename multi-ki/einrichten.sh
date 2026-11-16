@@ -4,9 +4,9 @@
 #   Beispiel: bash einrichten.sh ~/Documents/Projekte/mein-projekt --test "make test" --sperre "daten/geheim.json" --sperre "daten/"
 # Legt an bzw. ergänzt (überschreibt nichts; abweichende Fassungen landen als <datei>.vorlage daneben):
 #   docs/multi-ki-ablauf.md, AGENTS.md, .geminiignore, docs/uebergabe-vorlage.md, .claude/settings.json (zusammengeführt),
-#   CLAUDE.md (Abschnitt angehängt), .gitignore (Lauf-Reste).
+#   CLAUDE.md (Abschnitt angehängt), PLAN.md (nur wenn sie fehlt), .gitignore (Lauf-Reste).
 #   Die Agenten-Normen (normen/, Hooks) richtet ../agenten-normen/einrichten.sh ein – vorher oder danach ausführen.
-# --benutzer-agents: kopiert mistral-team.md und gemini-analyst.md nach ~/.claude/agents/ – nur wenn dort noch keine liegen.
+# --benutzer-agents: kopiert mistral-team.md, gemini-analyst.md und Explore.md nach ~/.claude/agents/ – nur wenn dort noch keine liegen.
 set -euo pipefail
 QUELLE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ZIEL=""; TEST=""; SPERREN=(); BENUTZER=0
@@ -77,11 +77,13 @@ else
   [ -e "$C" ] && cp -p "$C" "$C.bak-$HEUTE"
   { [ -e "$C" ] && echo; cat "$TMP/abschnitt.md"; } >> "$C"; echo "  ergänzt    CLAUDE.md (Abschnitt „Multi-KI-Orchestrierung“)"
 fi
+if [ -e "$ZIEL/PLAN.md" ]; then echo "  vorhanden  PLAN.md (unverändert)"
+else cp "$QUELLE/projekt/PLAN.md" "$ZIEL/PLAN.md"; echo "  neu        PLAN.md (zentrale Aufgabenliste – ausfüllen)"; fi
 G="$ZIEL/.gitignore"; touch "$G"
 for e in ".claude/settings.local.json" "*.vorlage" "*.bak-*"; do grep -qxF "$e" "$G" || { echo "$e" >> "$G"; echo "  ergänzt    .gitignore: $e"; }; done
 if [ "$BENUTZER" = 1 ]; then
   mkdir -p "$HOME/.claude/agents"
-  for a in mistral-team gemini-analyst; do
+  for a in mistral-team gemini-analyst Explore; do
     q="$QUELLE/benutzer/agents/$a.md"; [ -f "$q" ] || { echo "  fehlt      Vorlage $a.md"; continue; }
     if [ -e "$HOME/.claude/agents/$a.md" ]; then echo "  vorhanden  ~/.claude/agents/$a.md (unverändert)"
     else cp "$q" "$HOME/.claude/agents/$a.md"; echo "  neu        ~/.claude/agents/$a.md (aus $(basename "$q"))"; fi
