@@ -45,9 +45,9 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
 Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
-Stand: **G1 fertig** (`normen.py selbsttest`: live gesperrt für claude und vibe, Gegenprobe ohne Hooks „NICHT GESPERRT“).
+Stand: **G1, G2, G3 fertig** (G3: Bash-Schreibziele auf GESCHUETZT fragen/nein, lesbar_extern-Fehlalarm behoben). **G1:** (`normen.py selbsttest`: live gesperrt für claude und vibe, Gegenprobe ohne Hooks „NICHT GESPERRT“).
 Version 7 und CHANGELOG-Abschnitt „v7 – in Arbeit“ sind angelegt; **ein Merge für v7** nach G6 (vorher Advisor-Konsultation 4/5 mit
-Köder-Muster, Live-Ausgabe, Gegenprobe). Nächstes Paket: **G2** (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
+Köder-Muster, Live-Ausgabe, Gegenprobe). Nächstes Paket: **G4** (danach G5, G6); erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
 Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
 Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
 

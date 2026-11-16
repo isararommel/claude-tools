@@ -168,9 +168,11 @@ _SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|ch
 
 def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None:
     """Gibt den lesbar_extern-Ordner zurück, in den ein Bash-Befehl schreiben könnte (sonst None). Bewusst streng:
-    jeder Teilbefehl mit Schreibverb oder Umleitung, der den Ordner nennt (auch per cd oder git -C), zählt."""
+    Schreibverb (wie bisher) oder ein Schreibziel aus _schreibziele im Ordner (auch per cd oder git -C), unaufgelöstes
+    Ziel zählt auch."""
     if not ordner:
         return None
+    ziele = _schreibziele(cmd, cwd)
     for q in ordner:
         formen = {str(q)}
         if str(q).startswith("/private/"):          # macOS: realpath macht aus /var, /tmp, /etc → /private/…
@@ -183,13 +185,180 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
         if not nennt and not (Path(os.path.realpath(cwd)) == q or q in Path(os.path.realpath(cwd)).parents):
             continue
         # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
-        if re.search(_SCHREIB_VERB, cmd) or re.search(r">>?\s*[^&\s]", re.sub(r"\d?>&\d|[0-9]?>\s*/dev/null", "", cmd)):
+        if re.search(_SCHREIB_VERB, cmd):
             return q
+        for z in ziele:
+            if z is None:
+                return q
+            zr = Path(os.path.realpath(z))
+            if zr == q or q in zr.parents:
+                return q
     return None
 
 
 # Befehlsketten in Einzelbefehle trennen (für Ausnahmen je Teilbefehl).
 SEGMENT = re.compile(r"&&|\|\||[;|&\n]")
+
+_PUNKT = "();<>|&"
+_VAR_RX = re.compile(r"\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)")
+_ALLE_ARGUMENTE = {"rm", "rmdir", "touch", "truncate", "chmod", "chown", "mkdir", "mv"}
+_LETZTES_ARGUMENT = {"cp", "ln", "install", "rsync"}
+
+
+def _maskiert(seg: str) -> str:
+    """Ersetzt jedes Zeichen in Anführungszeichen und jedes escapte Zeichen durch \\x00. So trennt shlex mit
+    punctuation_chars einen zitierten Operator (z. B. '>' in grep '>') nicht als eigenes Token – nur echte
+    Operatoren bleiben reine Interpunktions-Token."""
+    out = []
+    quote = ""
+    i = 0
+    while i < len(seg):
+        c = seg[i]
+        if quote:
+            if c == "\\" and quote == '"' and i + 1 < len(seg) and seg[i + 1] in ('"', "\\"):
+                out.append(c)
+                out.append("\x00")
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+            out.append("\x00")
+        elif c == "\\" and i + 1 < len(seg):
+            out.append(c)
+            out.append("\x00")
+            i += 2
+            continue
+        elif c in ("'", '"'):
+            quote = c
+            out.append("\x00")
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _tokenliste(seg: str) -> list[str]:
+    """Tokenize mit punctuation_chars: >, >>, &> … sind eigene Token; ValueError bei unbalancierten Quotes."""
+    lexer = shlex.shlex(seg, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
+def _ist_operator(token: str) -> bool:
+    return token != "" and all(c in _PUNKT for c in token)
+
+
+def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
+    """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
+    None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
+    install, rsync; Basisordner je Kette über cd."""
+    segmente = SEGMENT.split(cmd)
+    zuweisungen: dict[str, str] = {}
+    for seg in segmente:
+        try:
+            wörter = shlex.split(seg, posix=True)
+        except ValueError:
+            continue
+        if len(wörter) == 1 and "=" in wörter[0]:
+            name, wert = wörter[0].split("=", 1)
+            if re.fullmatch(r"[A-Za-z_]\w*", name):
+                zuweisungen[name] = os.path.expandvars(wert)
+
+    def var_ersetzen(text: str) -> str:
+        def rep(m):
+            name = m.group(1) or m.group(2)
+            if name in zuweisungen:
+                return zuweisungen[name]
+            return os.environ.get(name, m.group(0))
+        return _VAR_RX.sub(rep, text)
+
+    ziele: list[Path | None] = []
+    basis = Path(os.path.normpath(cwd))
+
+    def auflösen(roh: str) -> Path | None:
+        text = var_ersetzen(os.path.expanduser(roh))
+        if "$" in text:
+            return None
+        p = Path(text)
+        if not p.is_absolute():
+            p = basis / p
+        return Path(os.path.normpath(p))
+
+    for seg in segmente:
+        try:
+            orig = _tokenliste(seg)
+            mask = _tokenliste(_maskiert(seg))
+        except ValueError:
+            continue  # unbalancierte Anführungszeichen: Teilbefehl überspringen
+        if len(orig) != len(mask):
+            continue
+        worte = list(zip(orig, mask))
+        j = 0
+        while j < len(worte) and _ist_operator(worte[j][1]):
+            j += 1
+        if j >= len(worte):
+            continue
+        befehl = worte[j][0]
+        j += 1
+        if befehl == "sudo" and j < len(worte) and not _ist_operator(worte[j][1]):
+            befehl = worte[j][0]
+            j += 1
+        args: list[str] = []
+        umleitungen: list[str] = []
+        while j < len(worte):
+            tok, msk = worte[j]
+            if _ist_operator(msk):
+                if ">" in tok and tok != ">&" and j + 1 < len(worte) and not _ist_operator(worte[j + 1][1]):
+                    umleitungen.append(worte[j + 1][0])  # > ziel, >> ziel, &> ziel, 2> ziel
+                    j += 2
+                    continue
+                if tok.startswith("<") and j + 1 < len(worte) and not _ist_operator(worte[j + 1][1]):
+                    j += 2  # Eingabeumleitung: verbraucht das nächste Wort, ist kein Schreibziel
+                    continue
+                j += 1
+                continue
+            if tok in ("0", "1", "2") and j + 1 < len(worte) and _ist_operator(worte[j + 1][1]) and ">" in worte[j + 1][0]:
+                j += 1  # fd-Präfix (2>…): keine Datei
+                continue
+            args.append(tok)
+            j += 1
+        if befehl == "cd":
+            for a in args:
+                if not a.startswith("-"):
+                    basis = Path(os.path.normpath(a if os.path.isabs(a) else basis / a))
+                    break
+            continue
+        roh = list(umleitungen)
+        if befehl == "tee":
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl == "sed" and any(re.match(r"-[A-Za-z]*i", a) for a in args):
+            skript = next((k for k, a in enumerate(args) if not a.startswith("-") and a != ""), None)
+            if skript is not None:
+                roh += args[skript + 1:]  # Ziele stehen nach dem Skript (sed -i '' …: leeres Wort überspringen)
+        elif befehl == "perl" and any(re.match(r"-[a-z]*i", a) for a in args):
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl in _ALLE_ARGUMENTE:
+            roh += [a for a in args if not a.startswith("-")]
+        elif befehl in _LETZTES_ARGUMENT:
+            ziel = None
+            for k, a in enumerate(args):
+                if a == "-t" and k + 1 < len(args):
+                    ziel = args[k + 1]
+                elif a.startswith("--target-directory="):
+                    ziel = a.split("=", 1)[1]
+                elif a == "--target-directory" and k + 1 < len(args):
+                    ziel = args[k + 1]
+            if ziel is None:
+                nicht_optionen = [a for a in args if not a.startswith("-")]
+                if nicht_optionen:
+                    ziel = nicht_optionen[-1]
+            if ziel is not None:
+                roh.append(ziel)
+        for r in roh:
+            if r == "/dev/null":
+                continue
+            ziele.append(auflösen(r))
+    return ziele
 
 
 def _loeschbar(cfg) -> list[tuple[Path, bool]]:
@@ -339,6 +508,16 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str) -> tuple
             gruende.append(("nein", "SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt (normen.py selbsttest)"))
         if (q := _bash_schreibt_extern(cmd, cwd, _lesbar_extern(cfg))) is not None:
             gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Befehl schreibt möglicherweise in {q} ([pfade].lesbar_extern – nur lesen)"))
+        for ziel in _schreibziele(cmd, cwd):  # v7/G3: Bash-Schreibziel in GESCHUETZT braucht „einstellungen“ (wie Edit/Write)
+            if ziel is None:
+                continue
+            try:
+                rel = Path(os.path.realpath(ziel)).relative_to(ROOT).as_posix()
+            except ValueError:
+                continue
+            if any(rel == s.rstrip("/") or rel.startswith(s) for s in GESCHUETZT):
+                pruefe("einstellungen", f"N10-KEIN-COMMIT-DURCH-TEAMS: Bash schreibt in Normen/Agenten-Einstellungen {rel}")
+                break
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
