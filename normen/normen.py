@@ -464,8 +464,9 @@ def _ohne_textdaten(cmd: str) -> str:
         m = TEXT_HEREDOC.search(z)
         if m:
             ende = m.group(5)
-        aus.append(TEXT_ARG.sub(lambda t: t.group(1) + '""', z))
-    return "\n".join(aus)
+        aus.append(z)
+    # auf den ganzen Befehl: mehrzeilige -m "…"-Nachrichten (Absätze) sind ebenfalls Text
+    return TEXT_ARG.sub(lambda t: t.group(1) + '""', "\n".join(aus))
 
 
 _HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")

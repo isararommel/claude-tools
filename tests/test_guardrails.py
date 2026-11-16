@@ -61,7 +61,8 @@ with tempfile.TemporaryDirectory() as t:
             eingabe=json.dumps({"tool_name": "Bash", "tool_input": {"command": befehl}, "cwd": str(repo)})).stdout)
     erlaubt = ['git commit -m "x"', "git commit -qm x", "git commit --amend --no-edit", 'git commit -m "fix: --no-verify entfernt"',
                "git config --get core.hooksPath", "git config core.hooksPath", "git log -n 3", "git push -u origin arbeit",
-               "git status --short", "git commit -m x --signoff"]
+               "git status --short", "git commit -m x --signoff",
+               'git commit -q -m "v7: nice -n 10 erkannt\n\nZweiter Absatz (-n, --no-verify)."']
     for befehl in erlaubt:
         check(f"claude erlaubt: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
     data = {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}, "cwd": str(repo)}
