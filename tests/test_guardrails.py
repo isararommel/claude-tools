@@ -121,6 +121,17 @@ with tempfile.TemporaryDirectory() as t:
         ("cat <<'EOF' > /tmp/normen-g4.txt; bash\ngit push --force\nEOF", "fragen"),
         ("python3 <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
         ("python3 /dev/stdin <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
+        # Rückschritte (Advisor): Schein-Heredoc, Nicht-Daten-Befehle, zweiter Python-Heredoc, Optionsgruppen
+        ('echo "<<X" > /tmp/normen-g4.txt\ngit push --force', "fragen"),
+        ("echo $((1<<2)) > /tmp/normen-g4.txt\ngit push --force", "fragen"),
+        ("timeout 5 bash <<'EOF' > /tmp/normen-g4.log\ngit push --force\nEOF", "fragen"),
+        ("psql db <<'EOF' > /tmp/normen-g4.txt\nDROP TABLE t;\nEOF", "fragen"),
+        ("python3 - <<'PY'\nprint(1)\nPY\npython3 - <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
+        ("""bash -lc "python3 -c 'import os; os.system(1)'\"""", "nein"),
+        ("""bash -e -c "python3 -c 'import os; os.system(1)'\"""", "nein"),
+        ("""python3 -Bc "import os; os.system('ls')\"""", "nein"),
+        ("echo 'print(1)' | python3 -", "fragen"),
+        ("tee notizen.md <<'EOF'\ngit push --force\nEOF", "ja"),
     ]
     for befehl, soll in inline:
         check(f"G4-A {soll}: {befehl[:60]!r}", hook(repo, "claude", "claude", befehl) == soll)

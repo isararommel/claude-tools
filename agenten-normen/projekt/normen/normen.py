@@ -241,14 +241,19 @@ def _maskiert(seg: str) -> str:
 _KETTE = re.compile(r"&&|\|\||[;|\n]|(?<![<>])&(?![>&])")
 
 
-def _segmente(cmd: str) -> list[str]:
-    """Teilbefehle einer Kette – Trenner in Anführungszeichen zählen nicht (`echo "a|b" > x` bleibt ein Teilbefehl)."""
+def _segmente_pos(cmd: str) -> list[tuple[int, str]]:
+    """Teilbefehle einer Kette mit Startposition in cmd – Trenner in Anführungszeichen zählen nicht."""
     aus, start = [], 0
     for m in _KETTE.finditer(_maskiert(cmd)):
-        aus.append(cmd[start:m.start()])
+        aus.append((start, cmd[start:m.start()]))
         start = m.end()
-    aus.append(cmd[start:])
+    aus.append((start, cmd[start:]))
     return aus
+
+
+def _segmente(cmd: str) -> list[str]:
+    """Teilbefehle einer Kette – Trenner in Anführungszeichen zählen nicht (`echo "a|b" > x` bleibt ein Teilbefehl)."""
+    return [s for _, s in _segmente_pos(cmd)]
 
 
 def _tokenliste(seg: str) -> list[str]:
@@ -463,9 +468,8 @@ def _ohne_textdaten(cmd: str) -> str:
     return "\n".join(aus)
 
 
-_HEREDOC_AUF = re.compile(r"(?<!<)<<-?\s*(['\"]?)(\w+)\1")
+_HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
 _AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
-_INTERPRETER = re.compile(r"python3?(\.\d+)?|bash|sh|zsh|node|perl|ruby")
 _PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
 _PRAEFIX_WORT = {"time", "nice", "nohup", "command"}
 
@@ -487,54 +491,64 @@ def _praefixe_ueberspringen(w: list[str]) -> int:
     return i
 
 
-def _ist_interpreter_zeile(z: str, pos: int) -> bool:
-    """True, wenn der Befehl vor dem Heredoc-Operator an Position pos ein Interpreter ist (dessen Rumpf ist Code)."""
-    teil = z[:pos]
+def _heredocs(z: str) -> list[str]:
+    """Endmarken der echten Heredoc-Operatoren einer Zeile: `<<` außerhalb von Anführungszeichen, kein `<<<`,
+    kein Shift wie `$((1<<2))` (davor kein Wortzeichen, Marke beginnt mit Buchstabe oder _)."""
+    mz, aus = _maskiert(z), []
+    for k in range(len(mz) - 1):
+        if mz[k:k + 2] != "<<" or mz[k + 2:k + 3] == "<" or (k and (mz[k - 1] in "<$(\x00" or mz[k - 1].isalnum())):
+            continue
+        m = _HEREDOC_AUF.match(z, k)
+        if m:
+            aus.append(m.group(2))
+    return aus
+
+
+def _ist_datenzeile(z: str) -> bool:
+    """Aufrufzeile, deren Heredoc-Rumpf nur Daten sind: ein einziger Teilbefehl (keine Kette), Befehl `tee` oder
+    `cat` mit Ausgabe-Umleitung. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft."""
+    if len(_segmente(z)) != 1:
+        return False
     try:
-        w = shlex.split(teil)
+        w = shlex.split(z)
     except ValueError:
-        w = teil.split()
+        return False
     i = _praefixe_ueberspringen(w)
-    return i < len(w) and bool(_INTERPRETER.fullmatch(w[i].rsplit("/", 1)[-1]))
+    prog = w[i].rsplit("/", 1)[-1] if i < len(w) else ""
+    return prog == "tee" or (prog == "cat" and bool(_AUSGABE_UMLEITUNG.search(_maskiert(z))))
 
 
 def _ohne_heredoc_daten(cmd: str) -> str:
-    """Entfernt Heredoc-Rümpfe, die per Ausgabe-Umleitung in eine Datei geschrieben werden (reine Daten);
-    Aufrufzeile und Endmarke bleiben. Rümpfe von Interpreter-Aufrufen (python3, bash, sh, zsh, …), Heredocs
-    ohne Umleitung und Aufrufzeilen mit Kette (`| bash`, `&& …`, `; …`) bleiben – dort gilt die Zeilenprüfung."""
+    """Entfernt Heredoc-Rümpfe von `cat > datei <<EOF` / `tee datei <<EOF` (reine Daten); Aufrufzeile und Endmarke
+    bleiben. Andere Rümpfe bleiben unverändert (Zeilenprüfung, Python per AST). Ohne Endmarke wird nichts entfernt."""
     zeilen, aus, i = cmd.split("\n"), [], 0
     while i < len(zeilen):
         z = zeilen[i]
-        m = _HEREDOC_AUF.search(z)
-        if (m and len(_segmente(z)) == 1 and not _ist_interpreter_zeile(z, m.start())
-                and _AUSGABE_UMLEITUNG.search(z)):
-            ende = m.group(2)
-            aus.append(z)
-            i += 1
-            while i < len(zeilen) and zeilen[i].strip() != ende:
-                i += 1
-            if i < len(zeilen):
-                aus.append(zeilen[i])  # Endmarke bleibt
-                i += 1
-            continue
         aus.append(z)
         i += 1
+        marken = _heredocs(z)
+        if len(marken) != 1:
+            continue
+        ende = next((k for k in range(i, len(zeilen)) if zeilen[k].strip() == marken[0]), None)
+        if ende is None:
+            continue
+        if not _ist_datenzeile(z):
+            aus.extend(zeilen[i:ende])  # Rumpf bleibt, wird aber nicht als neue Heredoc-Aufrufzeile gelesen
+        i = ende
     return "\n".join(aus)
 
 
-def _heredoc_rumpf(cmd: str, seg: str) -> str | None:
-    """Rumpf des Heredocs aus der Aufrufzeile seg innerhalb des ganzen Befehls cmd (None = nicht erkennbar)."""
-    m = _HEREDOC_AUF.search(seg)
-    if m is None:
-        return None
-    ende = m.group(2)
+def _heredoc_rumpf(cmd: str, pos: int) -> str | None:
+    """Rumpf des Heredocs in der Zeile, in der der Teilbefehl an Position pos von cmd steht
+    (None = kein oder mehr als ein Heredoc in der Zeile, oder keine Endmarke)."""
     zeilen = cmd.split("\n")
-    start = next((k for k, z in enumerate(zeilen) if seg.strip() and seg.strip() in z), None)
-    if start is None:
+    nr = cmd.count("\n", 0, pos)
+    marken = _heredocs(zeilen[nr])
+    if len(marken) != 1:
         return None
     rumpf = []
-    for z in zeilen[start + 1:]:
-        if z.strip() == ende:
+    for z in zeilen[nr + 1:]:
+        if z.strip() == marken[0]:
             return "\n".join(rumpf)
         rumpf.append(z)
     return None
@@ -639,8 +653,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if s and s in cmd:
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
-            for seg in _segmente(cmd):  # _segmente: Trenner in Anführungszeichen bleiben im Teilbefehl
-                gruende.extend(_skript_im_befehl(cfg, seg, cmd, cwd, rolle, _tiefe))
+            for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
+                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe))
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -1066,7 +1080,7 @@ def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
     return code_pruefen(cfg, quelltext, skript.parent, cwd, str(skript))
 
 
-def _skript_im_befehl(cfg, seg: str, cmd: str, cwd: str, rolle: str, tiefe: int = 0) -> list[tuple[str, str]]:
+def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0) -> list[tuple[str, str]]:
     """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd): `python3 … <datei>.py`
     mit Datei außerhalb des Projekts, `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST) sowie
     `bash|sh|zsh -c CODE` (rekursiv bewertet). Liefert Befunde (stufe, grund)."""
@@ -1082,37 +1096,42 @@ def _skript_im_befehl(cfg, seg: str, cmd: str, cwd: str, rolle: str, tiefe: int 
     prog = w[i].rsplit("/", 1)[-1]
     rest = w[i + 1:]
     if PYTHON.match(prog):
+        def inline(code: str, art: str) -> list[tuple[str, str]]:
+            stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})")
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+
+        def heredoc(art: str) -> list[tuple[str, str]]:
+            rumpf = _heredoc_rumpf(cmd, pos)
+            if rumpf is None:
+                return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht eindeutig erkennbar – nicht prüfbar")]
+            return inline(rumpf, art)
+
         j = 0
         while j < len(rest):
             a = rest[j]
-            if a == "-c":
-                if j + 1 >= len(rest):
-                    return [("fragen", "S06-CODE-MODE: python3 -c ohne Code – nicht prüfbar")]
-                code = _VAR_RX.sub(lambda m: os.environ.get(m.group(1) or m.group(2), "X"), rest[j + 1])
-                stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} -c)")
-                return [] if stufe == "ja" else [(stufe, g) for g in gruende]
             if a == "-":
-                if _HEREDOC_AUF.search(seg) is None:
-                    return []  # python3 - ohne Heredoc (stdin): wie bisher nicht prüfbar
-                rumpf = _heredoc_rumpf(cmd, seg)
-                if rumpf is None:
-                    return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht erkennbar – nicht prüfbar")]
-                stufe, gruende = code_pruefen(cfg, rumpf, None, cwd, f"Inline-Code ({prog} - <<Heredoc)")
-                return [] if stufe == "ja" else [(stufe, g) for g in gruende]
-            if a == "-m":
-                return []
-            if a in ("-X", "-W"):
-                j += 2
-            elif a.startswith("-"):
-                j += 1
-            else:
+                if not _heredocs(seg):
+                    return [("fragen", "S06-CODE-MODE: `python3 -` liest Code von stdin – nicht prüfbar")]
+                return heredoc("- <<Heredoc")
+            if a.startswith("--") or not a.startswith("-"):
+                if a.startswith("--"):
+                    j += 1
+                    continue
                 break
-        if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _HEREDOC_AUF.search(seg):
-            rumpf = _heredoc_rumpf(cmd, seg)  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
-            if rumpf is None:
-                return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht erkennbar – nicht prüfbar")]
-            stufe, gruende = code_pruefen(cfg, rumpf, None, cwd, f"Inline-Code ({prog} <<Heredoc)")
-            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+            for k, c in enumerate(a[1:], 1):  # Optionsgruppe wie -Bc, -IXdev, -W error
+                if c == "m":
+                    return []
+                if c == "c":
+                    code = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else None)
+                    if code is None:
+                        return [("fragen", "S06-CODE-MODE: python3 -c ohne Code – nicht prüfbar")]
+                    return inline(_VAR_RX.sub(lambda m: os.environ.get(m.group(1) or m.group(2), "X"), code), "-c")
+                if c in "XW":
+                    j += 0 if a[k + 1:] else 1
+                    break
+            j += 1
+        if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _heredocs(seg):
+            return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
         if j >= len(rest) or not rest[j].endswith(".py"):
             return []
         roh = os.path.expanduser(os.path.expandvars(rest[j]))
@@ -1125,10 +1144,18 @@ def _skript_im_befehl(cfg, seg: str, cmd: str, cwd: str, rolle: str, tiefe: int 
             return []  # Projektskripte wie bisher
         stufe, gruende = skript_pruefen(cfg, datei, cwd)
         return [] if stufe == "ja" else [(stufe, g) for g in gruende]
-    if prog in ("bash", "sh", "zsh") and len(rest) >= 2 and rest[0] == "-c":
+    if prog in ("bash", "sh", "zsh"):
+        j, mit_c = 0, False  # Optionen vor dem Code: -c, -lc, -e -c, -o name …
+        while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
+            mit_c = mit_c or (not rest[j].startswith("--") and "c" in rest[j][1:])
+            j += 2 if rest[j] in ("-o", "-O") else 1
+        if not mit_c:
+            return []
+        if j >= len(rest):
+            return [("fragen", f"S06-CODE-MODE: {prog} -c ohne Code – nicht prüfbar")]
         if tiefe >= 3:
             return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
-        stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[1]}, cwd, _tiefe=tiefe + 1)
+        stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[j]}, cwd, _tiefe=tiefe + 1)
         return [] if stufe == "ja" else [(stufe, g) for g in gruende]
     return []
 
