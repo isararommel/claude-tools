@@ -508,17 +508,24 @@ def _heredocs(z: str) -> list[str]:
 
 
 def _ist_datenzeile(z: str) -> bool:
-    """Aufrufzeile, deren Heredoc-Rumpf nur Daten sind: ein einziger Teilbefehl (keine Kette), Befehl `tee` oder
-    `cat` mit Ausgabe-Umleitung. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft."""
-    if len(_segmente(z)) != 1:
-        return False
-    try:
-        w = shlex.split(z)
-    except ValueError:
-        return False
-    i = _praefixe_ueberspringen(w)
-    prog = w[i].rsplit("/", 1)[-1] if i < len(w) else ""
-    return prog == "tee" or (prog == "cat" and bool(_AUSGABE_UMLEITUNG.search(_maskiert(z))))
+    """Aufrufzeile, deren Heredoc-Rumpf nur Daten sind: der Teilbefehl mit dem Heredoc ist `tee` oder `cat` mit
+    Ausgabe-Umleitung und gibt nicht in eine Pipe weiter (`cat <<EOF | bash`, `|&`). Ketten davor/danach (`cd x && cat > f <<EOF`)
+    ändern daran nichts. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft."""
+    mz = _maskiert(z)
+    for p, s in _segmente_pos(z):
+        if "<<" not in _maskiert(s):
+            continue
+        nach = mz[p + len(s):].lstrip()
+        if nach.startswith("|") and not nach.startswith("||"):
+            return False
+        try:
+            w = shlex.split(s)
+        except ValueError:
+            return False
+        i = _praefixe_ueberspringen(w)
+        prog = w[i].rsplit("/", 1)[-1] if i < len(w) else ""
+        return prog == "tee" or (prog == "cat" and bool(_AUSGABE_UMLEITUNG.search(_maskiert(s))))
+    return False
 
 
 def _ohne_heredoc_daten(cmd: str) -> str:
@@ -1265,7 +1272,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                            code)
     rest = w[i + 1:]
     vorher = _maskiert(cmd)[:pos].rstrip()
-    aus_pipe = vorher.endswith("|") and not vorher.endswith("||")
+    aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`
 
     def stdin(j: int) -> list[tuple[str, str]] | None:
         """Interpreter ohne Skriptdatei an Stelle j: Code aus Pipe, `<` oder /dev/stdin → fragen; None = Datei folgt."""
@@ -1540,9 +1547,10 @@ def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
         return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} mit mehreren Prompt-Quellen – nicht prüfbar")]
     quelle = quellen[0] if quellen else None
     if quelle is None:
-        if rest and all(t in ("--version", "--help", "-h") for t in rest):
+        if any(t in ("--version", "--help", "-h") for t in rest):
             return []
-        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} ohne prüfbare Prompt-Quelle – nicht prüfbar")]
+        # ohne Prompt: interaktiv oder Unterbefehl (vibe config …) – nichts geht ungeprüft an das Team, aber nachfragen
+        return [("fragen", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} ohne Prompt-Quelle (interaktiv/Unterbefehl)")]
     art, wert = quelle
     if art == "text":
         m = _CAT_PROMPT_RX.match(wert)

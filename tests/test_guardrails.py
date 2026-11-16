@@ -90,7 +90,11 @@ with tempfile.TemporaryDirectory() as t:
                    "python3 normen/normen.py auftrag --rolle mistral-team --dateien a.py", "python3 normen/normen.py auftrag --ende",
                    "python3 normen/normen.py pruefen --diff", "python3 normen/normen.py merge 7", "python3 normen/normen.py selbsttest",
                    "make test", 'git commit -q -m "x"', "git push -q -u origin arbeit", "git add -A tests",
-                   'make test 2>&1 | grep -E "ok,|FAIL"', "python3 normen/normen.py pruefen --diff | tail -2"]:
+                   'make test 2>&1 | grep -E "ok,|FAIL"', "python3 normen/normen.py pruefen --diff | tail -2",
+                   # Ergebniszeile der mistral-team-Schnittstelle (RUN im selben Befehl, Pfad außerhalb des Projekts)
+                   """RUN=/tmp/vibe-runs/x; python3 -c "import json;d=json.load(open('$RUN/out/export.json'));"""
+                   """print(d['outcome'],d.get('steps'),d.get('config',{}).get('active_model'),d['usage'])\"""",
+                   'RUN="/tmp/vibe-runs/x"; tail -n 80 "$RUN/antwort.txt"']:
         check(f"Betrieb ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
 
     # G4-A (L1): Inline-Code – python3 -c / python3 - <<EOF per AST, bash|sh -c rekursiv, Präfixe, Heredoc-Rümpfe als Daten
@@ -121,7 +125,10 @@ with tempfile.TemporaryDirectory() as t:
         # Rückschritte: Heredoc mit Umleitung UND Kette ist kein reiner Datenrumpf; python3 ohne `-` liest den Heredoc als Code
         ("cat <<'EOF' 2>/dev/null | bash\ngit push --force\nEOF", "fragen"),
         ("cat > /tmp/normen-g4.sh <<'EOF' && bash /tmp/normen-g4.sh\ngit push --force\nEOF", "fragen"),
-        ("cat <<'EOF' > /tmp/normen-g4.txt; bash\ngit push --force\nEOF", "fragen"),
+        # Der Heredoc gehört zu `cat` (Daten); `bash` nach `;` bekommt ihn nicht – kein Code (Advisor-Abnahme: Kette ≠ Pipe)
+        ("cat <<'EOF' > /tmp/normen-g4.txt; bash\ngit push --force\nEOF", "ja"),
+        ("cd /tmp && cat >> /tmp/normen-g4.txt <<'EOF'\ngit push --force\npython3 -c 'x'\nEOF", "ja"),
+        ("cat <<'EOF' |& bash\ngit push --force\nEOF", "fragen"), ("cat /tmp/normen-g4.sh |& bash", "fragen"),
         ("python3 <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
         ("python3 /dev/stdin <<'PY'\nimport subprocess\nsubprocess.run(['git', 'push'])\nPY", "nein"),
         # Rückschritte (Advisor): Schein-Heredoc, Nicht-Daten-Befehle, zweiter Python-Heredoc, Optionsgruppen
@@ -279,7 +286,8 @@ with tempfile.TemporaryDirectory() as t:
         ('vibe --trust -p "$PROMPT_GIBT_ES_NICHT" < /dev/null', "nein"),
         ("vibe --trust -p \"Fasse `cat daten/x` zusammen\" < /dev/null", "nein"),
         ("vibe --trust -p 'alles sauber' -p 'Lies daten/geheim/y.csv' < /dev/null", "nein"),  # Review v7: mehrere Quellen
-        ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "nein"),
+        ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "fragen"),
+        ("vibe --version 2>&1 | head -2", "ja"), ("vibe config 2>&1 | head -5", "fragen"),
     ]
     for befehl, soll in g5:
         check(f"G5 {soll}: {befehl[-90:]!r}", hook(repo, "claude", "claude", befehl) == soll)

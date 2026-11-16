@@ -21,8 +21,16 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
   `einrichten.sh` ergänzt in bestehenden Projekten fehlende Matcher-Teile und fehlende Schlüssel (eigene Werte bleiben).
 
 ### Geändert
+- N06-Prompt: gesperrte Pfade auch in keinen Auftrag an externe Teams schreiben.
 - Fehlalarm behoben: mehrzeilige `git commit -m "…"`-Nachrichten gelten als Text.
 - `node -e` fragt (bisher frei).
+
+### Hinweise
+- Bestehende Projekte: `normen.py aktualisieren` ergänzt den Hook-Matcher `mcp__.*` in `.claude/settings.json`. Die Projektwerte
+  `[mcp]` und `[pfade].forschungsdaten` legt die Inhaberin selbst in `normen/projekt.toml` an; bis dahin sind beide ohne Wirkung.
+- Live geprüft: Selbsttest (claude, vibe), MCP-Sperre in Claude Code (Werkzeug in `[mcp].nein` → gesperrt). Die beiden Reviews
+  (Gemini, Mistral) blieben unvollständig (Zeitlimit); Restgefahren stehen in `multi-ki-ablauf.md`.
+- Zurückgestellt aus dem Entwurf: `meta.ebenen` in `normen.toml` (Inhalt steht in der Doku).
 
 ---
 
