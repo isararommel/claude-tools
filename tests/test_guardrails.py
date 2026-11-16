@@ -67,5 +67,44 @@ with tempfile.TemporaryDirectory() as t:
              eingabe=json.dumps(data)).stdout
     check("Meldung nennt den Grund", "pre-commit-Hook nicht umgehen" in aus, aus)
 
+    # G3 (L3): Bash-Schreibziele gegen GESCHUETZT – Claude fragt, Teams gesperrt (wie bei Edit/Write)
+    schreibt_geschuetzt = ["sed -i '' s/a/b/ .claude/settings.json", "echo x > normen/x.toml", "echo x >> CLAUDE.md",
+                           "tee AGENTS.md < /tmp/a", "cp /tmp/a.json .claude/settings.json", "mv /tmp/x .githooks/pre-commit",
+                           "cd normen && echo x > kurz.md", "printf x 2>/dev/null > .vibe/hooks.toml", "touch .normen-auftrag",
+                           "rm -f normen/kurz.md", "ln -s /tmp/x .claude/agents"]
+    for befehl in schreibt_geschuetzt:
+        check(f"G3 claude fragt: {befehl}", hook(repo, "claude", "claude", befehl) == "fragen")
+        check(f"G3 vibe sperrt: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    liest_geschuetzt = ["cat normen/kurz.md > /tmp/kurz.txt", "cp normen/normen.py /tmp/normen-kopie.py", "diff CLAUDE.md AGENTS.md",
+                        'grep -rn hook .claude/ > "$TMPDIR/treffer.txt"', "ls -la .claude/", "python3 normen/normen.py sync",
+                        "git diff -- normen/ 2>&1 | head", "echo x > notizen.txt"]
+    for befehl in liest_geschuetzt:
+        check(f"G3 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
+
+    # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
+    extern = Path(t) / "werkzeuge"
+    (extern / "quelle").mkdir(parents=True)
+    pt = repo / "normen/projekt.toml"
+    pt.write_text(pt.read_text().replace('lesbar_extern = ["~/Documents/Projekte/claude-tools"]', f'lesbar_extern = ["{extern}"]'))
+
+    def hook_in(cwd, befehl):
+        data = {"tool_name": "Bash", "tool_input": {"command": befehl}, "cwd": str(cwd)}
+        r = sh(sys.executable, str(repo / "normen/normen.py"), "hook", "--rolle", "claude", "--werkzeug", "claude", cwd=repo,
+               eingabe=json.dumps(data))
+        if not r.stdout.strip():
+            return "ja"
+        return {"deny": "nein", "ask": "fragen"}[json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"]]
+
+    fehlalarm = ['grep -rn "=>" quelle/', "grep -c '>' quelle/a.md", 'git status --short > "$TMPDIR/status.txt"',
+                 'RUN=/tmp/normen-lauf-x; git log --oneline -3 > "$RUN/log.txt"', "git diff > /tmp/normen-diff.txt",
+                 "awk '$1 > 3' quelle/a.txt"]
+    for befehl in fehlalarm:
+        check(f"Fehlalarm behoben: {befehl}", hook_in(extern, befehl) == "ja")
+    weiter_gesperrt = ["echo x > quelle/a.md", "git status > status.txt", 'echo x > "$GIBT_ES_NICHT_V7/a.md"',
+                       f"echo x > {extern}/quelle/a.md", "sed -i '' s/a/b/ quelle/a.md", "cd quelle && echo x > a.md"]
+    for befehl in weiter_gesperrt:
+        check(f"lesbar_extern weiter gesperrt: {befehl}", hook_in(extern, befehl) == "nein")
+    check("lesbar_extern aus dem Projekt: Ziel extern gesperrt", hook_in(repo, f"echo x > {extern}/quelle/a.md") == "nein")
+
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)
