@@ -16,6 +16,7 @@
 #   einstellungen-lesen  diese Ordner lesen (Claude und seine eigenen Sub-Agenten; externe Teams nie)
 #   rueckmelden          Rückmeldung als Issue senden (`normen.py melden` ohne --trocken; nach außen gerichtet)
 #   auto-modus           Agenten ohne Freigaben starten (niemand)
+#   hooks-umgehen        pre-commit/pre-push umgehen (--no-verify, -n, core.hooksPath) – nur {inhaberin}
 # frei_schreiben: Pfade außerhalb des Projekts, die die Rolle ohne Rückfrage schreiben darf (Globs, ~ und $VAR erlaubt).
 # auftrag_pflicht = true: Die Rolle schreibt nur Pfade, die der Orchestrator in .normen-auftrag freigegeben hat
 #   (`python3 normen/normen.py auftrag --rolle <rolle> --dateien …`); ohne diese Datei darf sie nichts schreiben.
@@ -28,7 +29,7 @@ verantwortet = [
   "Ausführen von Skripten auf dem Server",
   "Änderungen an normen.toml/rollen.toml bestätigen; begründete Ausnahmen gegenlesen",
 ]
-faehigkeiten = { schreiben = "ja", tests-aendern = "ja", loeschen = "ja", pakete = "ja", git-commit = "ja", git-push = "ja", main = "ja", sperrpfade-lesen = "ja", geheimnisse-lesen = "ja", ausserhalb-schreiben = "ja", einstellungen = "ja", einstellungen-lesen = "ja", rueckmelden = "ja" }
+faehigkeiten = { schreiben = "ja", tests-aendern = "ja", loeschen = "ja", pakete = "ja", git-commit = "ja", git-push = "ja", main = "ja", sperrpfade-lesen = "ja", geheimnisse-lesen = "ja", ausserhalb-schreiben = "ja", einstellungen = "ja", einstellungen-lesen = "ja", rueckmelden = "ja", hooks-umgehen = "ja" }
 
 [rollen.fable]
 art = "agent"

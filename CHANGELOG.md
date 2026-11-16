@@ -10,6 +10,7 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ### Neu
 - **Selbsttest (G1):** `normen.py selbsttest [--werkzeug claude|vibe]` prüft durch das echte Claude Code und Vibe, ob die Normen-Hooks greifen: ein Köder-Befehl, den nur der Hook sperrt (für alle Rollen, für Agenten unsichtbar). Ergebnis je Werkzeug gesperrt / NICHT GESPERRT / unklar. Pflicht nach jedem Update.
+- **pre-commit nicht umgehen (G2):** N10 sperrt `--no-verify`, `git commit -n` und das Setzen von `core.hooksPath` (neue Fähigkeit `hooks-umgehen`, nur die Inhaberin); `git config --get core.hooksPath` bleibt frei.
 
 ---
 

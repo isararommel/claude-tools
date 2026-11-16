@@ -253,6 +253,12 @@ faehigkeiten = ["git-commit", "git-push", "einstellungen"]
   # Rückmeldung als Issue ist nach außen gerichtet: Claude fragt vorher, Teams nie. --trocken schreibt nur lokal.
   regex = '''normen\.py\s+melden\b(?![^;&|\n]*--trocken)'''
   meldung = "Rückmeldung senden (Issue im privaten Repository)."
+  [[norm.muster]]
+  ziel = "befehl"
+  faehigkeit = "hooks-umgehen"
+  # v7/G2 (L6): pre-commit/pre-push nicht umgehen – --no-verify, `git commit -n`, core.hooksPath setzen (Lesen mit --get bleibt frei).
+  regex = '''\bgit\b[^;&|\n]*(\s--no-verify\b|\s-c\s+core\.hooksPath=|\sconfig\b(?![^;&|\n]*\s--get)[^;&|\n]*\bcore\.hooksPath\s+\S)|\bgit\s+(-C\s+\S+\s+)*commit\b[^;&|\n]*\s-[a-zA-Z]*n[a-zA-Z]*\b'''
+  meldung = "pre-commit-Hook nicht umgehen (--no-verify, -n, core.hooksPath)."
 
 [[norm]]
 id = "N11-ARBEITSZWEIG"
