@@ -599,6 +599,13 @@ def _auftrag_globs() -> list[str] | None:
 
 def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: int = 0) -> tuple[str, list[str]]:
     """Liefert (ja|fragen|nein, Gründe). _tiefe: Verschachtelung der bash/sh/zsh -c-Rekursion (ab 3 „fragen“)."""
+    if tool.startswith("mcp__"):  # MCP: nur die Projektlisten entscheiden (Eingabefelder sind keine Befehle/Pfade)
+        mcp = cfg["projekt"].get("mcp", {})
+        for stufe in ("nein", "fragen"):
+            treffer = next((g for g in mcp.get(stufe, []) if fnmatch.fnmatchcase(tool, g)), None)
+            if treffer:
+                return stufe, [f"N07-KEIN-AUTO-MODUS: MCP-Werkzeug {tool} steht in [mcp].{stufe} ({treffer})"]
+        return "ja", []
     pf = cfg["projekt"].get("pfade", {})
     rinfo = cfg["rollen"].get(rolle, {})
     befehle: list[str] = []

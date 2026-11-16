@@ -25,6 +25,12 @@ lesbar_extern = ["~/Documents/Projekte/claude-tools"]
 # ein Pfad-Glob relativ zum Projekt (enthält / oder *, z. B. "daten/roh/**") oder ein Textmarker (z. B. "PROBAND-").
 forschungsdaten = []
 
+[mcp]
+# MCP-Werkzeuge (Globs über den vollen Namen, z. B. "mcp__*__container_restart"): nein = gesperrt, fragen = Rückfrage.
+# Unbekannte MCP-Werkzeuge sind erlaubt. nein hat Vorrang vor fragen.
+fragen = []
+nein = []
+
 [pruefen]
 # Nicht prüfen (Präfixe): Erzeugtes, Archiv, gesperrte Daten, die Normen selbst.
 ausschliessen = [".git/", ".venv/", "node_modules/", "dist/", "normen/"]

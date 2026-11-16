@@ -15,6 +15,11 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 - **Inline-Code und fremde Skripte (G4):** `python3 -c`, `python3 [-] <<PY` per AST; `bash|sh|zsh -c` rekursiv; Skriptdateien außerhalb des Projekts (`bash x.sh`, `./x.sh`, `source`, Python ohne `.py`, Shebang) vor dem Lauf; Code über stdin, `node|perl|ruby -e` und fremde node/perl/ruby-Skripte fragen; Präfixe (`FOO=1`, `env`, `time -p`, `nice -n`, `timeout`) und `cd`/`pushd` werden berücksichtigt. Heredoc-Rümpfe von `cat > datei`/`tee` sind Daten (kein Fehlalarm mehr).
 - **Datenschutz vor vibe/agy (G5):** Vor dem Start prüft der Hook Prompt-Datei (samt `*.md` daneben) bzw. `-p`-Text: Sperrpfade und Geheimnis-Inhalte → gesperrt; Geheimnis-Pfade → bei agy gesperrt; Forschungsdaten (neu `[pfade].forschungsdaten`, Pfad-Globs und Textmarker) → agy gesperrt, vibe fragt. Nicht prüfbare Prompt-Quelle → gesperrt. Der Pflichtblock aus `normen.py auftrag` zählt nicht.
 
+- **MCP-Freigaben (G6):** Der Claude-Hook gilt auch für MCP-Werkzeuge (Matcher `mcp__.*`). Entscheidend sind nur die neuen
+  Projektlisten `[mcp].nein` / `[mcp].fragen` (Globs über den vollen Werkzeugnamen, `nein` vor `fragen`); unbekannte MCP-Werkzeuge
+  sind erlaubt, Eingabefelder werden nicht als Befehle oder Pfade gelesen. Vorlage: `enableAllProjectMcpServers: false`.
+  `einrichten.sh` ergänzt in bestehenden Projekten fehlende Matcher-Teile und fehlende Schlüssel (eigene Werte bleiben).
+
 ### Geändert
 - Fehlalarm behoben: mehrzeilige `git commit -m "…"`-Nachrichten gelten als Text.
 - `node -e` fragt (bisher frei).

@@ -279,5 +279,47 @@ with tempfile.TemporaryDirectory() as t:
     for befehl, soll in g5:
         check(f"G5 {soll}: {befehl[-90:]!r}", hook(repo, "claude", "claude", befehl) == soll)
 
+    # G6 (L7): MCP-Werkzeuge – nur [mcp].nein/fragen (Globs über den vollen Namen) entscheiden, unbekannt → ja
+    einst = json.loads((repo / ".claude/settings.json").read_text())
+    check("G6 Matcher enthält mcp__", any("mcp__.*" in e.get("matcher", "") for e in einst["hooks"]["PreToolUse"]))
+    check("G6 enableAllProjectMcpServers false", einst.get("enableAllProjectMcpServers") is False)
+
+    def mcp(name, eingabe=None, rolle="claude"):
+        data = {"tool_name": name, "tool_input": eingabe or {}, "cwd": str(repo)}
+        r = sh(sys.executable, "normen/normen.py", "hook", "--rolle", rolle, "--werkzeug", "claude", cwd=repo, eingabe=json.dumps(data))
+        if not r.stdout.strip():
+            return "ja"
+        return {"deny": "nein", "ask": "fragen"}[json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"]]
+
+    unbekannt = [("mcp__server__liste", None), ("mcp__docs__create", {"title": "x"}), ("mcp__server__run", {"command": "git push --force"}),
+                 ("mcp__server__lesen", {"path": "notizen.md"})]
+    for name, eingabe in unbekannt:
+        check(f"G6 unbekannt ja: {name}", mcp(name, eingabe) == "ja")
+    check("G6 Vorlage hat [mcp]", "[mcp]\n" in pt.read_text())
+    pt.write_text(pt.read_text().replace("fragen = []\nnein = []", 'fragen = ["mcp__*__container_restart", "mcp__*__nginx_*", '
+                                         '"mcp__*__todos_update"]\nnein = ["mcp__*__nginx_reload"]'))
+    for name, soll in [("mcp__srv__container_restart", "fragen"), ("mcp__srv__nginx_test", "fragen"),
+                       ("mcp__srv__nginx_reload", "nein"), ("mcp__srv__containers_list", "ja"), ("mcp__srv__todos_list", "ja")]:
+        check(f"G6 {soll}: {name}", mcp(name) == soll)
+    check("G6 Meldung nennt den Eintrag", "mcp__*__nginx_reload" in sh(
+        sys.executable, "normen/normen.py", "hook", "--rolle", "claude", "--werkzeug", "claude", cwd=repo,
+        eingabe=json.dumps({"tool_name": "mcp__srv__nginx_reload", "tool_input": {}, "cwd": str(repo)})).stdout)
+
+    # G6: einrichten.sh ergänzt in bestehenden Projekten den Matcher (gleicher Hook-Befehl) und setzt fehlende Schlüssel
+    alt = Path(t) / "altprojekt"
+    alt.mkdir()
+    sh("git", "init", "-q", cwd=alt)
+    (alt / ".claude").mkdir()
+    (alt / ".claude/settings.json").write_text(json.dumps({"enableAllProjectMcpServers": True, "hooks": {"PreToolUse": [
+        {"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read", "hooks": [{"type": "command", "command":
+         'python3 "$CLAUDE_PROJECT_DIR/normen/normen.py" hook --rolle claude --werkzeug claude'}]}]}}))
+    r = sh("bash", str(VORLAGE / "einrichten.sh"), str(alt), "--test", "true")
+    check("G6 einrichten altprojekt", r.returncode == 0, r.stdout + r.stderr)
+    einst = json.loads((alt / ".claude/settings.json").read_text())
+    pre = einst["hooks"]["PreToolUse"]
+    check("G6 kein doppelter Hook", len(pre) == 1, json.dumps(pre))
+    check("G6 Matcher ergänzt", "mcp__.*" in pre[0]["matcher"] and pre[0]["matcher"].startswith("Bash|"), pre[0]["matcher"])
+    check("G6 eigene Einstellung bleibt", einst.get("enableAllProjectMcpServers") is True)
+
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)

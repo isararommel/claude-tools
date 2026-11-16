@@ -28,6 +28,11 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 16.11. v7 G1–G6 auf Branch `normen-v7` (Einzelheiten: CHANGELOG „v7 – in Arbeit“): Selbsttest, pre-commit nicht umgehen,
+  Bash-Schreibziele, Inline-Code und fremde Skripte (Advisor- und Gemini-Review eingearbeitet), Datenschutz vor vibe/agy,
+  MCP-Freigaben. G4-A/G4-B/G5 von mistral-team (Large 4), G1–G3/G6 und alle Review-Korrekturen von Opus. Trockenlauf G5 über 71 alte
+  Aufträge: 70 ja, 1 agy-Auftrag mit Geheimnis-Pfad gesperrt (gewollt). Selbsttest nach jedem Paket bestanden.
+
 - ✅ 16.11. Agent-Definitionen (mit „Advisor nie aufrufen“, neu Explore.md) nach `~/.claude/agents/` übernommen; globale
   CLAUDE.md um Fable ergänzt. Probe `disallowedTools: advisor` (Claude Code 2.1.325): **wirkt nicht** – der Testagent listet
   `advisor` weiterhin (Selbstauskunft); Sperre bleibt Anweisung.
@@ -45,24 +50,15 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
 Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
-Stand: **G1, G2, G3 fertig** (G3: Bash-Schreibziele auf GESCHUETZT fragen/nein, lesbar_extern-Fehlalarm behoben). **G1:** (`normen.py selbsttest`: live gesperrt für claude und vibe, Gegenprobe ohne Hooks „NICHT GESPERRT“).
-Version 7 und CHANGELOG-Abschnitt „v7 – in Arbeit“ sind angelegt; **ein Merge für v7** nach G6 (vorher Advisor-Konsultation 4/5 mit
-Köder-Muster, Live-Ausgabe, Gegenprobe). **G4-A fertig** (Inline-Code: `python3 -c`, `python3 [-|/dev/stdin] <<PY` per AST,
-`bash|sh|zsh -c` rekursiv, Präfixe `FOO=1`/`time`/`env`/`nice`/`nohup`/`command`, Heredoc-Rümpfe mit Umleitung ohne Kette sind
-Daten; umgesetzt von mistral-team, Ketten-Umgehung `cat <<EOF … | bash` und `python3 <<PY` ohne `-` von Opus nachgezogen).
-**G4-B fertig** (Skriptdateien außerhalb des Projekts und außerhalb `lesbar_extern`: `bash|sh|zsh|source|.` und direkte
-Pfadaufrufe – Inhalt als ein Befehl rekursiv durch `bewerten`; Python mit/ohne `.py` und Shebang per AST; `node|perl|ruby` und
-unbekannte Shebangs → fragen; nicht vorhanden oder im selben Befehl geschrieben → fragen; `cd` im Befehl wird als Basis verfolgt;
-Messung an 117 vorhandenen Skripten: Befunde stammen aus dem Inhalt, kaum Parser-Rauschen). Advisor- und Gemini-Review G4
-eingearbeitet (pushd/`{ cd }`, Code über stdin, `nice -n`/`time -p`/`timeout`, `getattr`/Aliase, `node -e` fragt; G2-Fehlalarm bei
-mehrzeiligen Commit-Nachrichten behoben). Gemini brach nach 4 von 10 Befunden mit Timeout ab – ein zweites Review vor dem Merge.
-**G5 fertig** (mistral-team, 29 Schritte; Opus: `$(cat …)`/Variablen auch bei `vibe -p`; Trockenlauf über 71 alte Aufträge: 70 ja,
-1 agy-Auftrag mit Geheimnis-Pfad gesperrt – gewollt): Prompt-Prüfung vor vibe/agy – Sperrpfade/Geheimnis-Inhalte nein, Geheimnis-Pfade nur agy nein,
-`[pfade].forschungsdaten` (Globs + Textmarker) agy nein / vibe fragen; Messung: 4 von 75 alten Prompts nennen Geheimnis-*Pfade*.
-Offen: ob ein „fragen“ aus einem Hintergrund-Subagenten die Inhaberin erreicht (sonst wirkt es wie „nein“ – in G8 dokumentieren).
-Nächstes Paket: **G6** (MCP-Freigaben: Matcher `mcp__.*`, `[mcp].fragen`/`nein`, unbekannt → ja, `enableAllProjectMcpServers: false`). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
-Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
-Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
+Stand: **G1–G6 fertig** (siehe „Erledigt“ und CHANGELOG). **Ein Merge für v7**; bis dahin, in dieser Reihenfolge:
+1. **Zweites Review** des Hooks (Diff `normen.py` gegen `origin/main`, Schwerpunkt G4–G6): an mistral-team (code-reviewer), da
+   Gemini beim ersten Review nach 4 Befunden mit Timeout abbrach; Auftrag mit kleinerem Ausschnitt je Lauf. Befunde selbst probieren.
+2. **G8 Doku** (gemini-analyst): `multi-ki/multi-ki-ablauf.md` und `agenten-normen` – drei Ebenen (Hook → Sandbox geplant →
+   pre-commit/merge) mit Restgefahren; neue Projektwerte `[pfade].forschungsdaten` und `[mcp]`; `selbsttest` nach jedem Update;
+   offen dokumentieren, dass ein „fragen“ aus einem Hintergrund-Subagenten die Inhaberin evtl. nicht erreicht und dann wie „nein“ wirkt.
+3. Advisor-Konsultation 4/5 (Köder-Muster, Live-Selbsttest, Gegenprobe, Trockenlauf G5), CHANGELOG-Datum, PR, `normen.py merge`.
+4. Nach dem Merge: alle anderen Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
+Später (eigene Pakete): G7 Sandbox-Spike, G9, G10, G11 laut Entwurf.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
 
