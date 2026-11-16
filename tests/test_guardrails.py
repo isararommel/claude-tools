@@ -137,6 +137,45 @@ with tempfile.TemporaryDirectory() as t:
         check(f"G4-A {soll}: {befehl[:60]!r}", hook(repo, "claude", "claude", befehl) == soll)
     check("G4-A vibe: os.system nein", hook(repo, "mistral-team", "vibe", """python3 -c "import os; os.system('ls')\"""") == "nein")
 
+    # G4-B (L1): Skriptdateien außerhalb des Projekts (und außerhalb lesbar_extern) – Shell-Inhalt als ein Befehl durch
+    # bewerten, Python ohne .py per AST, node/perl/ruby fragen, nicht vorhanden fragen; Projektskripte wie bisher
+    def skript(name, inhalt, ausfuehrbar=False):
+        p = lauf / name
+        p.write_text(inhalt)
+        if ausfuehrbar:
+            p.chmod(0o755)
+        return p
+
+    sauber = skript("sauber.sh", "#!/bin/bash\nset -uo pipefail\n# git push --force steht nur im Kommentar\ngit status --short\n"
+                    "if [ -d x ]; then echo ja; fi\nfor f in *.md; do wc -l \"$f\"; done\n"
+                    "cat > notiz.txt <<'EOF'\ngit push --force\nEOF\n", True)
+    hart = skript("hart.sh", "#!/bin/bash\ngit push --force origin x\n", True)
+    ohne_shebang = skript("ohne-shebang", "git push --force origin x\n", True)
+    umgeht = skript("umgeht.sh", "git status\ngit commit --no-verify -m x\n")
+    tief = skript("tief.sh", f"echo start\nbash {hart}\n")
+    py_ohne_endung = skript("auswerten", "#!/usr/bin/env python3\nimport subprocess\nsubprocess.run(['git', 'commit', '-m', 'x'])\n",
+                            True)
+    js = skript("x.js", "console.log(1)\n")
+    pl = skript("x.pl", "print 1;\n")
+    (repo / "werkzeug.sh").write_text("git push --force origin x\n")
+    dateien = [
+        (f"bash {sauber}", "ja"), (f"sh {sauber}", "ja"), (f"{sauber}", "ja"), (f"source {sauber}", "ja"),
+        (f"cd {lauf} && ./sauber.sh", "ja"),
+        (f"bash {hart}", "fragen"), (f"zsh {hart}", "fragen"), (f"FOO=1 bash -x {hart}", "fragen"), (f". {hart}", "fragen"),
+        (f"{hart}", "fragen"), (f"cd {lauf} && ./hart.sh", "fragen"), (f"{ohne_shebang}", "fragen"),
+        (f"bash {tief}", "fragen"), (f"bash {umgeht}", "nein"),
+        (f"python3 {py_ohne_endung}", "nein"), (f"{py_ohne_endung}", "nein"),
+        (f"node {js}", "fragen"), (f"perl {pl}", "fragen"), ("bash /tmp/normen-g4b-gibt-es-nicht.sh", "fragen"),
+        (f"printf 'ls\\n' > {sauber} && bash {sauber}", "fragen"),  # Inhalt wird im selben Befehl ersetzt
+        ("bash werkzeug.sh", "ja"),  # Projektskript: wie bisher
+        ("/usr/bin/git status --short", "ja"), ("/bin/ls -la", "ja"), (f"{sys.executable} -c 'print(1)'", "ja"),
+    ]
+    for befehl, soll in dateien:
+        check(f"G4-B {soll}: {befehl[-70:]!r}", hook(repo, "claude", "claude", befehl) == soll)
+    for befehl in (f"bash {hart}", f"bash {umgeht}", f"python3 {py_ohne_endung}", f"node {js}", f"{hart}"):
+        check(f"G4-B vibe nein: {befehl[-60:]!r}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    (repo / "werkzeug.sh").unlink()
+
     # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
     extern = Path(t) / "werkzeuge"
     (extern / "quelle").mkdir(parents=True)
