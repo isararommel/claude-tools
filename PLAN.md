@@ -50,12 +50,10 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
 Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
-Stand: **G1–G6 und G8 fertig**, zweites Review (Mistral, Zeitlimit) und Advisor-Abnahme eingearbeitet; Wiederholung aller
-408 Bash-Befehle der Sitzungen durch den Hook: Fehlalarme behoben, verbleibende Sperren gewollt (Projektdateien per `python3 - <<PY`).
-1. PR, `normen.py merge` (v7).
-2. Nach dem Merge: alle anderen Claude-Code-Sitzungen informieren (SendMessage; an einer Aufgabengrenze aktualisieren, nicht mitten
-   in einem Team-Lauf): `normen.py aktualisieren`, `normen.py selbsttest`, Projektwerte `[mcp]`/`forschungsdaten` mit der Inhaberin.
-Später (eigene Pakete): G7 Sandbox-Spike, G9, G10, G11 laut Entwurf.
+✅ **v7 gemergt** (PR #3, 16.11.); fünf Claude-Code-Sitzungen per SendMessage zum Aktualisieren aufgefordert
+(`aktualisieren`, `selbsttest`, Projektwerte `[mcp]`/`forschungsdaten` mit der Inhaberin).
+Nächste Pakete (je mit Rückfrage zum Start): **G7** Sandbox-Spike (vibe/agy in `excludedCommands`), dann G9, G10, G11 laut Entwurf;
+`meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
 
