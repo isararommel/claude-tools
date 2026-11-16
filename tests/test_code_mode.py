@@ -170,6 +170,9 @@ with tempfile.TemporaryDirectory() as t:
         ("unbekannt.py", 'import subprocess\nsubprocess.run(["ls", "-la"])\n', "fragen"),
         ("geheimnis.py", 'print(open(".env").read())\n', "nein"),
         ("kaputt.py", 'def f(:\n', "nein"),
+        ("diff_geheim.py", 'import subprocess\nsubprocess.run(["git", "diff", "--", "daten/.env"])\n', "nein"),
+        ("konstante.py", 'import subprocess\nBASIS = "origin/main"\nsubprocess.run(["git", "diff", BASIS])\n', "ja"),
+        ("konstante_option.py", 'import subprocess\nOPT = "--output=/tmp/x"\nsubprocess.run(["git", "diff", OPT])\n', "fragen"),
     ]
     for name, text, soll in faelle:
         stufe, erste, aus = pruefe_skript(repo, skript(name, text))
@@ -187,6 +190,8 @@ with tempfile.TemporaryDirectory() as t:
     check("hook: in Kette", hook(repo, "claude", "claude", f"cd {repo} && python3 {lauf / 'commit.py'} | tail -3") == "nein")
     check("hook: Variable unaufgelöst fragt",
           hook(repo, "claude", "claude", "python3 $GIBT_ES_NICHT_V6/auswerten.py") == "fragen")
+    check("hook: Zitat mit | nicht ja", hook(repo, "claude", "claude", f'python3 {lauf / "commit.py"} "a|b"') != "ja")
+    check("hook: cd + relativer Pfad nicht ja", hook(repo, "claude", "claude", f"cd {lauf} && python3 commit.py") != "ja")
     check("hook: Projektskript wie bisher", hook(repo, "claude", "claude", "python3 normen/normen.py pruefen --diff") == "ja")
     check("hook: python3 -c unverändert", hook(repo, "claude", "claude", 'python3 -c "print(1)"') == "ja")
     check("hook: vibe-Rolle, fragen wird nein", hook(repo, "mistral-team", "vibe", f"python3 {claims2_py}") == "nein")

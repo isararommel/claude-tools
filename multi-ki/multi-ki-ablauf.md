@@ -271,7 +271,7 @@ if "--vorher" in sys.argv:
     VORHER.write_text("\n".join(sorted(status())) + "\n", encoding="utf-8")
     sys.exit(0)
 
-vorher = set(VORHER.read_text(encoding="utf-8").split())
+vorher = set(VORHER.read_text(encoding="utf-8").splitlines())
 nachher = status()
 print("verschwunden:", sorted(vorher - nachher) or "–")  # fehlt etwas: sofort melden
 print("neu/geändert:", sorted(nachher - vorher) or "–")

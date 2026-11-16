@@ -555,6 +555,8 @@ class _Skript:
             if _text(erstes) is not None and not erstes.value.startswith("-"):
                 return "".join(t.value if isinstance(t, ast.Constant) else "X" for t in el.values)
             return None
+        if isinstance(el, ast.Name) and (t := _text(self.knoten.get(el.id))) is not None:
+            return t if not t.startswith("-") else None  # Modul-Konstante mit ihrem Wert
         return "X" if self.ist_pfadausdruck(el) else None
 
     def befehl(self, node):
@@ -657,11 +659,15 @@ class _Skript:
 
 
 def _befehl_stufe(cfg, w: list[str], cwd: str) -> tuple[str, str]:
-    """Stufe eines aufgelösten Befehls aus einem Skript: verboten → nein, Positivliste → ja, sonst bewerten (Rolle skript)."""
+    """Stufe eines aufgelösten Befehls aus einem Skript: verboten oder `bewerten` (Rolle skript) nein → nein,
+    Positivliste → ja, sonst fragen. Die Positivliste überstimmt nie ein nein (z. B. Geheimnis in `git diff`)."""
     befehl = shlex.join(w)
     prog = w[0].rsplit("/", 1)[-1]
     ist_py = bool(PYTHON.match(prog))
     unter = w[1] if len(w) > 1 else ""
+    stufe, gruende = bewerten(cfg, "skript", "Bash", {"command": befehl}, cwd)
+    if stufe == "nein":
+        return "nein", f"`{befehl}`: " + "; ".join(gruende)
     if prog in PROG_VERBOTEN:
         return "nein", f"`{befehl}`: {prog} im Skript verboten (Löschen bzw. Teams nur über die Schnittstellen)"
     if prog == "git" and unter in GIT_VERBOTEN:
@@ -686,9 +692,6 @@ def _befehl_stufe(cfg, w: list[str], cwd: str) -> tuple[str, str]:
             return "ja", ""
     if w == shlex.split(cfg["projekt"]["projekt"]["testbefehl"]):
         return "ja", ""
-    stufe, gruende = bewerten(cfg, "skript", "Bash", {"command": befehl}, cwd)
-    if stufe == "nein":
-        return "nein", f"`{befehl}`: " + "; ".join(gruende)
     return "fragen", f"`{befehl}` nicht in der Positivliste"
 
 
@@ -714,7 +717,9 @@ def _skript_im_befehl(cfg, seg: str, cwd: str) -> list[tuple[str, str]]:
     """`python3 [-I …] <datei>.py …` mit Datei außerhalb des Projekts → Befunde aus skript_pruefen."""
     try:
         w = shlex.split(seg)
-    except ValueError:
+    except ValueError:  # z. B. `python3 x.py "a|b"`: SEGMENT trennt im Zitat – Python-Aufruf nie ungeprüft durchlassen
+        if re.match(r"\s*(\S*/)?python3?(\.\d+)?(\s|$)", seg):
+            return [("fragen", "S06-CODE-MODE: Python-Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Skript nicht prüfbar")]
         return []
     if not w or not PYTHON.match(w[0].rsplit("/", 1)[-1]):
         return []
@@ -735,6 +740,8 @@ def _skript_im_befehl(cfg, seg: str, cwd: str) -> list[tuple[str, str]]:
         return [("fragen", f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({w[i]}) – nicht prüfbar")]
     datei = Path(os.path.realpath(Path(cwd) / roh))
     if datei == ROOT or ROOT in datei.parents:
+        if not datei.exists():  # z. B. `cd <anderswo> && python3 x.py`: relativ zum Hook-cwd falsch aufgelöst
+            return [("fragen", f"S06-CODE-MODE: Skript {w[i]} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
         return []  # Projektskripte wie bisher
     stufe, gruende = skript_pruefen(cfg, datei, cwd)
     return [] if stufe == "ja" else [(stufe, g) for g in gruende]
