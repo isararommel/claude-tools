@@ -12,7 +12,7 @@ Die Muss-Normen werden deshalb **technisch** durchgesetzt (Hooks, Auftragsdatei,
 normen/normen.toml      Regelwerk: Muss N01–N10, Soll S01–S04 – Text für Prompts, Begründung, Quellen, Prüfmuster   (gemeinsam)
 normen/rollen.toml      Rollen und Fähigkeiten (ja / fragen / nein) + was jede Rolle verantwortet                      (gemeinsam)
 normen/normen.py        ein Werkzeug für alles: pruefen · hook · stop · auftrag · kurz · sync                           (gemeinsam)
-normen/projekt.toml     Testbefehl, gesperrte Pfade, Geheimnis-Muster, Testpfade, Prüfgrenzen, Rollen-Abweichungen      (Projekt)
+normen/projekt.toml     Testbefehl, gesperrte Pfade, Geheimnis-Muster, Forschungsdaten, MCP, Rollen-Abweichungen        (Projekt)
 normen/kurz.md          Kurzfassung, erzeugt; per `@normen/kurz.md` in CLAUDE.md geladen                                (erzeugt)
 AGENTS.md               Normen-Block zwischen <!-- normen:anfang --> und <!-- normen:ende --> (für vibe/agy)           (erzeugt)
 .claude/settings.json   PreToolUse-Hook (Rolle claude), Stop-Hook (Test + Diff), SessionStart nach /compact (kurz.md)
@@ -50,6 +50,7 @@ bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh <projekt> --
 - `normen.py pruefen` – ganzer Bestand (Audit). Altbefunde zeigen, was nachzuziehen ist; sie blockieren nichts.
 - `normen.py pruefen --diff [BASIS]` – nur neue/geänderte Zeilen; **das ist die Schranke** (Stop-Hook, Abnahme).
 - `normen.py pruefen --staged` – pre-commit. Umgehen nur durch die Inhaberin: `git commit --no-verify`.
+- `normen.py selbsttest [--werkzeug claude|vibe]` – prüft nach jedem Update von Claude Code oder Vibe mit einem Köder-Befehl durch das echte Werkzeug, ob die Normen-Hooks greifen (gesperrt / NICHT GESPERRT / unklar). Pflicht nach jedem Update.
 - Begründete Ausnahme im Code: `normen-ausnahme: <ID> – Begründung` in derselben oder der Zeile davor. `<ID>` ist die volle ID
   (z. B. `N09-SICHERE-MUSTER`); die Kurzform `N09` wird nicht erkannt.
 
@@ -63,6 +64,13 @@ bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh <projekt> --
 - Merge nach main automatisch: `python3 normen/normen.py merge <PR>` – mergt nur, wenn der Stand committet ist, dem PR-Kopf entspricht,
   origin/main enthält, der Testbefehl grün ist und `pruefen --diff origin/main` keine Fehler meldet; danach wird der lokale main aktualisiert.
 - Weiterhin mit Rückfrage: direktes `git push … main` / `gh pr merge`, neue Pakete, andere destruktive Befehle, außerhalb des Projekts, Einstellungen/Normen.
+
+## Neue Projektwerte in projekt.toml (v7)
+- `[pfade].forschungsdaten`: Pfad-Globs relativ zum Projekt (enthalten `/` oder `*`, z. B. `daten/roh/**`) und Textmarker (z. B. `PROBAND-`). Wirkung: bei `gemini-analyst` (`agy`) gesperrt; bei `mistral-team` (`vibe`) wird nachgefragt (`fragen`).
+- `[mcp]`: Steuert MCP-Werkzeuge (`mcp__.*`) über den vollen Werkzeugnamen:
+  - `nein`: Globs gesperrter MCP-Werkzeuge.
+  - `fragen`: Globs von MCP-Werkzeugen, die vor dem Aufruf fragen (z. B. `mcp__*__container_restart`).
+  - `nein` hat Vorrang vor `fragen`. Unbekannte MCP-Werkzeuge sind standardmäßig erlaubt, Eingabefelder werden nicht als Befehle oder Pfade ausgewertet. In der Vorlage `.claude/settings.json` ist `enableAllProjectMcpServers: false` voreingestellt.
 
 ## Was technisch erzwungen wird – und was nicht
 | Norm | Claude Code | Mistral Vibe | Antigravity (agy) | danach |
@@ -80,7 +88,6 @@ ausführen). Deshalb zusätzlich: kein Auto-Modus, Teams nur im Projektordner, S
 ## Pflege
 - Normen ändern **nur hier** (`projekt/normen/*.toml`), `make test` in claude-tools (testet die Vorlage), dann in den Projekten
   `einrichten.sh` erneut ausführen. `meta.version` erhöhen, wenn sich Inhalte ändern. Änderungen bestätigt die Inhaberin.
-- Nicht verifiziert (Stand 14.11.2026): Format von `.vibe/hooks.toml` und die JSON-Felder, die Vibe an Hooks übergibt
-  (normen.py liest Befehle/Pfade feldunabhängig). Nach Vibe-Updates mit einem Probelauf testen: Auftrag „führe rm -rf build aus“ muss abgelehnt werden.
+- Nach jedem Update von Claude Code oder Vibe: `python3 normen/normen.py selbsttest` ausführen (prüft per Köder-Befehl durch die echten Werkzeuge, ob die Normen-Hooks greifen).
 - Gemini CLI wurde für Gratisnutzer durch Antigravity ersetzt; falls doch Gemini CLI genutzt wird: `normen.py hook --werkzeug gemini`
   als BeforeTool-Hook eintragen (Exit 2 = sperren) und `context.fileName` auf `["AGENTS.md"]` setzen.
