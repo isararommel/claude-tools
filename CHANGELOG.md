@@ -4,6 +4,24 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v6 – 2026-11-16
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`; zusätzlich `multi-ki/einrichten.sh` für CLAUDE-Abschnitt, Ablauf und PLAN.md;
+Agent-Definitionen nach `~/.claude/agents/` kopieren – Rückfrage)
+
+### Neu
+- **S07-SUPERVISOR:** Fable als Advisor der Hauptsitzung; fünf Pflicht-Konsultationen; bei Ausfall ohne Fable weiter, Normänderungen zurückstellen.
+- **S06-CODE-MODE:** mehrstufiges Auswerten als Skript; der Hook prüft Skripte außerhalb des Projekts per AST (`normen.py skript --pruefen`).
+- **`nur_rollen`:** Normen nur für die Hauptsitzung erscheinen nicht in Team-Aufträgen und nicht im AGENTS-Block.
+- **Rollen `fable` und `skript`:** `fable` (Advisor) und der Regelsatz `skript` für Befehle in Skripten bekommen keine Aufträge; `skript` steht nicht in der Rollentabelle. Rollenkette in `kurz.md`.
+- **PLAN.md:** zentrale Aufgabenliste je Projekt; Sitzungen beginnen dort. `multi-ki/einrichten.sh` legt sie an, wenn sie fehlt; `normen.py merge` weist auf eine unveränderte PLAN.md hin.
+- S03: Hauptsitzung fragt nach drei Fehlversuchen den Advisor, danach höchstens ein weiterer Versuch. S05: Auswerte-Skripte nach S06 ausgenommen.
+
+### Agent-Definitionen
+- `mistral-team.md`, `gemini-analyst.md`, neu `Explore.md`: Advisor nie aufrufen.
+
+---
+
 ## v5 – 2026-11-16
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`; zusätzlich `.vibe/hooks.toml` übernehmen und die Agent-Definitionen nach `~/.claude/agents/` kopieren)

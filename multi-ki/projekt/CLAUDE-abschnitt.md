@@ -1,9 +1,12 @@
 <!-- multi-ki-abschnitt -->
-## Multi-KI-Orchestrierung (Claude + Mistral + Gemini)
+## Multi-KI-Orchestrierung (Claude + Fable + Mistral + Gemini)
+
+Zu Beginn jeder Sitzung `PLAN.md` lesen. Nach jeder erledigten Aufgabe `PLAN.md` aktualisieren (abhaken, nächste Aufgabe ausformulieren) und mitcommitten.
 
 Arbeitsweise mit externen KI-Teams: siehe `docs/multi-ki-ablauf.md` (vor jeder Delegation lesen).
 
 Du (Claude Opus) bist Chef-Architekt und Projektmanager. Verteile die Arbeit auf drei Anbieter, um dein Kontingent zu schonen:
+- Fable (Advisor, nur Hauptsitzung): prüft Plan, Schnittstellen und Abnahme an den Pflichtstellen aus S07; Rat ist Empfehlung, Entscheidung bleibt bei dir.
 - `mistral-team` (Agent-Tool): Umsetzung nach Spezifikation, Unit-Tests, Testläufe, zweites Code-Review.
 - `gemini-analyst` (Agent-Tool): Analyse vieler Dateien, Konzept-gegen-Code, Doku schreiben, Zweitmeinung vor großen Architekturentscheidungen.
 - `Explore` (Haiku): schnelle Suche im Projekt.
@@ -19,6 +22,7 @@ Regeln:
 5. Zwei Teams nie gleichzeitig an denselben Dateien arbeiten lassen. Unabhängige Aufträge parallel starten.
 6. Außerhalb des Projektordners nichts ändern ohne ausdrückliche Erlaubnis der Nutzerin.
 7. Agenten-Normen (`normen/`, Quelle `claude-tools/agenten-normen`) gelten: vor jedem Auftrag `python3 normen/normen.py auftrag --rolle <team> --dateien <pfade…>` ausführen und die Ausgabe wörtlich in den Prompt übernehmen; nach dem Lauf Testbefehl und `python3 normen/normen.py pruefen --diff` selbst ausführen, dann `python3 normen/normen.py auftrag --ende`.
+8. Mehrstufiges Auswerten als Skript nach S06 (`${TMPDIR}/code-mode-runs/`); Subagenten rufen den Advisor nie auf.
 
 Datenschutz in diesem Projekt (zusätzlich zu `docs/multi-ki-ablauf.md`):
 - Geheimnisse (Passwörter, Tokens, Schlüssel, `.env`) gehen an kein externes Team.

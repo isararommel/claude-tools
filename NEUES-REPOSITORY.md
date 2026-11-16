@@ -87,12 +87,15 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
    - Enthält den synchronisierten Normen-Block (`normen:anfang` bis `normen:ende`) und die Verhaltensregeln für externe Agenten.
 3. **`.geminiignore` prüfen:**
    - Stellt sicher, dass sensible und gesperrte Pfade für Antigravity ausgeblendet sind.
+4. **`PLAN.md` anlegen:**
+   - `einrichten.sh` legt die Vorlage an, wenn sie fehlt. Platzhalter füllen: *Stand*, Verweise, erste Aufgaben (so ausführlich,
+     dass eine frische Sitzung ohne Rückfrage loslegt), offene Fragen an die Inhaberin. Jede Sitzung beginnt dort.
 
 ---
 
 ## Schritt 6: Agenten-Definitionen abgleichen
 
-1. Prüfen, ob `~/.claude/agents/mistral-team.md` und `~/.claude/agents/gemini-analyst.md` vorhanden sind.
+1. Prüfen, ob `~/.claude/agents/mistral-team.md`, `~/.claude/agents/gemini-analyst.md` und `~/.claude/agents/Explore.md` vorhanden sind (alle mit der Regel „Den Advisor nie aufrufen“).
 2. Prüfen, ob die Freigabeliste (`ALLOW`) in `~/.claude/agents/gemini-analyst.md` den Test- und Buildbefehl des Projekts abdeckt (immer beide Formen, z. B. `command(make test)` und `command(make test*)`).
 3. Bei Abweichungen die Inhaberin um Anpassung bitten (Änderungen an `~/.claude/` verantwortet die Inhaberin).
 

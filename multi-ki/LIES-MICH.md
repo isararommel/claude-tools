@@ -23,7 +23,8 @@ projekt/AGENTS.md                      Regeln, die vibe und agy im Projekt selbs
 projekt/.geminiignore                  Pfade, die Gemini nicht lesen soll (Sperrliste + Geheimnis-Muster)
 projekt/.claude/settings.json          Freigabe Bash(agy:*), Bash(vibe:*); Lesesperre für .env, *.secret, ~/.ssh
 projekt/docs/uebergabe-vorlage.md      manueller Weg (Bilder, Deep Research im Browser; Ergebnis „von der Nutzerin erzeugt“)
-benutzer/agents/                       mistral-team.md, gemini-analyst.md für ~/.claude/agents/ (gelten in allen Projekten)
+projekt/PLAN.md                        zentrale Aufgabenliste je Projekt (nur angelegt, wenn sie fehlt)
+benutzer/agents/                       mistral-team.md, gemini-analyst.md, Explore.md für ~/.claude/agents/ (gelten in allen Projekten)
 einrichten.sh                          überträgt alles in ein Projekt, ohne zu überschreiben
 ```
 

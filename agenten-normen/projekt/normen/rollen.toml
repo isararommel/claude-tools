@@ -30,11 +30,21 @@ verantwortet = [
 ]
 faehigkeiten = { schreiben = "ja", tests-aendern = "ja", loeschen = "ja", pakete = "ja", git-commit = "ja", git-push = "ja", main = "ja", sperrpfade-lesen = "ja", geheimnisse-lesen = "ja", ausserhalb-schreiben = "ja", einstellungen = "ja", einstellungen-lesen = "ja", rueckmelden = "ja" }
 
+[rollen.fable]
+art = "agent"
+werkzeug = "Claude Code Advisor (Fable) – Supervisor über Opus; keine eigenen Werkzeuge"
+verantwortet = [
+  "Überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst",
+  "Entscheidungen und Commits bleiben bei Opus, Freigaben bei {inhaberin}",
+]
+faehigkeiten = {}
+
 [rollen.claude]
 art = "agent"
 werkzeug = "Claude Code (Opus) – Orchestrator"
 verantwortet = [
   "Planen, Schnittstellen festlegen, Aufträge an Teams schreiben (inkl. .normen-auftrag und Pflichtsätzen aus `normen.py auftrag`)",
+  "Konsultiert den Advisor (Fable) an den Pflichtstellen aus S07 und meldet Konflikte zwischen Rat und Befund",
   "Tests schreiben und pflegen (Teams dürfen bestehende Tests nicht ändern)",
   "Ergebnisse prüfen: Diff lesen, Testbefehl und `normen.py pruefen --diff` selbst ausführen – Teams nie ungeprüft glauben",
   "Arbeitet auf einem eigenen Branch (commit und push dort); Merge nach main per PR über `normen.py merge <PR>` (Prüftor: Testbefehl, `pruefen --diff origin/main`), vorher Diff-Review; direkt nur mit Rückfrage ({inhaberin})",
@@ -83,3 +93,11 @@ auftrag_pflicht = true
 werkzeug = "Lokale Modelle (Ollama/OpenClaw) – künftig"
 verantwortet = ["Zuarbeit nach Auftrag; gleiche Grenzen wie mistral-team, Forschungsdaten erlaubt (bleibt auf eigener Hardware)"]
 faehigkeiten = { schreiben = "ja", sperrpfade-lesen = "ja" }
+
+# Pseudo-Rolle für Befehle in Code-Mode-Skripten (S06): `normen.py skript --pruefen` bewertet jeden Befehl außerhalb der
+# Positivliste mit diesen Fähigkeiten (strenger als claude). Erscheint nicht in der Rollentabelle, bekommt keine Aufträge.
+[rollen.skript]
+art = "regelsatz"
+werkzeug = "Befehle innerhalb geprüfter Skripte (S06) – strenger als die Rolle claude"
+verantwortet = ["nur lesen und auswerten"]
+faehigkeiten = { sperrpfade-lesen = "ja", einstellungen-lesen = "ja" }
