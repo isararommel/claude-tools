@@ -44,8 +44,12 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 ### 1. Guardrail-Ausbau (Normen v7) *(Entscheidungen 16.11. getroffen, Branch `normen-v7`)*
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
-Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Als Nächstes Paketplan festlegen
-(Advisor-Konsultation 1 und 5), dann Pakete nacheinander (Hook-Pakete seriell). Nach v6 umsetzen.
+Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
+Stand: **G1 fertig** (`normen.py selbsttest`: live gesperrt für claude und vibe, Gegenprobe ohne Hooks „NICHT GESPERRT“).
+Version 7 und CHANGELOG-Abschnitt „v7 – in Arbeit“ sind angelegt; **ein Merge für v7** nach G6 (vorher Advisor-Konsultation 4/5 mit
+Köder-Muster, Live-Ausgabe, Gegenprobe). Nächstes Paket: **G2** (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
+Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
+Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
 
