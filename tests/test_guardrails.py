@@ -268,6 +268,8 @@ with tempfile.TemporaryDirectory() as t:
     vibe_bin = shutil.which("vibe") or "/usr/local/bin/vibe"
     g5 = [
         (agy(echt), "ja"), (vibe(echt), "ja"),
+        (f'G={runs}; RUN="$G/echt"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "ja"),  # verschachtelte Zuweisung
+        (f'G={runs}; RUN="$G/sperr"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),
         (agy(sperr), "nein"), (vibe(sperr), "nein"), (vibe(neben), "nein"), (agy(neben), "nein"),
         (agy(geheim_inhalt), "nein"), (vibe(geheim_inhalt), "nein"),
         (agy(geheim_pfad), "nein"), (vibe(geheim_pfad), "ja"),  # Vibe-Hook sperrt das Lesen selbst; agy hat keine Hooks
@@ -390,6 +392,10 @@ with tempfile.TemporaryDirectory() as t:
     tdatei.unlink()
     aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
     check("G9 Testdatei gelöscht → Fehler", any("Assert entfernt" in z and "] fehler:" in z for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").write_text("Erklärung: `normen-ausnahme: N02-TESTS-SIND-TABU – Begründung` im Diff\n" * 4)
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 Marker nur im Fließtext → keine Begründung", any("Assert entfernt" in z and "] fehler:" in z
+                                                              for z in aus.splitlines()), aus[-400:])
     (repo / "notizen.md").write_text("Test gestrichen.\n# normen-ausnahme: N02-TESTS-SIND-TABU – x\n" * 4)
     aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
     check("G9 gelöscht, vier Begründungen im Diff → kein Fehler", not any("Assert entfernt" in z and "] fehler:" in z
