@@ -269,6 +269,8 @@ with tempfile.TemporaryDirectory() as t:
     g5 = [
         (agy(echt), "ja"), (vibe(echt), "ja"),
         (f'G={runs}; RUN="$G/echt"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "ja"),  # verschachtelte Zuweisung
+        (f'RUN={echt}; cd {repo} && vibe --trust --agent ask --time-limit 540 --max-turns 12 --output-dir "$RUN/out" '
+         f'--prompt-file "$RUN/prompt.md" < /dev/null > "$RUN/antwort.txt" 2>&1', "ja"),  # G10 Lese-Modus
         (f'G={runs}; RUN="$G/sperr"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),
         (agy(sperr), "nein"), (vibe(sperr), "nein"), (vibe(neben), "nein"), (agy(neben), "nein"),
         (agy(geheim_inhalt), "nein"), (vibe(geheim_inhalt), "nein"),

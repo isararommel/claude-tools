@@ -21,15 +21,23 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
    **Was Claude in die Datei schreibt – Pflichtsatz in JEDEM Prompt (wörtlich):** „Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast – auch keine unbekannten, untracked oder scheinbar versehentlich entstandenen Dateien. Die Nutzerin arbeitet parallel im Projekt. Unerwartete Dateien nur im Bericht nennen. Kein `rm`, kein `git clean`, kein `git checkout --`/`git restore` auf fremde Dateien.“
    Der Prompt enthält außerdem: Ziel, exakte Dateipfade, welche Dateien geändert werden DÜRFEN (alles andere ist tabu), Verbot von `git commit`/`git push`, „Zahlen per Shell-Befehl verifizieren“, den Testbefehl aus dem Auftrag, der am Ende grün sein muss, und die Bitte, Teilaufgaben über das task-Tool an die Sub-Agenten flash-scout (suchen, Tests ausführen), code-worker (Code und Tests schreiben) und code-reviewer (Review) zu geben. Fehlt davon etwas Wesentliches, melde es an Claude, statt die Datei zu ergänzen.
 
-2. Vibe im Projektordner starten (Bash-Timeout 600000):
+2. Vibe im Projektordner starten (Bash-Timeout 600000). `RUN` **im selben Befehl** zuweisen, mit wörtlichem Pfad – der
+   Normen-Hook prüft die Prompt-Datei vor dem Start und sperrt, wenn er `$RUN` nicht auflösen kann:
    ```
-   vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
+   RUN=<lauf-ordner>; cd <projekt> && vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
         --output-dir "$RUN/out" --prompt-file "$RUN/prompt.md" < /dev/null > "$RUN/antwort.txt" 2>&1
    ```
    - `< /dev/null` ist Pflicht, sonst wartet Vibe auf Eingabe und hängt.
-   - Für reine Lese- oder Review-Aufträge in den Prompt: „Ändere keine Dateien.“
+   - **Lese-Modus:** Sagt Claude „nur lesen“ (Analyse ohne Shell), statt `--smart-approve` den eingebauten Agenten `--agent ask`
+     und `--max-turns 12` verwenden: Shell und Schreiben werden dann abgelehnt, auch bei Sub-Agenten (gemessen 16.11., Vibe 3.1.2);
+     Vibe versucht Abgelehntes aber erneut, deshalb die niedrige Rundenzahl. Braucht ein Review Befehle (z. B. den Hook-Prüfbefehl),
+     bleibt es bei `--smart-approve` mit „Ändere keine Dateien.“ – ohne offenen Auftrag sperrt der Normen-Hook das Schreiben ohnehin.
    - Verlangt Claude längere Laufzeit: `--time-limit` bis 1800 und den Befehl mit `run_in_background` starten; auf die Benachrichtigung warten, nicht pollen.
    - NIE `--auto-approve`/`--yolo`, NIE `--agent flash-scout|code-worker|code-reviewer` (Sub-Agenten, schlagen als Hauptagent fehl).
+   - **Lauf-Protokoll:** Wartest du doch auf einen Lauf, dann auf **dessen eigene PID** – nie auf `pgrep -f vibe-rs` (zeigt Läufe
+     anderer Projekte, die Schleife läuft dann ewig). Solange die eigene PID lebt, ist der Lauf nicht „gescheitert“, auch wenn
+     `antwort.txt` nur die Schlüsselbund-Zeile enthält. Nie einen zweiten Lauf starten, solange der erste lebt. Eine leere
+     Statusdatei (`git status --short` ohne Ausgabe) heißt „sauber“, nicht „fehlt“.
 
 3. Ergebnis auslesen:
    - `tail -n 80 "$RUN/antwort.txt"`
