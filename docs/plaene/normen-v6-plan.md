@@ -207,7 +207,7 @@ aus Abschnitt 6; `git commit` im Skript → nein; Variable aus `sys.argv` als Be
 1. `normen.py aktualisieren` nimmt nur `agenten-normen/` mit; `multi-ki/` (CLAUDE-Abschnitt, Ablauf, PLAN-Vorlage) und `~/.claude/agents`
    brauchen `multi-ki/einrichten.sh` bzw. eine Kopie (Rückfrage, Fähigkeit `einstellungen`).
 2. Die globale `~/.claude/CLAUDE.md` der Inhaberin nennt Opus als oberste Rolle → Satz zu Fable ergänzen (nur auf Wunsch der Inhaberin).
-3. Subagenten haben den Advisor; Sperre nur per Anweisung (Probe `disallowedTools: advisor` nach Umsetzung).
+3. Subagenten haben den Advisor; Sperre nur per Anweisung. Probe 16.11. (2.1.325): `disallowedTools: advisor` wirkt nicht.
 4. Konsultation 4 kann das Prüftor nicht prüfen → nur Bericht.
 5. Hook-Fehlalarm (16.11.): Befehle mit `>` (auch `=>` in einem grep-Muster, Umleitung in `"$VAR"`) wurden mit N06/lesbar_extern
    gesperrt, wenn der Arbeitsordner in claude-tools lag; Variablen löst der Hook nicht auf. → `normen.py melden` (Rückfrage).

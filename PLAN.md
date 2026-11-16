@@ -28,6 +28,9 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 16.11. Agent-Definitionen (mit „Advisor nie aufrufen“, neu Explore.md) nach `~/.claude/agents/` übernommen; globale
+  CLAUDE.md um Fable ergänzt. Probe `disallowedTools: advisor` (Claude Code 2.1.325): **wirkt nicht** – der Testagent listet
+  `advisor` weiterhin (Selbstauskunft); Sperre bleibt Anweisung.
 - ✅ 16.11. Vibe-Modelle repariert: `~/.vibe/config.toml` mit vollständigen Einträgen (Server-Liste lieferte nur noch
   GLM-5.3 Flash); Large 4, GLM-5.3, GLM-5.3 Flash getestet. CLAUDE.md dieses Repositorys um PLAN/Fable/Regel 8 ergänzt.
 - ✅ 16.11. Normen v6 (S06 Code Mode mit AST-Prüfung im Hook, S07 Fable als Advisor, `nur_rollen`, Rollen fable/skript,
@@ -44,11 +47,10 @@ Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung 
 Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Als Nächstes Paketplan festlegen
 (Advisor-Konsultation 1 und 5), dann Pakete nacheinander (Hook-Pakete seriell). Nach v6 umsetzen.
 
-### 2. Nach v6 in den Projekten *(Rückfrage)*
+### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
 
 `normen.py aktualisieren` + `multi-ki/einrichten.sh` je Projekt (CLAUDE-Abschnitt wird nicht ersetzt: PLAN-Zeile, Fable-Zeile und
-Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`). Agent-Definitionen (`multi-ki/benutzer/agents/`, inkl.
-Explore.md) nach `~/.claude/agents/` kopieren. Probe `disallowedTools: advisor` in einer Explore-Kopie (ungetestet).
+Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 
 ## Offene Fragen an die Inhaberin
 
