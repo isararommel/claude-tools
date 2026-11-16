@@ -53,8 +53,13 @@ Daten; umgesetzt von mistral-team, Ketten-Umgehung `cat <<EOF … | bash` und `p
 **G4-B fertig** (Skriptdateien außerhalb des Projekts und außerhalb `lesbar_extern`: `bash|sh|zsh|source|.` und direkte
 Pfadaufrufe – Inhalt als ein Befehl rekursiv durch `bewerten`; Python mit/ohne `.py` und Shebang per AST; `node|perl|ruby` und
 unbekannte Shebangs → fragen; nicht vorhanden oder im selben Befehl geschrieben → fragen; `cd` im Befehl wird als Basis verfolgt;
-Messung an 117 vorhandenen Skripten: Befunde stammen aus dem Inhalt, kaum Parser-Rauschen). Nächster Schritt: gemini-Review G4
-(Diff `normen.py` seit 23dc276), dann **G5** (Datenschutz-Prüfung vor Prompt-Dateien), **G6** (MCP-Freigaben). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
+Messung an 117 vorhandenen Skripten: Befunde stammen aus dem Inhalt, kaum Parser-Rauschen). Advisor- und Gemini-Review G4
+eingearbeitet (pushd/`{ cd }`, Code über stdin, `nice -n`/`time -p`/`timeout`, `getattr`/Aliase, `node -e` fragt; G2-Fehlalarm bei
+mehrzeiligen Commit-Nachrichten behoben). Gemini brach nach 4 von 10 Befunden mit Timeout ab – ein zweites Review vor dem Merge.
+**G5 läuft** (mistral-team): Prompt-Prüfung vor vibe/agy – Sperrpfade/Geheimnis-Inhalte nein, Geheimnis-Pfade nur agy nein,
+`[pfade].forschungsdaten` (Globs + Textmarker) agy nein / vibe fragen; Messung: 4 von 75 alten Prompts nennen Geheimnis-*Pfade*.
+Offen: ob ein „fragen“ aus einem Hintergrund-Subagenten die Inhaberin erreicht (sonst wirkt es wie „nein“ – in G8 dokumentieren).
+Danach **G6** (MCP-Freigaben). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
 Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
 Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
 
