@@ -28,6 +28,8 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 16.11. Vibe-Modelle repariert: `~/.vibe/config.toml` mit vollständigen Einträgen (Server-Liste lieferte nur noch
+  GLM-5.3 Flash); Large 4, GLM-5.3, GLM-5.3 Flash getestet. CLAUDE.md dieses Repositorys um PLAN/Fable/Regel 8 ergänzt.
 - ✅ 16.11. Normen v6 (S06 Code Mode mit AST-Prüfung im Hook, S07 Fable als Advisor, `nur_rollen`, Rollen fable/skript,
   PLAN.md-Vorlage, Agent-Definitionen „Advisor nie aufrufen“) – PR #2. `normen.py` schrieb Claude selbst (Vibe wich auf
   Mistral Medium 3.5 aus und änderte nichts).
@@ -50,7 +52,5 @@ Explore.md) nach `~/.claude/agents/` kopieren. Probe `disallowedTools: advisor` 
 
 ## Offene Fragen an die Inhaberin
 
-- Abrechnung des Advisors (Doku: Fable-Advisor wird über Usage Credits abgerechnet).
-- v7: entschieden am 16.11. (Entwurf Abschnitt 8); offen nur die Fable-Abrechnung.
-- Vibe: „Model mistral-large-4-0-3 is not available“ → Lauf auf Mistral Medium 3.5 (16.11., v6-Auftrag ohne Ergebnis); `~/.vibe`-Konfiguration prüfen
-  (Einstellungen → Inhaberin). Außerdem meldet `code-reviewer.toml`: `glm-5-3` ist kein definierter Alias.
+- Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
+- v7: entschieden am 16.11. (Entwurf Abschnitt 8).
