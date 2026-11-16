@@ -57,11 +57,28 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
 **Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
-**v8 in Arbeit** (Branch `normen-v8`, freigegeben „G9–G11 go“ am 16.11.):
-- **G9** N02-Asserts in `pruefen` (Tests in `tests/test_guardrails.py`, Version 8, CHANGELOG) → mistral-team.
-- **G10** Lese-Modus für Vibe-Aufträge (`--agent ask` messen) und Lauf-Protokoll je Delegation (PID statt `pgrep`, „sauber“
-  statt leerer Statusdatei, nie „gescheitert“ bei laufendem Prozess) → Opus; Agent-Definition nur in der Quelle, Kopie mit Rückfrage.
-- **G11** Worktree-Spike im Wegwerf-Klon (Bericht gemessen/dokumentiert/offen) → Opus.
+**v8 in Arbeit** (Branch `normen-v8`, freigegeben „G9–G11 go“ am 16.11.). Stand c7922f0: Version 8, CHANGELOG-Abschnitt
+„v8 – in Arbeit“, G9-Abnahmetests im Abschnitt „G9“ von `tests/test_guardrails.py` (7 Fälle rot). **Nächster Schritt: G9-Auftrag.**
+- **G9** → mistral-team (nur `agenten-normen/projekt/normen/normen.py`). Spezifikation für die Prompt-Datei:
+  in `pruefen` bei `--diff`/`--staged` alle Testdateien des Diffs (Globs `[pfade].tests`) gemeinsam auswerten; entfernte und neue
+  Zeilen aus `git diff -U0` (bei `--staged` mit `--cached`), gelöschte Testdateien mitzählen. Assert-Zeile = Regex
+  `\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCTAssert\w*\(|pytest\.raises`. Vergleich als Multimenge der Zeilen ohne
+  führenden/abschließenden Leerraum: `entfernt − neu` (Zeilen, die nur verschoben wurden, heben sich auf). Anzahl ersatzlos
+  entfernt = max(0, Σentfernt − Σneu) minus Anzahl neuer Zeilen im ganzen Diff mit `normen-ausnahme: N02-TESTS-SIND-TABU`;
+  > 0 → `fehler` je Testdatei „Assert entfernt: …“ (mit der alten Zeile). Übrige geänderte → `hinweis` „Assert geändert: -alt“
+  (höchstens 3 je Datei). Messung über die Historie: 21 Commits, 0 Fehler, 4 Hinweise. Danach Advisor, Einspielen, Selbsttest.
+- **G10** → Opus, im Wegwerf-Repo messen (wie G7): `vibe --agent ask` mit echter Aufrufform (Prompt-Datei, Zeitlimit) –
+  werden Schreiben und Shell abgelehnt oder hängt headless? hält das auch, wenn der Teamleiter an Sub-Agenten delegiert?
+  `active_model` Large 4? Normen-Hook (Köder) aktiv? „Lese-Auftrag“ so definieren, dass ein Review wie am 16.11. (Hook-Prüfbefehl,
+  `fall.json` in `$RUN`) möglich bleibt. Lauf-Protokoll in `multi-ki/benutzer/agents/mistral-team.md` (Quelle) und
+  `multi-ki-ablauf.md`: auf die eigene PID warten statt `pgrep -f vibe-rs`; leere Statusdatei = „sauber“; nie „gescheitert“,
+  solange die eigene PID lebt. Neue Aufrufform in G5-Tests/„Betrieb ja“. Kopie nach `~/.claude/agents` nur nach Rückfrage.
+- **G11** → Opus, Worktree-Spike im Wegwerf-Klon: untracked `.normen-auftrag`/`.normen/` fehlen im Worktree; welches `normen.py`
+  und welches ROOT nutzt der Hook dort; Worktree innerhalb vs. außerhalb des Projekts (G4-B „außerhalb“, `git status`, `pruefen`);
+  Hook-Stufen für `git worktree add/remove/prune`, `git branch -D`; getrackte Sperrpfade vorhanden, untracked `.env` fehlt;
+  läuft der Testbefehl. Bericht `docs/plaene/worktree-spike.md` (gemessen/dokumentiert/offen).
+- Reihenfolge: G9-Auftrag starten; währenddessen G10/G11 nur messen (keine Dateien im Projekt ändern, sonst N06-Fehler im
+  Vibe-`pruefen`); nach G9 Dateien von G10/G11 einspielen; Advisor-Abnahme; PR; `normen.py merge`; Sitzungen informieren.
 `meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
