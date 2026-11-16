@@ -35,7 +35,7 @@ art = "agent"
 werkzeug = "Claude Code Advisor (Fable) – Supervisor über Opus; keine eigenen Werkzeuge"
 verantwortet = [
   "Überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst",
-  "Entscheidungen und Commits bleiben bei Opus, Freigaben bei {inhaberin}",
+  "Entscheidungen und Commits bleiben bei Opus, Freigaben gibt {inhaberin}",
 ]
 faehigkeiten = {}
 

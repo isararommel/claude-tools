@@ -24,6 +24,7 @@ Alternativ den Abschnitt „Anweisungen für Claude“ (unten) direkt in die `CL
 
 | Rolle | Wer | Wofür | Kontingent |
 |---|---|---|---|
+| Supervisor | Fable als Advisor der Hauptsitzung (/advisor) | prüft Plan, Schnittstellen, Abnahme; arbeitet nicht selbst | Anthropic |
 | Chef-Architekt | Claude Opus (Hauptsitzung) | Planen, Aufträge präzise formulieren, Architektur, Ergebnisse prüfen, Commits, Gespräch mit der Nutzerin | Anthropic |
 | `mistral-team` | Mistral Vibe CLI (`vibe`): Mistral Large 4 als Teamleiter, Sub-Agenten `flash-scout`, `code-worker`, `code-reviewer` (GLM-5.3, ZAI-GLM-5.3-Flash, Mistral Medium 3.5) | Eigenständige Implementierung, Unit-Tests schreiben, Testläufe, zweites Code-Review | Mistral |
 | `gemini-analyst` | Google Antigravity (`agy`) mit `gemini-3.8-flash-high` | Analyse vieler Dateien auf einmal, Abgleich Konzept gegen Code, Dokumentation schreiben, unabhängige Zweitmeinung vor großen Architekturentscheidungen | Google |
@@ -38,8 +39,10 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 3. **Agent-Definitionen** für Claude Code:
    - `~/.claude/agents/mistral-team.md`
    - `~/.claude/agents/gemini-analyst.md`
+   - `~/.claude/agents/Explore.md`
 
    Weil sie im Benutzerordner liegen, gelten sie automatisch in **allen** Projekten. Vorlagen stehen in Abschnitt 8.
+   Alle drei enthalten „Den Advisor nie aufrufen“: Subagenten erben den Advisor der Hauptsitzung.
 4. **Pro Projekt** in `.claude/settings.json` den agy-Aufruf freigeben, damit nicht jedes Mal gefragt wird:
    ```json
    {
@@ -49,6 +52,8 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
    }
    ```
    Für Vibe entsprechend `"Bash(vibe:*)"`, falls gewünscht.
+5. **Advisor (Fable):** `advisorModel` in den Nutzereinstellungen (`/advisor`), nicht im Projekt; getestet mit Claude Code 2.1.325.
+   Der Advisor ist „experimental“; fällt er aus, arbeitet Claude ohne ihn weiter und nennt die ungeprüften Punkte im Bericht (S07).
 
 ### Projektspezifisch anpassen
 
@@ -64,6 +69,8 @@ Am einfachsten: In jedem Auftrag nennt Claude den Testbefehl ausdrücklich. Die 
 ```
 Nutzerin ──► Claude Opus: versteht, plant, zerlegt
                  │
+                 ├─ ◆ Fable prüft Plan/Schnittstellen (S07 Punkt 1, 2; vor Normänderungen Punkt 5)
+                 │
                  ├─ Suche im Projekt ─────────► Explore (Haiku)
                  ├─ Große Analyse / Doku / ───► gemini-analyst ─► agy (Gemini)
                  │  Zweitmeinung
@@ -71,9 +78,12 @@ Nutzerin ──► Claude Opus: versteht, plant, zerlegt
                  │
                  ◄── Berichte zurück
                  │
-             Claude prüft kritisch (Diff lesen, Tests laufen lassen, git status vergleichen)
+             Claude prüft kritisch (Diff lesen, Tests laufen lassen, git status vergleichen – als Skript, Abschnitt 9)
                  │
              Claude korrigiert selbst kleine Fehler oder gibt einen Folgeauftrag
+                 │          (◆ nach drei Fehlversuchen: Fable fragen, Punkt 3)
+                 │
+             ◆ Fable prüft die Abnahme (Punkt 4)
                  │
              Commit, Doku-Update, Bericht an die Nutzerin
 ```
@@ -199,6 +209,82 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). ...
 ```
 
 Wichtig sind: `tools: Bash, Read` (keine Schreib-Tools, damit der Sub-Agent nicht selbst arbeiten kann), `model: haiku` (günstige Schnittstelle) und eine `description`, an der Claude erkennt, wann der Agent passt.
+
+## 9. Code Mode: Auswerten als Skript (S06)
+
+Ab etwa drei zusammenhängenden Aufrufen (git status vorher/nachher, `export.json`, Testbefehl, `normen.py pruefen`) schreibt
+Claude ein kurzes Python-Skript mit dem Write-Werkzeug nach `${TMPDIR}/code-mode-runs/<zeit>-<name>/` und holt nur Ergebnis,
+Fehler und Kennzahlen in den Kontext. Der Normen-Hook prüft jedes `python3 <datei>.py` außerhalb des Projekts vor dem Lauf
+(`python3 normen/normen.py skript --pruefen <datei>` zeigt dasselbe Ergebnis als Trockenlauf). Das schützt vor Versehen, ist
+aber keine Sicherheitsgrenze.
+
+Regeln für den Hook (Stufe „ja“ läuft ohne Rückfrage):
+- Importe: `json, re, sys, os, pathlib, subprocess, hashlib, base64, datetime, collections, itertools, textwrap, shlex`; andere
+  → fragen; Netzmodule (`urllib`, `http`, `socket`, `requests`) → fragen.
+- `subprocess.run/check_output/…` nur mit einer **Liste im Aufruf selbst**; Programm und Unterbefehl als Text (`"git", "status"`),
+  weitere Teile Text, Pfadausdrücke (`RUN / "out/export.json"`) oder f-Strings, die nicht mit `-` beginnen. Listen aus Variablen,
+  `shell=True`, `os.system`, `eval/exec` → fragen bzw. nein.
+- Schreiben nur in den Ordner des Skripts (`Path(__file__).resolve().parent / "…"`); Löschen nie.
+- Skriptpfad im Aufruf ausgeschrieben oder mit `$TMPDIR`/`$HOME`; andere Variablen kann der Hook nicht auflösen → fragen.
+
+Was geht womit:
+
+| Aktion | Edit/Write (Opus) | Bash (Opus) | Code-Mode-Skript | Schnittstelle (mistral-team/gemini-analyst) | Inhaberin |
+|---|---|---|---|---|---|
+| Projektdatei ändern | **ja** (Hook) | nur mit Rückfrage; nicht per Heredoc-Skript (S05) | **nein** | nur Pfade aus `.normen-auftrag` | ja |
+| Datei im eigenen Lauf-Ordner schreiben | ja | ja | **ja** | – | – |
+| Lesen, git status/diff/log/show, Dateien auswerten | ja (Read) | ja | **ja** | ja | – |
+| Testbefehl, `normen.py pruefen` | – | ja | **ja** (Exit-Code vollständig ausgeben) | Vibe ja, agy nein | – |
+| GitHub lesen (`gh api` ohne `-X/--method/-f/-F/--input`) | – | ja | **ja** | – | – |
+| Andere Netzaufrufe (`curl`, `wget`, urllib, socket) | – | ja (Hook) | **fragen** | – | – |
+| vibe / agy starten | – | nur über die Schnittstelle | **nein** | ja (deren Aufgabe) | – |
+| git commit/push, PR, `normen.py merge` | – | ja (eigener Branch, Prüftor) | **nein** | nein | ja |
+| `normen.py auftrag/melden/aktualisieren` | – | ja (melden: Rückfrage) | **nein** | nein | ja |
+| Pakete installieren | – | Rückfrage (N05) | **nein** | nein | ja |
+| Löschen | – | nach N01-Regeln | **nein** | nein | ja |
+| Sperrpfade lesen | ja | ja | ja (nie an Gemini) | nein | ja |
+| Geheimnisse | nein | nein | **nein** | nein | ja |
+| Serverskripte | – | nein | nein | nein | **ja** |
+| Advisor (Fable) fragen | Hauptsitzung ja | – | – | **nein** | – |
+
+Beispiel: Auswertung eines Vibe-Laufs (vorher `… auswerten.py "$RUN" --vorher`, nach dem Lauf `… auswerten.py "$RUN"`):
+
+```python
+#!/usr/bin/env python3
+"""Vibe-Lauf auswerten: git status vorher/nachher, export.json, Abnahme. Gibt nur Kennzahlen und Fehler aus."""
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+HIER = Path(__file__).resolve().parent
+RUN = Path(sys.argv[1])  # ${TMPDIR}/vibe-runs/<zeit>-<name>
+VORHER = HIER / "status-vorher.txt"
+
+
+def status() -> set[str]:
+    r = subprocess.run(["git", "status", "--short"], capture_output=True, text=True, check=True)
+    return {z[3:] for z in r.stdout.splitlines()}
+
+
+if "--vorher" in sys.argv:
+    VORHER.write_text("\n".join(sorted(status())) + "\n", encoding="utf-8")
+    sys.exit(0)
+
+vorher = set(VORHER.read_text(encoding="utf-8").split())
+nachher = status()
+print("verschwunden:", sorted(vorher - nachher) or "–")  # fehlt etwas: sofort melden
+print("neu/geändert:", sorted(nachher - vorher) or "–")
+e = json.loads((RUN / "out/export.json").read_text(encoding="utf-8"))
+print("vibe:", e.get("outcome"), "Runden", e.get("steps"), "Modell", e.get("config", {}).get("active_model"),
+      "Kosten", e.get("cost_usd"))
+# Befehlslisten stehen ausgeschrieben im Aufruf (Listen aus Variablen fragt der Hook nach).
+t = subprocess.run(["make", "test"], capture_output=True, text=True)
+print("make test: Exit", t.returncode, *(t.stdout + t.stderr).splitlines()[-3:], sep="\n  ")
+p = subprocess.run([sys.executable, "normen/normen.py", "pruefen", "--diff"], capture_output=True, text=True)
+print("pruefen --diff: Exit", p.returncode, *(p.stdout + p.stderr).splitlines()[-5:], sep="\n  ")
+sys.exit(1 if t.returncode or p.returncode else 0)
+```
 
 ---
 

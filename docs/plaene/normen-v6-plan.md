@@ -79,7 +79,7 @@ id = "S07-SUPERVISOR"
 stufe = "soll"
 nur_rollen = ["claude"]
 titel = "Fable (Advisor) prüft, Opus entscheidet"
-prompt = "Der Advisor (Fable) überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst. Entscheidungen und Commits bleiben bei Opus, Freigaben bei {inhaberin}. Pflicht-Konsultationen: (1) vor Festlegung von Plan/Schnittstellen eines Pakets, (2) vor heikler Kernlogik, (3) nach drei Fehlversuchen, bevor angehalten wird (S03), (4) vor „fertig“ bzw. vor `normen.py merge`, (5) vor jedem Normänderungs-Vorschlag. Rat ist Empfehlung: widerspricht ein Befund (Test, Diff, Datei) dem Rat, den Konflikt melden statt blind folgen. Zu Sitzungsbeginn melden, ob der Advisor aktiv ist. Nicht verfügbar (Limit, „Advisor unavailable“, nicht aktiv): ohne Fable weiterarbeiten, nicht erneut versuchen, kein Modellwechsel; im Abschlussbericht „ohne Fable-Prüfung: Punkt X“. Ausnahme Punkt 5: Normänderung zurückstellen, bis Fable verfügbar ist oder {inhaberin} entscheidet. Subagenten rufen den Advisor nie auf."
+prompt = "Der Advisor (Fable) überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst. Entscheidungen und Commits bleiben bei Opus, Freigaben gibt {inhaberin}. Pflicht-Konsultationen: (1) vor Festlegung von Plan/Schnittstellen eines Pakets, (2) vor heikler Kernlogik, (3) nach drei Fehlversuchen, bevor angehalten wird (S03), (4) vor „fertig“ bzw. vor `normen.py merge`, (5) vor jedem Normänderungs-Vorschlag. Rat ist Empfehlung: widerspricht ein Befund (Test, Diff, Datei) dem Rat, den Konflikt melden statt blind folgen. Zu Sitzungsbeginn melden, ob der Advisor aktiv ist. Nicht verfügbar (Limit, „Advisor unavailable“, nicht aktiv): ohne Fable weiterarbeiten, nicht erneut versuchen, kein Modellwechsel; im Abschlussbericht „ohne Fable-Prüfung: Punkt X“. Ausnahme Punkt 5: Normänderung zurückstellen, bis Fable verfügbar ist oder {inhaberin} entscheidet. Subagenten rufen den Advisor nie auf."
 begruendung = "Ein stärkeres Modell prüft an den Stellen, an denen Fehler am teuersten sind; Opus behält Verantwortung und Werkzeuge. Advisor-Aufrufe sind technisch nicht erzwingbar."
 quellen = ["code.claude.com/docs/en/advisor", "Vorgabe der Inhaberin 16.11.2026"]
 durchsetzung = ["review"]
@@ -94,7 +94,7 @@ art = "agent"
 werkzeug = "Claude Code Advisor (Fable) – Supervisor über Opus; keine eigenen Werkzeuge"
 verantwortet = [
   "Überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst",
-  "Entscheidungen und Commits bleiben bei Opus, Freigaben bei {inhaberin}",
+  "Entscheidungen und Commits bleiben bei Opus, Freigaben gibt {inhaberin}",
 ]
 faehigkeiten = {}
 ```
