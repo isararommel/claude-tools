@@ -666,7 +666,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
             zuweisungen: dict[str, str] = {}  # G5: Variablen-Zuweisungen aus vorangehenden Teilbefehlen (RUN=/x …)
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
-                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis))
+                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
                 zuweisungen.update(_zuweisungen_aus_seg(seg))
                 basis = _cd_basis(seg, basis)
@@ -1239,7 +1239,7 @@ def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int
 
 
 def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0,
-                       basis: str | None = None) -> list[tuple[str, str]]:
+                       basis: str | None = None, zuweisungen: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd), nur für
     Dateien außerhalb des Projekts und außerhalb von [pfade].lesbar_extern: `python3 … <datei>` (mit und ohne
     .py-Endung, per AST), `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST), `bash|sh|zsh -c CODE`
@@ -1256,6 +1256,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     if i >= len(w):
         return []
     prog = w[i].rsplit("/", 1)[-1]
+    # Variablen im Inline-Code: Zuweisungen aus vorangehenden Teilbefehlen und Präfixen (`X=… python3 -c "$X"`), dann Umgebung
+    zuw = dict(zuweisungen or {})
+    zuw.update(t.split("=", 1) for t in w[:i] if _PRAEFIX_ZUWEISUNG.fullmatch(t))
+
+    def variablen(code: str, ersatz: str | None) -> str:
+        return _VAR_RX.sub(lambda m: zuw.get(m.group(1) or m.group(2), os.environ.get(m.group(1) or m.group(2), ersatz or m.group(0))),
+                           code)
     rest = w[i + 1:]
     vorher = _maskiert(cmd)[:pos].rstrip()
     aus_pipe = vorher.endswith("|") and not vorher.endswith("||")
@@ -1298,7 +1305,14 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                     code = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else None)
                     if code is None:
                         return [("fragen", "S06-CODE-MODE: python3 -c ohne Code – nicht prüfbar")]
-                    return inline(_VAR_RX.sub(lambda m: os.environ.get(m.group(1) or m.group(2), "X"), code), "-c")
+                    code = variablen(code, "NORMENVAR")  # unbekannt: Platzhalter – in Strings harmlos, als Code nicht prüfbar
+                    try:
+                        baum = ast.parse(code)
+                    except (SyntaxError, ValueError):
+                        return inline(code, "-c")  # code_pruefen meldet den Syntaxfehler („nein“)
+                    if any(isinstance(n, ast.Name) and n.id == "NORMENVAR" for n in ast.walk(baum)):
+                        return [("fragen", "S06-CODE-MODE: python3 -c mit unbekannter Variable als Code – nicht prüfbar")]
+                    return inline(code, "-c")
                 if c in "XW":
                     j += 0 if a[k + 1:] else 1
                     break
@@ -1318,7 +1332,10 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                 return [("fragen", f"S06-CODE-MODE: {prog} -c ohne Code – nicht prüfbar")]
             if tiefe >= 3:
                 return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
-            stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[j]}, cwd, _tiefe=tiefe + 1)
+            code = variablen(rest[j], None)
+            if any(s.strip().startswith("$") for s in _segmente(code)):
+                return [("fragen", f"S06-CODE-MODE: {prog} -c mit unbekannter Variable als Befehl – nicht prüfbar")]
+            stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": code}, cwd, _tiefe=tiefe + 1)
             return [] if stufe == "ja" else [(stufe, g) for g in gruende]
         if j < len(rest) and rest[j] == "--":
             j += 1
@@ -1507,18 +1524,21 @@ def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
     if prog not in ("vibe", "agy"):
         return []
     rest = w[i + 1:]
-    quelle: tuple[str, str] | None = None
+    quellen: list[tuple[str, str]] = []
     for j, t in enumerate(rest):
         wert = t.split("=", 1)[1] if "=" in t and t.startswith("--") else (rest[j + 1] if j + 1 < len(rest) else None)
         if prog == "vibe" and (t == "--prompt-file" or t.startswith("--prompt-file=")):
-            quelle = ("datei", wert)
+            art = "datei"
         elif t in ("-p", "--prompt") or t.startswith("--prompt="):
-            quelle = ("text", wert)
+            art = "text"
         else:
             continue
-        if quelle[1] is not None:
-            break
-        quelle = None
+        if wert is None:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} {t} ohne Wert – nicht prüfbar")]
+        quellen.append((art, wert))
+    if len(quellen) > 1:  # welche Quelle das Werkzeug nimmt, ist nicht festgelegt – nie nur eine prüfen
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} mit mehreren Prompt-Quellen – nicht prüfbar")]
+    quelle = quellen[0] if quellen else None
     if quelle is None:
         if rest and all(t in ("--version", "--help", "-h") for t in rest):
             return []

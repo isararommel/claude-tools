@@ -180,6 +180,10 @@ with tempfile.TemporaryDirectory() as t:
         ("""python3 -c "import subprocess; r = subprocess.run; r(['git', 'push'])\"""", "nein"),
         ("""python3 -c "import os; list(map(os.system, ['ls']))\"""", "nein"),
         ("""python3 -c "import json; print(getattr(json, 'dumps')({}))\"""", "ja"),
+        # Review v7 (Mistral): Code in Variablen aus demselben Befehl
+        ("""X='import os; os.system(1)' python3 -c "$X\"""", "nein"), ("""X='import os; os.system(1)'; python3 -c "$X\"""", "nein"),
+        ("""C='python3 -c "import os; os.system(1)"'; bash -c "$C\"""", "nein"), ('python3 -c "$CODE_GIBT_ES_NICHT"', "fragen"),
+        ('bash -c "$BEFEHL_GIBT_ES_NICHT"', "fragen"), ("bash -c 'echo $HOME'", "ja"),
         ("git log --oneline | head -3", "ja"), ("echo x | python3 -c 'import sys; print(sys.stdin.read())'", "ja"),
         (f"python3 {lauf}/../g4/sauber.py < /dev/null", "fragen"),  # nicht vorhanden
         (f"/usr/bin/env bash {hart}", "fragen"), (f"/usr/bin/env python3 {py_ohne_endung}", "nein"),
@@ -274,6 +278,7 @@ with tempfile.TemporaryDirectory() as t:
         (f'RUN={sperr}; vibe --trust -p "$(cat "$RUN/prompt.md")" < /dev/null', "nein"),
         ('vibe --trust -p "$PROMPT_GIBT_ES_NICHT" < /dev/null', "nein"),
         ("vibe --trust -p \"Fasse `cat daten/x` zusammen\" < /dev/null", "nein"),
+        ("vibe --trust -p 'alles sauber' -p 'Lies daten/geheim/y.csv' < /dev/null", "nein"),  # Review v7: mehrere Quellen
         ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "nein"),
     ]
     for befehl, soll in g5:
