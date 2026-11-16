@@ -471,7 +471,7 @@ def _ohne_textdaten(cmd: str) -> str:
 _HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
 _AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
 _PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
-_PRAEFIX_WORT = {"time", "nice", "nohup", "command"}
+_PRAEFIX_WORT = {"time", "nice", "nohup", "command", "timeout"}
 
 
 def _praefixe_ueberspringen(w: list[str]) -> int:
@@ -480,13 +480,14 @@ def _praefixe_ueberspringen(w: list[str]) -> int:
     i = 0
     while i < len(w):
         name = w[i].rsplit("/", 1)[-1]  # auch /usr/bin/env, /usr/bin/time …
-        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or name in _PRAEFIX_WORT:
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]):
             i += 1
-        elif name == "env":
-            i += 1
-            while i < len(w) and (w[i] == "-i" or (w[i] == "-u" and i + 1 < len(w))
-                                  or _PRAEFIX_ZUWEISUNG.fullmatch(w[i])):
-                i += 2 if w[i] == "-u" else 1
+        elif name in _PRAEFIX_WORT or name == "env":
+            i += 1  # Optionen des Präfixes überspringen; mit Argument: nice -n N, env -u NAME, timeout -s SIG/-k T
+            while i < len(w) and (w[i].startswith("-") or (name == "env" and _PRAEFIX_ZUWEISUNG.fullmatch(w[i]))):
+                i += 2 if w[i] in ("-n", "-u", "-s", "-k") else 1
+            if name == "timeout" and i < len(w):
+                i += 1  # Dauer
         else:
             break
     return i
@@ -1055,6 +1056,16 @@ def _befehl_stufe(cfg, w: list[str], cwd: str) -> tuple[str, str]:
     return "fragen", f"`{befehl}` nicht in der Positivliste"
 
 
+_MODULE_DYNAMISCH = {"os", "subprocess", "shutil", "builtins", "importlib", "sys", "pathlib", "socket", "urllib", "pty"}
+
+
+def _gefaehrlicher_name(n: str) -> bool:
+    """Name, der nur als direkter, geprüfter Aufruf vorkommen darf (eval, os.system, subprocess.run …)."""
+    return (n in ("eval", "exec", "compile", "__import__")
+            or (n.startswith("os.") and bool(OS_VERBOTEN.match(n[3:])))
+            or (n.startswith("subprocess.") and n[len("subprocess."):] in (*SUBPROCESS_AUFRUFE, "getoutput", "getstatusoutput")))
+
+
 def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str) -> tuple[str, list[str]]:
     """Quelltext per AST prüfen (S06): (ja|fragen|nein, Gründe). lauf=None → Inline-Code: jedes aufgelöste
     Schreibziel liegt außerhalb des Lauf-Ordners; __file__ ist dann nicht auflösbar."""
@@ -1068,6 +1079,16 @@ def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str) ->
             s.importe(node)
         elif isinstance(node, ast.Call):
             s.aufruf(node)
+            if _aufruf_name(node.func) in ("getattr", "setattr", "delattr") and node.args:
+                ziel, attr = node.args[0], node.args[1] if len(node.args) > 1 else None
+                if isinstance(ziel, ast.Name) and ziel.id in _MODULE_DYNAMISCH:
+                    s.fund("nein", node, f"{_aufruf_name(node.func)}() auf Modul {ziel.id} verboten (umgeht die Prüfung)")
+                elif not (isinstance(attr, ast.Constant) and isinstance(attr.value, str)):
+                    s.fund("fragen", node, f"{_aufruf_name(node.func)}() mit nicht statischem Namen")
+    aufrufziele = {id(n.func) for n in ast.walk(baum) if isinstance(n, ast.Call)}
+    for node in ast.walk(baum):  # `r = subprocess.run; r([...])`, `map(os.system, …)`: Referenz ohne direkten Aufruf
+        if isinstance(node, (ast.Name, ast.Attribute)) and id(node) not in aufrufziele and _gefaehrlicher_name(_aufruf_name(node)):
+            s.fund("nein", node, f"{_aufruf_name(node)} ohne direkten Aufruf (Alias/Weitergabe) verboten")
     if not s.funde:
         return "ja", []
     return max((f[0] for f in s.funde), key=lambda x: RANG[x]), [f[1] for f in s.funde]
@@ -1225,6 +1246,17 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
         return []
     prog = w[i].rsplit("/", 1)[-1]
     rest = w[i + 1:]
+    vorher = _maskiert(cmd)[:pos].rstrip()
+    aus_pipe = vorher.endswith("|") and not vorher.endswith("||")
+
+    def stdin(j: int) -> list[tuple[str, str]] | None:
+        """Interpreter ohne Skriptdatei an Stelle j: Code aus Pipe, `<` oder /dev/stdin → fragen; None = Datei folgt."""
+        if j < len(rest) and not (rest[j].startswith("<") or rest[j] in ("-", "/dev/stdin")):
+            return None
+        if aus_pipe or j < len(rest):
+            return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin (Pipe, < oder /dev/stdin) – nicht prüfbar")]
+        return []
+
     if PYTHON.match(prog):
         def inline(code: str, art: str) -> list[tuple[str, str]]:
             stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})")
@@ -1262,8 +1294,8 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             j += 1
         if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _heredocs(seg):
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
-        if j >= len(rest):
-            return []
+        if (b := stdin(j)) is not None:
+            return b
         return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python")
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
@@ -1279,19 +1311,28 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return [] if stufe == "ja" else [(stufe, g) for g in gruende]
         if j < len(rest) and rest[j] == "--":
             j += 1
-        if j >= len(rest):
-            return []
+        if _heredocs(seg) and (j >= len(rest) or rest[j].startswith("<")):
+            return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
+        if (b := stdin(j)) is not None:
+            return b
         return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell")
     if prog in ("source", "."):
-        if not rest or rest[0].startswith("-"):
+        if rest and rest[0].startswith("-") and rest[0] != "-":
             return []
+        if (b := stdin(0)) is not None:
+            return b
         return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell")
     if prog in ("node", "perl", "ruby"):
-        j = 0  # Optionen; -e CODE verbraucht ein weiteres Wort
-        while j < len(rest) and rest[j].startswith("-"):
-            j += 2 if rest[j] == "-e" else 1
-        if j >= len(rest):
-            return []
+        j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
+        while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
+            if rest[j] in ("-e", "-p", "-E", "--eval", "--print") or (rest[j][1:2] != "-" and "e" in rest[j][1:]):
+                return [("fragen", f"S06-CODE-MODE: {prog} mit Inline-Code (-e) – nicht prüfbar")]
+            j += 1
+        b = stdin(j)
+        if _heredocs(seg) or b:
+            return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
+        if b is not None:
+            return []  # interaktiv ohne Eingabe
         return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
         voll = os.path.expanduser(w[i])

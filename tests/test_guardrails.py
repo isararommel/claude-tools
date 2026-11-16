@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests für die Guardrail-Pakete aus Normen v7 (G2 ff., siehe docs/plaene/guardrails-v7-entwurf.md)."""
 import json
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -167,6 +169,18 @@ with tempfile.TemporaryDirectory() as t:
         (f"python3 {py_ohne_endung}", "nein"), (f"{py_ohne_endung}", "nein"),
         (f"pushd {lauf} && ./hart.sh", "fragen"), (f"pushd {lauf} && bash hart.sh", "fragen"),
         (f"{{ cd {lauf}; ./hart.sh; }}", "fragen"), (f"cd {lauf} && bash tief.sh", "fragen"),
+        # Gemini-Review G4: Code über stdin, Präfix-Optionen, dynamischer Zugriff
+        ("cat <<'EOF' | python3\nimport subprocess\nsubprocess.run(['git', 'push'])\nEOF", "fragen"),
+        (f"python3 < {lauf}/commit.py", "fragen"), (f"bash < {hart}", "fragen"), (f"cat {hart} | bash", "fragen"),
+        (f"cat {hart} | sh -s", "fragen"), (f"source /dev/stdin < {hart}", "fragen"), (f"cat {js} | node", "fragen"),
+        ("node -e 'console.log(1)'", "fragen"), (f"nice -n 10 python3 {lauf}/commit.py", "nein"),
+        (f"time -p python3 {lauf}/commit.py", "nein"), (f"timeout 60 python3 {lauf}/commit.py", "nein"),
+        ("""python3 -c "import subprocess; getattr(subprocess, 'run')(['git', 'push'])\"""", "nein"),
+        ("""python3 -c "import subprocess; r = subprocess.run; r(['git', 'push'])\"""", "nein"),
+        ("""python3 -c "import os; list(map(os.system, ['ls']))\"""", "nein"),
+        ("""python3 -c "import json; print(getattr(json, 'dumps')({}))\"""", "ja"),
+        ("git log --oneline | head -3", "ja"), ("echo x | python3 -c 'import sys; print(sys.stdin.read())'", "ja"),
+        (f"python3 {lauf}/../g4/sauber.py < /dev/null", "fragen"),  # nicht vorhanden
         (f"/usr/bin/env bash {hart}", "fragen"), (f"/usr/bin/env python3 {py_ohne_endung}", "nein"),
         (f"node {js}", "fragen"), (f"perl {pl}", "fragen"), ("bash /tmp/normen-g4b-gibt-es-nicht.sh", "fragen"),
         (f"printf 'ls\\n' > {sauber} && bash {sauber}", "fragen"),  # Inhalt wird im selben Befehl ersetzt
@@ -204,6 +218,62 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in weiter_gesperrt:
         check(f"lesbar_extern weiter gesperrt: {befehl}", hook_in(extern, befehl) == "nein")
     check("lesbar_extern aus dem Projekt: Ziel extern gesperrt", hook_in(repo, f"echo x > {extern}/quelle/a.md") == "nein")
+
+    # G5 (L5): Datenschutz vor vibe/agy – Prompt-Datei (und *.md daneben) bzw. -p-Text vor dem Start prüfen
+    pt.write_text(re.sub(r"gesperrt = \[\s*\]", 'gesperrt = ["daten/geheim/"]', pt.read_text())
+                  .replace("forschungsdaten = []", 'forschungsdaten = ["daten/roh/**", "PROBAND-"]'))
+    check("G5 Vorlage hat forschungsdaten", 'forschungsdaten = ["daten/roh/**"' in pt.read_text())
+    block = sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "gemini-analyst", cwd=repo).stdout
+    check("G5 Auftragsblock nennt den Sperrpfad", "daten/geheim/" in block, block[-300:])
+    runs = Path(t) / "agy-runs"
+
+    def prompt(name, text, neben=None):
+        d = runs / name
+        d.mkdir(parents=True)
+        (d / "prompt.md").write_text(text)
+        if neben:
+            (d / "spezifikation.md").write_text(neben)
+        return d
+
+    def agy(d, datei="prompt.md"):
+        return (f'RUN={d}; ALLOW=x; agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s '
+                f'--settings "$ALLOW" -p "$(cat "$RUN/{datei}")" < /dev/null > "$RUN/antwort.txt" 2>&1')
+
+    def vibe(d, datei="prompt.md"):
+        return (f'RUN="{d}"; cd {repo} && vibe --trust --smart-approve --time-limit 540 --max-turns 60 '
+                f'--output-dir "$RUN/out" --prompt-file "$RUN/{datei}" < /dev/null > "$RUN/antwort.txt" 2>&1')
+
+    schluessel = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+    echt = prompt("echt", block + "\n## Ziel\nAnalysiere src/app.py und docs/plan.md. Ändere keine Dateien.\n")
+    sperr = prompt("sperr", block + "\nLies auch daten/geheim/liste.csv.\n")
+    neben = prompt("neben", block + "\nSpezifikation: spezifikation.md\n", neben="Vergleiche mit daten/geheim/x.csv.\n")
+    geheim_inhalt = prompt("geheim-inhalt", f"Nutze diesen Schlüssel:\n{schluessel}\nabc\n")
+    geheim_pfad = prompt("geheim-pfad", "Prüfe, ob config/.env im Deploy-Skript gelesen wird.\n")
+    marker = prompt("marker", "Werte die Antworten von PROBAND-017 aus.\n")
+    glob_rel = prompt("glob-rel", "Lies daten/roh/p1.csv.\n")
+    glob_abs = prompt("glob-abs", f"Lies {repo}/daten/roh/p1.csv.\n")
+    glob_ordner = prompt("glob-ordner", "Fasse den Ordner daten/roh/ zusammen.\n")
+    vibe_bin = shutil.which("vibe") or "/usr/local/bin/vibe"
+    g5 = [
+        (agy(echt), "ja"), (vibe(echt), "ja"),
+        (agy(sperr), "nein"), (vibe(sperr), "nein"), (vibe(neben), "nein"), (agy(neben), "nein"),
+        (agy(geheim_inhalt), "nein"), (vibe(geheim_inhalt), "nein"),
+        (agy(geheim_pfad), "nein"), (vibe(geheim_pfad), "ja"),  # Vibe-Hook sperrt das Lesen selbst; agy hat keine Hooks
+        (agy(marker), "nein"), (vibe(marker), "fragen"),
+        (agy(glob_rel), "nein"), (agy(glob_abs), "nein"), (agy(glob_ordner), "nein"), (vibe(glob_rel), "fragen"),
+        ('vibe --trust --prompt-file "$GIBT_ES_NICHT_G5/prompt.md" < /dev/null', "nein"),
+        (vibe(echt, "fehlt.md"), "nein"),
+        (f'RUN={echt}; printf x > "$RUN/prompt.md" && vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),
+        ('vibe --trust -p "Lies daten/geheim/x.csv" < /dev/null', "nein"), ('agy -p "Fasse README.md zusammen" < /dev/null', "ja"),
+        (f"vibe --trust --prompt-file={sperr}/prompt.md < /dev/null", "nein"),
+        (f"env vibe --trust --prompt-file {sperr}/prompt.md < /dev/null", "nein"),
+        (f"{vibe_bin} --trust --prompt-file {sperr}/prompt.md < /dev/null", "nein"),
+        (f"bash -c 'vibe --trust --prompt-file {sperr}/prompt.md < /dev/null'", "nein"),
+        (f"vibe -c --trust --prompt-file {echt}/prompt.md < /dev/null", "ja"),
+        ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "nein"),
+    ]
+    for befehl, soll in g5:
+        check(f"G5 {soll}: {befehl[-90:]!r}", hook(repo, "claude", "claude", befehl) == soll)
 
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)

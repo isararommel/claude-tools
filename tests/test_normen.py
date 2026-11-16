@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as t:
     check("claude pip -r && pip Paket fragt", hook(repo, "claude", "claude", B("pip install -r requirements.txt && pip install x")) == "fragen")
     check("claude .env nein", hook(repo, "claude", "claude", B("cat .env")) == "nein")
     check("claude Read .env nein", hook(repo, "claude", "claude", {"tool_name": "Read", "tool_input": {"file_path": str(repo / ".env")}}) == "nein")
-    check("claude obj.key ja", hook(repo, "claude", "claude", B("node -e 'x.key=1'")) == "ja")
+    check("claude obj.key ja", hook(repo, "claude", "claude", B("grep -n 'x.key=1' src/app.js")) == "ja")  # .key im Text ist kein Geheimnis (node -e fragt seit v7/G4)
     check("claude yolo nein", hook(repo, "claude", "claude", B("vibe --yolo -p x")) == "nein")
     check("claude test ändern ja", hook(repo, "claude", "claude", W("tests/test_a.py")) == "ja")
     check("claude außerhalb fragt", hook(repo, "claude", "claude", W("/etc/hosts")) == "fragen")
