@@ -181,7 +181,7 @@ Vorlage `.claude/settings.json`:
 | 8 Config-Selbstschutz | bei „fragen“ bleiben (kein `permissions.deny`); G3 ergänzt Bash-Schreibziele |
 | 10 Hook-Fehlalarm | in v7 mit beheben – Paket G3 (dort werden Umleitungsziele ohnehin angefasst) |
 | 11 Rückfragen im Auto-Modus | für Bash belegt: Live-Probe 16.11. (Code-Mode-Skript mit `curl` → „fragen“) wurde vorgelegt und freigegeben. Für Edit/Write auf geschützte Dateien offen (16.11.: Edits an `CLAUDE.md` ohne erkennbare Rückfrage) – Rückfrage an die Inhaberin; je nach Antwort L11 in den Paketplan |
-| 7 Fable-Abrechnung | weiter offen |
+| 7 Fable-Abrechnung | entschieden: Fable läuft; bei „Advisor unavailable“ gilt S07 |
 
 Nächster Schritt: Advisor-Konsultation 1 zum Paketplan, dann G1 (Liveness mit Köder).
 
