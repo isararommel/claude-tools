@@ -90,6 +90,36 @@ with tempfile.TemporaryDirectory() as t:
                    'make test 2>&1 | grep -E "ok,|FAIL"', "python3 normen/normen.py pruefen --diff | tail -2"]:
         check(f"Betrieb ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
 
+    # G4-A (L1): Inline-Code – python3 -c / python3 - <<EOF per AST, bash|sh -c rekursiv, Präfixe, Heredoc-Rümpfe als Daten
+    lauf = Path(t) / "code-mode-runs" / "g4"
+    lauf.mkdir(parents=True)
+    (lauf / "commit.py").write_text('import subprocess\nsubprocess.run(["git", "commit", "-m", "x"])\n')
+    inline = [
+        ("python3 -c 'import sys; print(sys.version)'", "ja"),
+        ("python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'", "ja"),
+        ('echo "Fertig. Prüfen: cd x && python3 normen/normen.py pruefen --diff"', "ja"),
+        ("""python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('steps'))\"""", "ja"),
+        ("python3 - <<'PY'\nimport json\nprint(json.dumps({'a': 1}))\nPY", "ja"),
+        ('sh -c "ls -la"', "ja"),
+        ("bash -c 'git status --short'", "ja"),
+        ("cat >> notizen.md <<'EOF'\ngit config core.hooksPath x\npython3 -c 'import sys; x'\nrm -rf /\nEOF", "ja"),
+        ("cat > /tmp/normen-g4.txt <<EOF\ngit push --force\nEOF", "ja"),
+        ("""python3 -c "import subprocess; subprocess.run(['git', 'push'])\"""", "nein"),
+        ("""python3 -c "import os; os.system('ls')\"""", "nein"),
+        ("python3 - <<'PY'\nimport subprocess\nsubprocess.run(['git', 'commit', '-m', 'x'])\nPY", "nein"),
+        ("python3 - <<'PY'\nfrom pathlib import Path\nPath('CLAUDE.md').write_text('x')\nPY", "nein"),
+        ("bash -c 'git commit --no-verify -m x'", "nein"),
+        (f"FOO=1 python3 {lauf}/commit.py", "nein"),
+        (f"time python3 {lauf}/commit.py", "nein"),
+        (f"env A=1 python3 {lauf}/commit.py", "nein"),
+        ("cat > CLAUDE.md <<'EOF'\nx\nEOF", "fragen"),
+        ('python3 -c "import urllib.request"', "fragen"),
+        ("bash -c 'rm -rf /tmp/normen-g4'", "fragen"),
+    ]
+    for befehl, soll in inline:
+        check(f"G4-A {soll}: {befehl[:60]!r}", hook(repo, "claude", "claude", befehl) == soll)
+    check("G4-A vibe: os.system nein", hook(repo, "mistral-team", "vibe", """python3 -c "import os; os.system('ls')\"""") == "nein")
+
     # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
     extern = Path(t) / "werkzeuge"
     (extern / "quelle").mkdir(parents=True)
