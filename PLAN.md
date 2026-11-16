@@ -50,9 +50,11 @@ Version 7 und CHANGELOG-Abschnitt „v7 – in Arbeit“ sind angelegt; **ein Me
 Köder-Muster, Live-Ausgabe, Gegenprobe). **G4-A fertig** (Inline-Code: `python3 -c`, `python3 [-|/dev/stdin] <<PY` per AST,
 `bash|sh|zsh -c` rekursiv, Präfixe `FOO=1`/`time`/`env`/`nice`/`nohup`/`command`, Heredoc-Rümpfe mit Umleitung ohne Kette sind
 Daten; umgesetzt von mistral-team, Ketten-Umgehung `cat <<EOF … | bash` und `python3 <<PY` ohne `-` von Opus nachgezogen).
-Nächstes Paket: **G4-B** – Dateien außerhalb des Projekts: `bash|sh|zsh <datei>` zeilenweise durch `bewerten` (Heredoc-Rümpfe
-ausgenommen), `python3 <datei>` ohne `.py` per AST, `node <datei>` → fragen; Fall `cat > /tmp/x.sh <<EOF` in einem Befehl
-und `bash /tmp/x.sh` im nächsten gehört hierher. Tests zuerst, dann Auftrag; danach gemini-Review G4, dann G5, G6. Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
+**G4-B fertig** (Skriptdateien außerhalb des Projekts und außerhalb `lesbar_extern`: `bash|sh|zsh|source|.` und direkte
+Pfadaufrufe – Inhalt als ein Befehl rekursiv durch `bewerten`; Python mit/ohne `.py` und Shebang per AST; `node|perl|ruby` und
+unbekannte Shebangs → fragen; nicht vorhanden oder im selben Befehl geschrieben → fragen; `cd` im Befehl wird als Basis verfolgt;
+Messung an 117 vorhandenen Skripten: Befunde stammen aus dem Inhalt, kaum Parser-Rauschen). Nächster Schritt: gemini-Review G4
+(Diff `normen.py` seit 23dc276), dann **G5** (Datenschutz-Prüfung vor Prompt-Dateien), **G6** (MCP-Freigaben). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
 Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
 Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
 

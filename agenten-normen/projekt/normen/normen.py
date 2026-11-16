@@ -479,9 +479,10 @@ def _praefixe_ueberspringen(w: list[str]) -> int:
     NAME=wert, time, env (samt -i, -u NAME und NAME=wert), nice, nohup, command."""
     i = 0
     while i < len(w):
-        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or w[i] in _PRAEFIX_WORT:
+        name = w[i].rsplit("/", 1)[-1]  # auch /usr/bin/env, /usr/bin/time …
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or name in _PRAEFIX_WORT:
             i += 1
-        elif w[i] == "env":
+        elif name == "env":
             i += 1
             while i < len(w) and (w[i] == "-i" or (w[i] == "-u" and i + 1 < len(w))
                                   or _PRAEFIX_ZUWEISUNG.fullmatch(w[i])):
@@ -653,8 +654,10 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if s and s in cmd:
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
+            basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
-                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe))
+                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis))
+                basis = _cd_basis(seg, basis)
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -1080,15 +1083,133 @@ def skript_pruefen(cfg, pfad: Path, cwd: str) -> tuple[str, list[str]]:
     return code_pruefen(cfg, quelltext, skript.parent, cwd, str(skript))
 
 
-def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0) -> list[tuple[str, str]]:
-    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd): `python3 … <datei>.py`
-    mit Datei außerhalb des Projekts, `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST) sowie
-    `bash|sh|zsh -c CODE` (rekursiv bewertet). Liefert Befunde (stufe, grund)."""
+def _cd_basis(seg: str, basis: str | None) -> str | None:
+    """Basisordner für relative Pfade im nächsten Teilbefehl: nach `cd <ordner>` dieser Ordner, sonst
+    unverändert; None = unbekannt (cd ohne Argument, `cd -`, unaufgelöste Variable)."""
+    if basis is None:
+        return None
     try:
         w = shlex.split(seg)
-    except ValueError:  # z. B. `python3 x.py "a|b"`: unbalanciertes Zitat im Code – nie ungeprüft durchlassen
-        if re.search(r"(^|\s)(\S*/)?python3?(\.\d+)?(\s|$)", seg) or re.search(r"(^|\s)(?:ba|z)?sh\s+-c(?:\s|$)", seg):
-            return [("fragen", "S06-CODE-MODE: Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Code nicht prüfbar")]
+    except ValueError:
+        return basis
+    i = _praefixe_ueberspringen(w)
+    if i >= len(w) or w[i] != "cd":
+        return basis
+    args = [a for a in w[i + 1:] if not a.startswith("-")]
+    if not args:
+        return None
+    roh = os.path.expanduser(os.path.expandvars(args[0]))
+    if "$" in roh:
+        return None
+    p = Path(roh)
+    if not p.is_absolute():
+        p = Path(basis) / p
+    return os.path.normpath(str(p))
+
+
+# Skriptaufruf in einem nicht zerlegbaren Teilbefehl (unbalanciertes Zitat): Interpreter oder Pfad mit /
+_SKRIPT_AUFRUF_RX = re.compile(
+    r"(^|\s)(\S*/)?(python3?(\.\d+)?|bash|sh|zsh|node|perl|ruby|source)(\s|$)"
+    r"|(^|\s)\.(?=\s|$)"
+    r"|(^|\s)[^\s;|&()]*/[^\s;|&()]*(\s|$)")
+
+
+def _skript_pfad(wort: str, basis: str | None) -> tuple[Path | None, str | None]:
+    """Skriptpfad aus einem Aufrufwort auflösen (expanduser/expandvars, relativ zur Basis, realpath);
+    (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
+    roh = os.path.expanduser(os.path.expandvars(wort))
+    if "$" in roh:
+        return None, f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({wort}) – nicht prüfbar"
+    p = Path(roh)
+    if not p.is_absolute():
+        if basis is None:
+            return None, f"S06-CODE-MODE: Skript {wort} relativ, aber Basisordner unbekannt (cd) – nicht prüfbar"
+        p = Path(basis) / p
+    return Path(os.path.realpath(p)), None
+
+
+def _skript_gate(cfg, datei: Path, wort: str, python: bool) -> list[tuple[str, str]] | None:
+    """None → Datei ist prüf-relevant (außerhalb des Projekts und von lesbar_extern, vorhanden); sonst
+    Befunde: im Projekt und unter [pfade].lesbar_extern keine, nicht vorhanden → fragen."""
+    if datei == ROOT or ROOT in datei.parents:
+        if python and wort.endswith(".py") and not datei.exists():
+            # z. B. `cd <anderswo> && python3 x.py`: relativ zur Basis falsch aufgelöst
+            return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
+        return []  # Projektskripte wie bisher
+    if any(datei == q or q in datei.parents for q in _lesbar_extern(cfg)):
+        return []
+    if not datei.exists():
+        return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden – nicht prüfbar")]
+    return None
+
+
+def _skript_geschrieben(wort: str, datei: Path, cmd: str, cwd: str) -> tuple[str, str] | None:
+    """Befund, wenn das Skript zugleich Schreibziel des ganzen Befehls ist (oder Ziele nicht zerlegbar)."""
+    for z in _schreibziele(cmd, cwd):
+        if z is None or Path(os.path.realpath(z)) == datei:
+            return ("fragen", f"S06-CODE-MODE: Skript {wort} wird im selben Befehl geschrieben – Inhalt nicht prüfbar")
+    return None
+
+
+def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int) -> list[tuple[str, str]]:
+    """Shell-Skriptdatei außerhalb des Projekts: Inhalt (ohne Shebang und reine Kommentarzeilen) als einen
+    Befehl rekursiv bewerten; Gründe mit dem Dateinamen voranstellen."""
+    g = _skript_geschrieben(wort, datei, cmd, cwd)
+    if g:
+        return [g]
+    try:
+        inhalt = datei.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return [("nein", f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})")]
+    zeilen = inhalt.split("\n")
+    if zeilen and zeilen[0].startswith("#!"):
+        zeilen = zeilen[1:]
+    inhalt = "\n".join(z for z in zeilen if not z.lstrip().startswith("#"))
+    if tiefe >= 3:
+        return [("fragen", "S06-CODE-MODE: Skript-Verschachtelung zu tief – nicht prüfbar")]
+    stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": inhalt}, cwd, _tiefe=tiefe + 1)
+    return [] if stufe == "ja" else [(stufe, f"{datei.name}: {g}") for g in gruende]
+
+
+def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str) -> list[tuple[str, str]]:
+    """Python-Skriptdatei außerhalb des Projekts per AST prüfen (wie `python3 <datei>.py`)."""
+    g = _skript_geschrieben(wort, datei, cmd, cwd)
+    if g:
+        return [g]
+    stufe, gruende = skript_pruefen(cfg, datei, cwd)
+    return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+
+
+def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int, basis: str | None,
+                       aktion: str, prog: str = "") -> list[tuple[str, str]]:
+    """Datei-Argument eines Aufrufs (python/bash|sh|zsh/source/. sowie node|perl|ruby) außerhalb des Projekts
+    prüfen. aktion: "python" (per AST), "shell" (Inhalt als ein Befehl), "fragen" (nicht prüfbar)."""
+    datei, grund = _skript_pfad(wort, basis)
+    if grund:
+        return [("fragen", grund)]
+    gate = _skript_gate(cfg, datei, wort, aktion == "python")
+    if gate is not None:
+        return gate
+    if aktion == "python":
+        return _python_datei_bewerten(cfg, datei, wort, cmd, cwd)
+    if aktion == "shell":
+        return _shell_datei_bewerten(cfg, datei, wort, cmd, cwd, rolle, tiefe)
+    return [("fragen", f"S06-CODE-MODE: {prog}-Skript außerhalb des Projekts – nicht prüfbar")]
+
+
+def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0,
+                       basis: str | None = None) -> list[tuple[str, str]]:
+    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd), nur für
+    Dateien außerhalb des Projekts und außerhalb von [pfade].lesbar_extern: `python3 … <datei>` (mit und ohne
+    .py-Endung, per AST), `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST), `bash|sh|zsh -c CODE`
+    (rekursiv bewertet), `bash|sh|zsh|source|. <datei>` (Inhalt als ein Befehl), `node|perl|ruby <datei>`
+    (fragen) und direkte Pfadaufrufe (`/tmp/x.sh`, `./x.sh`: Shebang-Interpreter bzw. Textdatei als Skript).
+    Liefert Befunde (stufe, grund)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:  # z. B. `python3 x.py "a|b"`: unbalanciertes Zitat – nie ungeprüft durchlassen
+        if _SKRIPT_AUFRUF_RX.search(seg):
+            return [("fragen", "S06-CODE-MODE: Aufruf nicht zerlegbar (Zitat mit ;, & oder |) – Skript nicht prüfbar")]
         return []
     i = _praefixe_ueberspringen(w)  # NAME=wert, time, env …, nice, nohup, command vor dem Interpreter
     if i >= len(w):
@@ -1132,31 +1253,68 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             j += 1
         if (j >= len(rest) or rest[j].startswith("<") or rest[j] == "/dev/stdin") and _heredocs(seg):
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
-        if j >= len(rest) or not rest[j].endswith(".py"):
+        if j >= len(rest):
             return []
-        roh = os.path.expanduser(os.path.expandvars(rest[j]))
-        if "$" in roh:
-            return [("fragen", f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({rest[j]}) – nicht prüfbar")]
-        datei = Path(os.path.realpath(Path(cwd) / roh))
-        if datei == ROOT or ROOT in datei.parents:
-            if not datei.exists():  # z. B. `cd <anderswo> && python3 x.py`: relativ zum Hook-cwd falsch aufgelöst
-                return [("fragen", f"S06-CODE-MODE: Skript {rest[j]} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
-            return []  # Projektskripte wie bisher
-        stufe, gruende = skript_pruefen(cfg, datei, cwd)
-        return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python")
     if prog in ("bash", "sh", "zsh"):
-        j, mit_c = 0, False  # Optionen vor dem Code: -c, -lc, -e -c, -o name …
+        j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
         while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
             mit_c = mit_c or (not rest[j].startswith("--") and "c" in rest[j][1:])
             j += 2 if rest[j] in ("-o", "-O") else 1
-        if not mit_c:
-            return []
+        if mit_c:  # -c: Inline-Code wie bisher (G4-A-Weg)
+            if j >= len(rest):
+                return [("fragen", f"S06-CODE-MODE: {prog} -c ohne Code – nicht prüfbar")]
+            if tiefe >= 3:
+                return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
+            stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[j]}, cwd, _tiefe=tiefe + 1)
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        if j < len(rest) and rest[j] == "--":
+            j += 1
         if j >= len(rest):
-            return [("fragen", f"S06-CODE-MODE: {prog} -c ohne Code – nicht prüfbar")]
-        if tiefe >= 3:
-            return [("fragen", "S06-CODE-MODE: -c-Verschachtelung zu tief – nicht prüfbar")]
-        stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": rest[j]}, cwd, _tiefe=tiefe + 1)
-        return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+            return []
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell")
+    if prog in ("source", "."):
+        if not rest or rest[0].startswith("-"):
+            return []
+        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell")
+    if prog in ("node", "perl", "ruby"):
+        j = 0  # Optionen; -e CODE verbraucht ein weiteres Wort
+        while j < len(rest) and rest[j].startswith("-"):
+            j += 2 if rest[j] == "-e" else 1
+        if j >= len(rest):
+            return []
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
+    if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
+        datei, grund = _skript_pfad(w[i], basis)
+        if grund:
+            return [("fragen", grund)]
+        gate = _skript_gate(cfg, datei, w[i], False)
+        if gate is not None:
+            return gate
+        g = _skript_geschrieben(w[i], datei, cmd, cwd)
+        if g:
+            return [g]
+        try:
+            with datei.open("rb") as f:
+                kopf = f.read(4096)
+        except OSError as e:
+            return [("nein", f"S06-CODE-MODE: Skript nicht prüfbar ({type(e).__name__}: {e})")]
+        if not kopf.startswith(b"#!"):
+            if b"\x00" in kopf:
+                return []  # Binärdatei (z. B. /usr/bin/git, /bin/ls) – wie bisher
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)  # Text ohne Shebang: sh-Skript
+        worte = kopf.split(b"\n", 1)[0][2:].decode("utf-8", "replace").split()
+        if not worte:
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)
+        interp = worte[0].rsplit("/", 1)[-1]
+        if interp == "env" and len(worte) > 1:  # #!/usr/bin/env python3 …: nächses Wort ist der Interpreter
+            interp = worte[1].rsplit("/", 1)[-1]
+        if PYTHON.match(interp):
+            stufe, gruende = skript_pruefen(cfg, datei, cwd)
+            return [] if stufe == "ja" else [(stufe, g) for g in gruende]
+        if interp in ("bash", "sh", "zsh"):
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)
+        return [("fragen", f"S06-CODE-MODE: {interp}-Skript außerhalb des Projekts – nicht prüfbar")]
     return []
 
 
