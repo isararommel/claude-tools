@@ -113,7 +113,8 @@ with tempfile.TemporaryDirectory() as t:
     koeder.write_text("alt\n")
     r = selbsttest("sperrt", "--werkzeug", "claude")
     check("alter Köder wird vorher entfernt", r.returncode == 0 and not koeder.exists(), r.stdout + r.stderr)
-    aufrufe = log.read_text()
+    aufrufe = log.read_text() if log.exists() else ""
+    check("Attrappen wurden aufgerufen", bool(aufrufe))
     check("claude ohne Bypass-Schalter", "--dangerously-skip-permissions" not in aufrufe and "bypassPermissions" not in aufrufe)
     check("vibe ohne --auto-approve/--yolo", "--auto-approve" not in aufrufe and "--yolo" not in aufrufe)
     check("claude mit enger Freigabe", "Bash(touch .normen/normen-koeder.txt)" in aufrufe, aufrufe[-400:])
