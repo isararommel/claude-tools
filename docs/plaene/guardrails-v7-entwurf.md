@@ -179,8 +179,12 @@ Vorlage `.claude/settings.json`:
 | 5 Forschungsdaten | `[pfade].forschungsdaten` als Pfad-Globs **und** Textmarker |
 | 6 Installationen | später, jeweils einzeln freigeben |
 | 8 Config-Selbstschutz | bei „fragen“ bleiben (kein `permissions.deny`); G3 ergänzt Bash-Schreibziele |
-| 10 Hook-Fehlalarm | in v7 mit beheben |
-| 11 Rückfragen im Auto-Modus | kommen an: Live-Probe 16.11. (Code-Mode-Skript mit `curl` → „fragen“) wurde der Inhaberin vorgelegt und freigegeben → keine Lücke L11 |
+| 10 Hook-Fehlalarm | in v7 mit beheben – Paket G3 (dort werden Umleitungsziele ohnehin angefasst) |
+| 11 Rückfragen im Auto-Modus | für Bash belegt: Live-Probe 16.11. (Code-Mode-Skript mit `curl` → „fragen“) wurde vorgelegt und freigegeben. Für Edit/Write auf geschützte Dateien offen (16.11.: Edits an `CLAUDE.md` ohne erkennbare Rückfrage) – Rückfrage an die Inhaberin; je nach Antwort L11 in den Paketplan |
 | 7 Fable-Abrechnung | weiter offen |
 
 Nächster Schritt: Advisor-Konsultation 1 zum Paketplan, dann G1 (Liveness mit Köder).
+
+Ergänzung zu G4 (offene Punkte aus v6): `FOO=1 python3 …`, `time python3 …`, Skripte ohne `.py`, „fragen“ bei `argparse`/`csv`
+in Code-Mode-Skripten (Importliste prüfen), Heredoc-Edits (`python3 - <<EOF`).
+Versionierung: ein Merge für v7 (alle Pakete), Version 7 und CHANGELOG mit dem ersten Normänderungs-Commit.
