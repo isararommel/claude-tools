@@ -36,10 +36,10 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Nächste Aufgaben (in dieser Reihenfolge)
 
-### 1. Guardrail-Ausbau (Normen v7) *(Entwurf fertig, wartet auf Entscheidungen)*
+### 1. Guardrail-Ausbau (Normen v7) *(Entscheidungen 16.11. getroffen, Branch `normen-v7`)*
 
 Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
-Normtext-Diffs, offene Fragen (Abschnitt 7). Erst die Fragen mit der Inhaberin klären, dann Paketplan festlegen
+Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Als Nächstes Paketplan festlegen
 (Advisor-Konsultation 1 und 5), dann Pakete nacheinander (Hook-Pakete seriell). Nach v6 umsetzen.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage)*
@@ -51,7 +51,6 @@ Explore.md) nach `~/.claude/agents/` kopieren. Probe `disallowedTools: advisor` 
 ## Offene Fragen an die Inhaberin
 
 - Abrechnung des Advisors (Doku: Fable-Advisor wird über Usage Credits abgerechnet).
-- v7: Fragen 1–11 in `docs/plaene/guardrails-v7-entwurf.md` Abschnitt 7 (Paketplan, dcg, Sandbox-Spike, MCP-Regel,
-  Forschungsdaten-Schlüssel, Config-Selbstschutz, Hook-Fehlalarm, Rückfragen im Auto-Modus).
+- v7: entschieden am 16.11. (Entwurf Abschnitt 8); offen nur die Fable-Abrechnung.
 - Vibe: „Model mistral-large-4-0-3 is not available“ → Lauf auf Mistral Medium 3.5 (16.11., v6-Auftrag ohne Ergebnis); `~/.vibe`-Konfiguration prüfen
   (Einstellungen → Inhaberin). Außerdem meldet `code-reviewer.toml`: `glm-5-3` ist kein definierter Alias.

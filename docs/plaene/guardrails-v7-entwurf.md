@@ -167,3 +167,20 @@ Vorlage `.claude/settings.json`:
     Projektsitzung in claude-tools liegt; Variablen löst der Hook nicht auf) – in v7 mit beheben (Vorschlag) oder als Meldung?
 11. „fragen“-Stufe: Erreichen die Rückfragen des Hooks die Inhaberin im Auto-Modus? (Am 16.11. liefen Änderungen an geschützten
     Dateien ohne sichtbare Rückfrage durch.) Falls nein: als Lücke L11 aufnehmen.
+
+## 8. Entscheidungen der Inhaberin (16.11.2026)
+
+| Frage | Entscheidung |
+|---|---|
+| 1 Paketplan | freigegeben wie Abschnitt 5: G1 → G2 → G3 → G4 → G5 → G6 seriell; G7, G8, G10 parallel; später G9, G11 |
+| 2 dcg | verwerfen (Lizenzzusatz), Ideen nachbauen |
+| 3 Sandbox | Spike G7 ja (nur Messung); vibe/agy dürfen in `excludedCommands` stehen (laufen ohne Sandbox) |
+| 4 MCP | unbekannte MCP-Werkzeuge → ja; nur `[mcp].fragen`/`[mcp].nein` greifen |
+| 5 Forschungsdaten | `[pfade].forschungsdaten` als Pfad-Globs **und** Textmarker |
+| 6 Installationen | später, jeweils einzeln freigeben |
+| 8 Config-Selbstschutz | bei „fragen“ bleiben (kein `permissions.deny`); G3 ergänzt Bash-Schreibziele |
+| 10 Hook-Fehlalarm | in v7 mit beheben |
+| 11 Rückfragen im Auto-Modus | kommen an: Live-Probe 16.11. (Code-Mode-Skript mit `curl` → „fragen“) wurde der Inhaberin vorgelegt und freigegeben → keine Lücke L11 |
+| 7 Fable-Abrechnung | weiter offen |
+
+Nächster Schritt: Advisor-Konsultation 1 zum Paketplan, dann G1 (Liveness mit Köder).
