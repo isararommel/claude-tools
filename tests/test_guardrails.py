@@ -271,6 +271,9 @@ with tempfile.TemporaryDirectory() as t:
         (f"{vibe_bin} --trust --prompt-file {sperr}/prompt.md < /dev/null", "nein"),
         (f"bash -c 'vibe --trust --prompt-file {sperr}/prompt.md < /dev/null'", "nein"),
         (f"vibe -c --trust --prompt-file {echt}/prompt.md < /dev/null", "ja"),
+        (f'RUN={sperr}; vibe --trust -p "$(cat "$RUN/prompt.md")" < /dev/null', "nein"),
+        ('vibe --trust -p "$PROMPT_GIBT_ES_NICHT" < /dev/null', "nein"),
+        ("vibe --trust -p \"Fasse `cat daten/x` zusammen\" < /dev/null", "nein"),
         ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "nein"),
     ]
     for befehl, soll in g5:

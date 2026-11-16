@@ -56,10 +56,11 @@ unbekannte Shebangs → fragen; nicht vorhanden oder im selben Befehl geschriebe
 Messung an 117 vorhandenen Skripten: Befunde stammen aus dem Inhalt, kaum Parser-Rauschen). Advisor- und Gemini-Review G4
 eingearbeitet (pushd/`{ cd }`, Code über stdin, `nice -n`/`time -p`/`timeout`, `getattr`/Aliase, `node -e` fragt; G2-Fehlalarm bei
 mehrzeiligen Commit-Nachrichten behoben). Gemini brach nach 4 von 10 Befunden mit Timeout ab – ein zweites Review vor dem Merge.
-**G5 läuft** (mistral-team): Prompt-Prüfung vor vibe/agy – Sperrpfade/Geheimnis-Inhalte nein, Geheimnis-Pfade nur agy nein,
+**G5 fertig** (mistral-team, 29 Schritte; Opus: `$(cat …)`/Variablen auch bei `vibe -p`; Trockenlauf über 71 alte Aufträge: 70 ja,
+1 agy-Auftrag mit Geheimnis-Pfad gesperrt – gewollt): Prompt-Prüfung vor vibe/agy – Sperrpfade/Geheimnis-Inhalte nein, Geheimnis-Pfade nur agy nein,
 `[pfade].forschungsdaten` (Globs + Textmarker) agy nein / vibe fragen; Messung: 4 von 75 alten Prompts nennen Geheimnis-*Pfade*.
 Offen: ob ein „fragen“ aus einem Hintergrund-Subagenten die Inhaberin erreicht (sonst wirkt es wie „nein“ – in G8 dokumentieren).
-Danach **G6** (MCP-Freigaben). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
+Nächstes Paket: **G6** (MCP-Freigaben: Matcher `mcp__.*`, `[mcp].fragen`/`nein`, unbekannt → ja, `enableAllProjectMcpServers: false`). Erledigt: G2 (`--no-verify`/`core.hooksPath` sperren, Opus selbst, Normtext aus
 Entwurf Abschnitt 6, Tests laut Abschnitt 5), dann G3 (inkl. Hook-Fehlalarm, Entscheidung 10) … G6. Nach dem Merge: alle anderen
 Claude-Code-Sitzungen informieren (SendMessage) und `normen.py selbsttest` in den Projekten.
 

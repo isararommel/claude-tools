@@ -657,8 +657,11 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
+            zuweisungen: dict[str, str] = {}  # G5: Variablen-Zuweisungen aus vorangehenden Teilbefehlen (RUN=/x …)
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis))
+                gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
+                zuweisungen.update(_zuweisungen_aus_seg(seg))
                 basis = _cd_basis(seg, basis)
 
     for p in pfade:
@@ -1373,6 +1376,185 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     return []
 
 
+# ---------------------------------------------------------------- G5: Datenschutz vor vibe/agy (Prompt vor dem Start prüfen)
+_TEAM_RX = re.compile(r"(^|[\s;&|(])(\S*/)?(vibe|agy)(\s|$)")
+_CAT_PROMPT_RX = re.compile(r"^\$\(\s*cat\s+(\S+)\s*\)$")
+_PFADWORT_RX = re.compile(r"[\w.~$-]*/[\w./~$*-]*")
+_WORT_ENDE = '.,;:!?)]}"\'`'
+_GEHEIM_INHALT = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "Private Key"),
+    (re.compile(r"ghp_[A-Za-z0-9]{30,}"), "GitHub-Token ghp_…"),
+    (re.compile(r"github_pat_\w{20,}"), "GitHub-PAT github_pat_…"),
+    (re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "API-Schlüssel sk-…"),
+    (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS-Schlüssel AKIA…"),
+    (re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "Slack-Token xox…"),
+    (re.compile(r"AIza[0-9A-Za-z_-]{35}"), "Google-API-Schlüssel AIza…"),
+]
+_PFLICHT_ROLLEN = ("mistral-team", "gemini-analyst")
+
+
+def _zuweisungen_aus_seg(seg: str) -> dict[str, str]:
+    """Zuweisungen eines Teilbefehls, der ausschließlich aus Zuweisungen besteht (RUN=/x, RUN=\"/x\", export RUN=/x);
+    Wert ohne Anführungszeichen (shlex.split)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:
+        return {}
+    if w and w[0] == "export":
+        w = w[1:]
+    if not w or not all(_PRAEFIX_ZUWEISUNG.fullmatch(t) for t in w):
+        return {}
+    return {t.split("=", 1)[0]: t.split("=", 1)[1] for t in w}
+
+
+def _var_ersetzen(text: str, zuweisungen: dict[str, str]) -> str:
+    """$VAR/${VAR} ersetzen: zuerst Zuweisungen aus vorangehenden Teilbefehlen, dann os.environ (expandvars);
+    Unbekannte bleiben als $VAR stehen."""
+
+    def rep(m):
+        return zuweisungen.get(m.group(1) or m.group(2), m.group(0))
+
+    return os.path.expandvars(_VAR_RX.sub(rep, text))
+
+
+def _prompt_wort(wort: str, basis: str | None) -> str:
+    """Pfadartiges Wort für den Glob-Vergleich normalisieren: Satzzeichen am Ende weg, ./ weg,
+    absolut unter ROOT/basis → relativ zum Projekt."""
+    w = wort.rstrip(_WORT_ENDE)
+    if w.startswith("./"):
+        w = w[2:]
+    if w.startswith("/"):
+        p = Path(os.path.realpath(w))
+        for wurzel in [ROOT] + ([Path(os.path.realpath(basis))] if basis else []):
+            try:
+                return p.relative_to(wurzel).as_posix()
+            except ValueError:
+                continue
+    return w
+
+
+def _prompt_inhalt_pruefen(cfg: dict, werkzeug: str, text: str, basis: str | None) -> list[tuple[str, str]]:
+    """G5: Prompt-Text prüfen – zuerst den Pflichtblock (auftrag_zeilen beider Team-Rollen) zeilenweise entfernen,
+    dann im Rest Sperrpfade, Geheimnis-Inhalte, Geheimnis-Pfade (nur agy) und Forschungsdaten suchen."""
+    pf = cfg["projekt"].get("pfade", {})
+    pflicht: set[str] = set()
+    for r in _PFLICHT_ROLLEN:
+        if r in cfg["rollen"]:
+            pflicht.update(z.strip() for z in auftrag_zeilen(cfg, r, []))
+    rest = "\n".join(z for z in text.split("\n") if z.strip() not in pflicht)
+    gesperrt = [s for s in pf.get("gesperrt", []) if s]
+    geheimnisse = pf.get("geheimnisse", [])
+    forsch = pf.get("forschungsdaten", [])
+    team = "mistral-team" if werkzeug == "vibe" else "gemini-analyst"
+    gruende: list[tuple[str, str]] = []
+    for z in rest.split("\n"):
+        for s in gesperrt:
+            if re.search(r"(^|[\s`\"'(/])" + re.escape(s), z):
+                gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Auftrag nennt gesperrten Pfad {s}"))
+        for rx, art in _GEHEIM_INHALT:
+            if rx.search(z):
+                gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Auftrag enthält ein Geheimnis ({art})"))
+        worte = [m.group(0) for m in _PFADWORT_RX.finditer(z)]
+        for wort in worte:
+            w = wort.rstrip(_WORT_ENDE)
+            if not w:
+                continue
+            name = w.rsplit("/", 1)[-1]
+            if werkzeug == "agy" and any(fnmatch.fnmatchcase(name, g) for g in geheimnisse):
+                gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Auftrag an agy nennt Geheimnis-Datei {w}"))
+        for eintrag in forsch:
+            if not eintrag:
+                continue
+            treffer = False
+            if "/" in eintrag or "*" in eintrag:
+                praefix = eintrag.split("*", 1)[0].rstrip("/")
+                for wort in worte:
+                    w = _prompt_wort(wort, basis)
+                    if fnmatch.fnmatchcase(w, eintrag) or (praefix and w.rstrip("/") == praefix):
+                        treffer = True
+                        break
+            elif eintrag.lower() in rest.lower():
+                treffer = True
+            if treffer:
+                stufe = "nein" if werkzeug == "agy" else "fragen"
+                gruende.append((stufe, f"N06-NUR-ERLAUBTE-PFADE: Auftrag enthält Forschungsdaten ({eintrag})"
+                                      f" – an {team} nur mit Freigabe"))
+    return list(dict.fromkeys(gruende))
+
+
+def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
+                 zuweisungen: dict[str, str]) -> list[tuple[str, str]]:
+    """G5: vibe/agy im Teilbefehl seg – Prompt-Quelle finden (vibe: --prompt-file P bzw. -p/--prompt TEXT;
+    agy: -p/--prompt TEXT, "$(cat P)" als Datei), Prompt-Datei samt *.md-Nebendateien bzw. Inline-Text auf
+    Sperrpfade, Geheimnisse und Forschungsdaten prüfen. Liefert Befunde (stufe, grund)."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:
+        if _TEAM_RX.search(_maskiert(seg)):
+            return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): vibe/agy-Aufruf nicht zerlegbar (unbalanciertes Zitat) – Prompt nicht prüfbar")]
+        return []
+    i = _praefixe_ueberspringen(w)
+    if i >= len(w):
+        return []
+    prog = w[i].rsplit("/", 1)[-1]
+    if prog not in ("vibe", "agy"):
+        return []
+    rest = w[i + 1:]
+    quelle: tuple[str, str] | None = None
+    for j, t in enumerate(rest):
+        wert = t.split("=", 1)[1] if "=" in t and t.startswith("--") else (rest[j + 1] if j + 1 < len(rest) else None)
+        if prog == "vibe" and (t == "--prompt-file" or t.startswith("--prompt-file=")):
+            quelle = ("datei", wert)
+        elif t in ("-p", "--prompt") or t.startswith("--prompt="):
+            quelle = ("text", wert)
+        else:
+            continue
+        if quelle[1] is not None:
+            break
+        quelle = None
+    if quelle is None:
+        if rest and all(t in ("--version", "--help", "-h") for t in rest):
+            return []
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): {prog} ohne prüfbare Prompt-Quelle – nicht prüfbar")]
+    art, wert = quelle
+    if art == "text":
+        m = _CAT_PROMPT_RX.match(wert)
+        if m:
+            art, wert = "datei", m.group(1)
+        elif "$(" in wert or "`" in wert:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Quelle nicht prüfbar (Befehlsersetzung in -p: {wert[:80]})")]
+        else:
+            wert = _var_ersetzen(wert, zuweisungen)
+            if _VAR_RX.search(wert):
+                return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Text mit unaufgelöster Variable – nicht prüfbar")]
+            return _prompt_inhalt_pruefen(cfg, prog, wert, basis)
+    text = os.path.expanduser(_var_ersetzen(wert, zuweisungen))
+    if "$" in text:
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei mit unaufgelöster Variable ({wert})")]
+    p = Path(text)
+    if not p.is_absolute():
+        if basis is None:
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei {wert} relativ, aber Basisordner unbekannt (cd) – nicht prüfbar")]
+        p = Path(basis) / p
+    p = Path(os.path.realpath(p))
+    if not p.is_file():
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht gefunden ({p})")]
+    for z in _schreibziele(cmd, cwd):
+        if z is None:
+            return [("nein", "N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei wird im selben Befehl geschrieben (Schreibziel nicht auflösbar)")]
+        zr = Path(os.path.realpath(z))
+        if zr == p or (zr.parent == p.parent and zr.suffix == ".md"):
+            return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei {p.name} wird im selben Befehl geschrieben – Inhalt nicht prüfbar")]
+    try:
+        texte = [p.read_text(encoding="utf-8")]
+        for n in sorted(os.listdir(p.parent)):
+            if n != p.name and n.endswith(".md"):
+                texte.append((p.parent / n).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht lesbar ({type(e).__name__}: {e})")]
+    return _prompt_inhalt_pruefen(cfg, prog, "\n".join(texte), basis)
+
+
 def cmd_skript(a) -> int:
     stufe, gruende = skript_pruefen(laden(), Path(a.pruefen), os.getcwd())
     print("\n".join([stufe] + [f"- {g}" for g in gruende]))
@@ -1821,6 +2003,32 @@ def _siegel_ok() -> bool:
         return False
 
 
+def auftrag_zeilen(cfg: dict, rolle: str, dateien: list[str]) -> list[str]:
+    """Die Auftragszeilen (Pflichtblock) für eine Rolle – schreibt nichts (kein .normen-auftrag wird angelegt)."""
+    globs = dateien or []
+    pj = cfg["projekt"]
+    z = [f"Normen für diesen Auftrag (Rolle {rolle}, Normen v{cfg['meta']['version']}) – verbindlich:",
+         "- Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert.",
+         "- Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast, auch keine unbekannten oder untracked "
+         "Dateien. Kein rm, kein git clean, kein git restore auf fremde Dateien.",
+         "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
+         "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
+         "anhalten und im Bericht nennen."]
+    for n in cfg["normen"]:
+        if rolle in n.get("nur_rollen", [rolle]):
+            z.append(f"- {n['id']}: {n['prompt']}")
+    gesperrt = pj.get("pfade", {}).get("gesperrt", [])
+    if gesperrt and darf(cfg, rolle, "sperrpfade-lesen") != "ja":
+        z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
+    if cfg["rollen"][rolle].get("abnahme_durch_claude"):
+        z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
+                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
+    else:
+        z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
+                 "beide Befehle mit Ergebnis in den Bericht.")
+    return z
+
+
 def cmd_auftrag(a) -> int:
     cfg = laden()
     if a.ende:
@@ -1842,28 +2050,7 @@ def cmd_auftrag(a) -> int:
         AUFTRAG.write_text("# erlaubte Pfade (Globs) für den laufenden Auftrag – von normen.py auftrag geschrieben\n"
                            + "\n".join(a.dateien) + "\n", encoding="utf-8")
         _siegel().write_text(hashlib.sha256(AUFTRAG.read_bytes()).hexdigest() + "\n", encoding="utf-8")
-    globs = _auftrag_globs() or []
-    pj = cfg["projekt"]
-    z = [f"Normen für diesen Auftrag (Rolle {a.rolle}, Normen v{cfg['meta']['version']}) – verbindlich:",
-         "- Außerhalb des Projektordners wird ohne ausdrückliche Erlaubnis nichts gelöscht oder geändert.",
-         "- Lösche niemals Dateien, die du in diesem Lauf nicht selbst angelegt hast, auch keine unbekannten oder untracked "
-         "Dateien. Kein rm, kein git clean, kein git restore auf fremde Dateien.",
-         "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
-         "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
-         "anhalten und im Bericht nennen."]
-    for n in cfg["normen"]:
-        if a.rolle in n.get("nur_rollen", [a.rolle]):
-            z.append(f"- {n['id']}: {n['prompt']}")
-    gesperrt = pj.get("pfade", {}).get("gesperrt", [])
-    if gesperrt and darf(cfg, a.rolle, "sperrpfade-lesen") != "ja":
-        z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
-    if cfg["rollen"][a.rolle].get("abnahme_durch_claude"):
-        z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
-                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
-    else:
-        z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
-                 "beide Befehle mit Ergebnis in den Bericht.")
-    print("\n".join(z))
+    print("\n".join(auftrag_zeilen(cfg, a.rolle, _auftrag_globs() or [])))
     return 0
 
 

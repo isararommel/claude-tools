@@ -21,6 +21,9 @@ lauf_ordner = ["${TMPDIR}/vibe-runs", "${TMPDIR}/agy-runs", "/tmp/vibe-runs", "/
 loeschbar = [".venv", "build", ".pytest_cache", "__pycache__", "node_modules", "${TMPDIR}", "/tmp/vibe-runs", "/tmp/agy-runs", "/tmp/claude-501"]
 # Externe Pfade, die gelesen werden dürfen (nur Lesen, kein Schreiben). Standard: claude-tools.
 lesbar_extern = ["~/Documents/Projekte/claude-tools"]
+# Forschungsdaten: nie an gemini-analyst (agy), an mistral-team (vibe) nur nach Rückfrage. Jeder Eintrag ist entweder
+# ein Pfad-Glob relativ zum Projekt (enthält / oder *, z. B. "daten/roh/**") oder ein Textmarker (z. B. "PROBAND-").
+forschungsdaten = []
 
 [pruefen]
 # Nicht prüfen (Präfixe): Erzeugtes, Archiv, gesperrte Daten, die Normen selbst.
