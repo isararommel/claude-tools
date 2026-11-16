@@ -165,6 +165,8 @@ with tempfile.TemporaryDirectory() as t:
         (f"{hart}", "fragen"), (f"cd {lauf} && ./hart.sh", "fragen"), (f"{ohne_shebang}", "fragen"),
         (f"bash {tief}", "fragen"), (f"bash {umgeht}", "nein"),
         (f"python3 {py_ohne_endung}", "nein"), (f"{py_ohne_endung}", "nein"),
+        (f"pushd {lauf} && ./hart.sh", "fragen"), (f"pushd {lauf} && bash hart.sh", "fragen"),
+        (f"{{ cd {lauf}; ./hart.sh; }}", "fragen"), (f"cd {lauf} && bash tief.sh", "fragen"),
         (f"/usr/bin/env bash {hart}", "fragen"), (f"/usr/bin/env python3 {py_ohne_endung}", "nein"),
         (f"node {js}", "fragen"), (f"perl {pl}", "fragen"), ("bash /tmp/normen-g4b-gibt-es-nicht.sh", "fragen"),
         (f"printf 'ls\\n' > {sauber} && bash {sauber}", "fragen"),  # Inhalt wird im selben Befehl ersetzt

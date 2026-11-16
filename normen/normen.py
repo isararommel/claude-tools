@@ -1092,8 +1092,12 @@ def _cd_basis(seg: str, basis: str | None) -> str | None:
         w = shlex.split(seg)
     except ValueError:
         return basis
+    while w and w[0] in ("{", "("):  # `{ cd x; ./y; }`, `(cd x && ./y)`
+        w = w[1:]
     i = _praefixe_ueberspringen(w)
-    if i >= len(w) or w[i] != "cd":
+    if i < len(w) and w[i] == "popd":
+        return None
+    if i >= len(w) or w[i] not in ("cd", "pushd"):
         return basis
     args = [a for a in w[i + 1:] if not a.startswith("-")]
     if not args:
@@ -1128,12 +1132,16 @@ def _skript_pfad(wort: str, basis: str | None) -> tuple[Path | None, str | None]
     return Path(os.path.realpath(p)), None
 
 
-def _skript_gate(cfg, datei: Path, wort: str, python: bool) -> list[tuple[str, str]] | None:
+_CD_RX = re.compile(r"(^|[\s;&|({])(cd|pushd|popd)(\s|$)")
+
+
+def _skript_gate(cfg, datei: Path, wort: str, cmd: str) -> list[tuple[str, str]] | None:
     """None → Datei ist prüf-relevant (außerhalb des Projekts und von lesbar_extern, vorhanden); sonst
     Befunde: im Projekt und unter [pfade].lesbar_extern keine, nicht vorhanden → fragen."""
     if datei == ROOT or ROOT in datei.parents:
-        if python and wort.endswith(".py") and not datei.exists():
-            # z. B. `cd <anderswo> && python3 x.py`: relativ zur Basis falsch aufgelöst
+        if not datei.exists() and (wort.endswith(".py") or _CD_RX.search(_maskiert(cmd))):
+            # z. B. `pushd <anderswo> && ./x.sh`: relativ zur Basis falsch aufgelöst – nie als Projektskript durchlassen
+            # (ohne cd im Befehl: z. B. `python3 -m venv .venv && .venv/bin/pip …` legt das Ziel erst an)
             return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
         return []  # Projektskripte wie bisher
     if any(datei == q or q in datei.parents for q in _lesbar_extern(cfg)):
@@ -1151,7 +1159,8 @@ def _skript_geschrieben(wort: str, datei: Path, cmd: str, cwd: str) -> tuple[str
     return None
 
 
-def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int) -> list[tuple[str, str]]:
+def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int,
+                          basis: str | None) -> list[tuple[str, str]]:
     """Shell-Skriptdatei außerhalb des Projekts: Inhalt (ohne Shebang und reine Kommentarzeilen) als einen
     Befehl rekursiv bewerten; Gründe mit dem Dateinamen voranstellen."""
     g = _skript_geschrieben(wort, datei, cmd, cwd)
@@ -1167,7 +1176,7 @@ def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle
     inhalt = "\n".join(z for z in zeilen if not z.lstrip().startswith("#"))
     if tiefe >= 3:
         return [("fragen", "S06-CODE-MODE: Skript-Verschachtelung zu tief – nicht prüfbar")]
-    stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": inhalt}, cwd, _tiefe=tiefe + 1)
+    stufe, gruende = bewerten(cfg, rolle, "Bash", {"command": inhalt}, basis or cwd, _tiefe=tiefe + 1)  # Skript läuft im Ordner nach cd
     return [] if stufe == "ja" else [(stufe, f"{datei.name}: {g}") for g in gruende]
 
 
@@ -1187,13 +1196,13 @@ def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int
     datei, grund = _skript_pfad(wort, basis)
     if grund:
         return [("fragen", grund)]
-    gate = _skript_gate(cfg, datei, wort, aktion == "python")
+    gate = _skript_gate(cfg, datei, wort, cmd)
     if gate is not None:
         return gate
     if aktion == "python":
         return _python_datei_bewerten(cfg, datei, wort, cmd, cwd)
     if aktion == "shell":
-        return _shell_datei_bewerten(cfg, datei, wort, cmd, cwd, rolle, tiefe)
+        return _shell_datei_bewerten(cfg, datei, wort, cmd, cwd, rolle, tiefe, basis)
     return [("fragen", f"S06-CODE-MODE: {prog}-Skript außerhalb des Projekts – nicht prüfbar")]
 
 
@@ -1285,10 +1294,14 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return []
         return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
+        voll = os.path.expanduser(w[i])
+        if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
+                os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
+            return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
         datei, grund = _skript_pfad(w[i], basis)
         if grund:
             return [("fragen", grund)]
-        gate = _skript_gate(cfg, datei, w[i], False)
+        gate = _skript_gate(cfg, datei, w[i], cmd)
         if gate is not None:
             return gate
         g = _skript_geschrieben(w[i], datei, cmd, cwd)
@@ -1302,10 +1315,10 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
         if not kopf.startswith(b"#!"):
             if b"\x00" in kopf:
                 return []  # Binärdatei (z. B. /usr/bin/git, /bin/ls) – wie bisher
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)  # Text ohne Shebang: sh-Skript
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)  # Text ohne Shebang: sh-Skript
         worte = kopf.split(b"\n", 1)[0][2:].decode("utf-8", "replace").split()
         if not worte:
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
         interp = worte[0].rsplit("/", 1)[-1]
         if interp == "env" and len(worte) > 1:  # #!/usr/bin/env python3 …: nächses Wort ist der Interpreter
             interp = worte[1].rsplit("/", 1)[-1]
@@ -1313,7 +1326,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             stufe, gruende = skript_pruefen(cfg, datei, cwd)
             return [] if stufe == "ja" else [(stufe, g) for g in gruende]
         if interp in ("bash", "sh", "zsh"):
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe)
+            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
         return [("fragen", f"S06-CODE-MODE: {interp}-Skript außerhalb des Projekts – nicht prüfbar")]
     return []
 
