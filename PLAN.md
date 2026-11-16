@@ -52,7 +52,11 @@ Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung 
 Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
 ✅ **v7 gemergt** (PR #3, 16.11.); fünf Claude-Code-Sitzungen per SendMessage zum Aktualisieren aufgefordert
 (`aktualisieren`, `selbsttest`, Projektwerte `[mcp]`/`forschungsdaten` mit der Inhaberin).
-Nächste Pakete (je mit Rückfrage zum Start): **G7** Sandbox-Spike (vibe/agy in `excludedCommands`), dann G9, G10, G11 laut Entwurf;
+✅ **G7 Sandbox-Spike gemessen** (`docs/plaene/sandbox-spike.md`): Sandbox sperrt Schreiben/Netz wirksam; vibe und agy laufen
+darin mit `allowLocalBinding` + `allowWrite` + Domains; `excludedCommands` wirkte in drei Varianten nicht; `make test`,
+`einrichten.sh`/`aktualisieren` und `selbsttest` brauchen Anpassungen. **Entscheidung der Inhaberin offen:** Sandbox einführen
+(Vorschlag Abschnitt „Vorschlag“), vorher interaktiv prüfen (Rückfragen, Hintergrund-Sub-Agenten, `git push -u`).
+Nächste Pakete (je mit Rückfrage zum Start): G9, G10, G11 laut Entwurf;
 `meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
