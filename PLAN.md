@@ -57,7 +57,9 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
 **Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
-✅ **v8 fertig auf Branch `normen-v8`** (17.11.): G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
+✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
+nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
+Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
 `--no-renames`), Bash-Schreibziele der Teams nur aus `.normen-auftrag` (Befund aus G10), G10 Lese-Modus `--agent ask` + Lauf-Protokoll
 (gemessen: echter Lese-Auftrag in 2 Schritten), G11 Worktree-Spike (Empfehlung: nur innerhalb unter `.worktrees/`), G5-Fix
 verschachtelte Zuweisungen. Nächster Schritt: Advisor-Abnahme, PR, `normen.py merge`, Sitzungen informieren (Hinweis auf
