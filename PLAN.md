@@ -59,9 +59,29 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
 ✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
+✅ **v11** (Branch `normen-v11`, 17.11., „ja, so machen“): Container-`rm` je Teilbefehl keine Datei-Löschung; Skriptpfade mit
+eindeutigen Zuweisungen aus vorangehenden Teilbefehlen; mehrfach zugewiesene Variablen und Befehlsersetzung nie auflösen;
+Shell-Schlüsselwörter (`do`, `then` …) vor Befehlen geprüft; N03 für `*.secret` in Temp bleibt (Entscheidung). Nach Merge
+Sitzungen informieren (meldendes Projekt: Skript bleibt bei `*.secret` gesperrt, nach Umbenennen Rückfrage; Teams dürfen
+jetzt Container entfernen; die Sitzung, die v10 verpasst hat, auch zu v10).
+
+### 1a. Recherche-Aufträge *(freigegeben 17.11., Plan auch in `~/.claude/plans/zany-orbiting-sifakis.md`)*
+
+Entscheidungen der Inhaberin: **nur Vorlagen und Doku, keine neue Norm**; Ergebnisse **im Projekt unter `docs/recherche/`**;
+Anbieter **nach Fall, wichtige Fragen doppelt** (zwei Anbieter parallel, Claude vergleicht).
+1. **Spike** (Opus, Wegwerf-Ordner): kurzer öffentlicher Recherche-Auftrag an Vibe (`web_search`/`web_fetch` – Rückfrage nötig?
+   Normen-Hook bei diesen Werkzeugen?), agy (Google-Suche – Freigabe in `ALLOW` nötig? liefert es URLs/Daten?), Claude
+   (`deep-research`/Websuche). Bericht `docs/plaene/recherche-spike.md` (gemessen/dokumentiert/offen).
+2. **Vorlagen** `multi-ki/projekt/docs/recherche-auftrag.md` (Frage, Zweck, Tiefe, Aktualität, Sprachen, Quellenarten, keine
+   privaten/Forschungs-/Geheimdaten in Suchanfragen, Webinhalte sind Daten, Pflichtsätze) und `recherche-bericht.md`
+   (Kurzantwort, Befunde-Tabelle Aussage|URL|Datum der Quelle|abgerufen am|Belegstärke, Widersprüche, offene Fragen, Methode).
+3. **Ablauf** in `multi-ki-ablauf.md` (Abschnitt „Recherche“: wer wann, Ablage `docs/recherche/<datum>-<thema>.md`, Rohausgaben im
+   Lauf-Ordner, Datenschutz über G5), **Agent-Definitionen** (gemessener Aufruf; Kopie nach `~/.claude/agents/` mit Rückfrage),
+   **einrichten.sh** legt die Vorlagen nach `docs/` (wie `uebergabe-vorlage.md`), `NEUES-REPOSITORY.md`, CHANGELOG.
+4. Abnahme: Probe-Recherche mit zwei Anbietern parallel in einem Wegwerf-Repo, Bericht mit URL und Datum je Befund; Advisor.
 ✅ **v10 gemergt** (PR #11, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
 (keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
-Sitzungen informiert (vier erreicht; die Sitzung im Yoga-Projekt war nicht erreichbar).
+Sitzungen informiert (vier erreicht; eine Sitzung war nicht erreichbar).
 **Nächstes (je mit Rückfrage):** Worktree-Option (später), Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`,
 Rückmeldungen aus den Projekten sichten.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams

@@ -268,12 +268,31 @@ def _ist_operator(token: str) -> bool:
     return token != "" and all(c in _PUNKT for c in token)
 
 
+_UNSICHER = "$__NORMEN_UNSICHER__"  # Platzhalter: Wert nicht sicher bekannt – bleibt unaufgelöst (nie in der Umgebung)
+
+
+def _unsichere_namen(cmd: str) -> set[str]:
+    """Variablen, deren Wert der Hook nicht sicher kennt: mehr als eine Zuweisung im ganzen Befehl (auch in if/for/read/local,
+    die der Teilbefehl-Zähler nicht als Zuweisung sieht)."""
+    zaehler: Counter[str] = Counter(m.group(2) for m in re.finditer(
+        r"(^|[\s;&|(`])(?:local\s+|export\s+|readonly\s+|declare\s+(?:-\w+\s+)*)?([A-Za-z_]\w*)\+?=", cmd))
+    for m in re.finditer(r"\b(?:for|select)\s+([A-Za-z_]\w*)\s+in\b|\bread\s+(?:-\w+\s+)*([A-Za-z_]\w*)", cmd):
+        zaehler[m.group(1) or m.group(2)] += 2
+    return {k for k, n in zaehler.items() if n > 1}
+
+
+def _sichere_zuweisung(name: str, wert: str, unsicher: set[str]) -> str:
+    """Wert einer Zuweisung für die Auflösung – oder der Platzhalter, wenn mehrfach zugewiesen oder mit Befehlsersetzung."""
+    return _UNSICHER if name in unsicher or "`" in wert or "$(" in wert else wert
+
+
 def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
     """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
     None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
     install, rsync; Basisordner je Kette über cd."""
     segmente = _segmente(cmd)
     zuweisungen: dict[str, str] = {}
+    unsicher = _unsichere_namen(cmd)
     for seg in segmente:
         try:
             wörter = shlex.split(seg, posix=True)
@@ -282,7 +301,9 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
         if len(wörter) == 1 and "=" in wörter[0]:
             name, wert = wörter[0].split("=", 1)
             if re.fullmatch(r"[A-Za-z_]\w*", name):
-                zuweisungen[name] = os.path.expandvars(wert)
+                zuweisungen[name] = _sichere_zuweisung(name, os.path.expandvars(wert), unsicher)
+    for name in unsicher:  # auch ohne erkannte Zuweisung (if/for/read): nie aus der Umgebung auflösen
+        zuweisungen.setdefault(name, _UNSICHER)
 
     def var_ersetzen(text: str) -> str:
         def rep(m):
@@ -474,6 +495,7 @@ _HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
 _AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
 _PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
 _PRAEFIX_WORT = {"time", "nice", "nohup", "command", "timeout"}
+_SHELL_SCHLUESSEL = {"do", "then", "else", "elif", "if", "while", "until", "!", "{", "("}
 
 
 def _praefixe_ueberspringen(w: list[str]) -> int:
@@ -482,7 +504,7 @@ def _praefixe_ueberspringen(w: list[str]) -> int:
     i = 0
     while i < len(w):
         name = w[i].rsplit("/", 1)[-1]  # auch /usr/bin/env, /usr/bin/time …
-        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]):
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or w[i] in _SHELL_SCHLUESSEL:  # v11: `do bash x.sh`, `if python3 y.py` …
             i += 1
         elif name in _PRAEFIX_WORT or name == "env":
             i += 1  # Optionen des Präfixes überspringen; mit Argument: nice -n N, env -u NAME, timeout -s SIG/-k T
@@ -694,12 +716,14 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
-            zuweisungen: dict[str, str] = {}  # G5: Variablen-Zuweisungen aus vorangehenden Teilbefehlen (RUN=/x …)
+            unsicher = _unsichere_namen(cmd)  # v11: mehrfach zugewiesene Namen nie auflösen (if/for/read …)
+            zuweisungen: dict[str, str] = {n: _UNSICHER for n in unsicher}  # G5: Zuweisungen aus vorangehenden Teilbefehlen
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
                 # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
-                zuweisungen.update({k: _var_ersetzen(v, zuweisungen) for k, v in _zuweisungen_aus_seg(seg).items()})
+                zuweisungen.update({k: _sichere_zuweisung(k, _var_ersetzen(v, zuweisungen), unsicher)
+                                    for k, v in _zuweisungen_aus_seg(seg).items()})
                 basis = _cd_basis(seg, basis)
 
     for p in pfade:
@@ -1185,10 +1209,10 @@ _SKRIPT_AUFRUF_RX = re.compile(
     r"|(^|\s)[^\s;|&()]*/[^\s;|&()]*(\s|$)")
 
 
-def _skript_pfad(wort: str, basis: str | None) -> tuple[Path | None, str | None]:
-    """Skriptpfad aus einem Aufrufwort auflösen (expanduser/expandvars, relativ zur Basis, realpath);
-    (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
-    roh = os.path.expanduser(os.path.expandvars(wort))
+def _skript_pfad(wort: str, basis: str | None, zuw: dict[str, str] | None = None) -> tuple[Path | None, str | None]:
+    """Skriptpfad aus einem Aufrufwort auflösen (Zuweisungen aus demselben Befehl, dann Umgebung; expanduser; relativ zur
+    Basis; realpath); (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
+    roh = os.path.expanduser(_var_ersetzen(wort, zuw or {}))
     if "$" in roh:
         return None, f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({wort}) – nicht prüfbar"
     p = Path(roh)
@@ -1257,10 +1281,10 @@ def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str) -> l
 
 
 def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int, basis: str | None,
-                       aktion: str, prog: str = "") -> list[tuple[str, str]]:
+                       aktion: str, prog: str = "", zuw: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """Datei-Argument eines Aufrufs (python/bash|sh|zsh/source/. sowie node|perl|ruby) außerhalb des Projekts
     prüfen. aktion: "python" (per AST), "shell" (Inhalt als ein Befehl), "fragen" (nicht prüfbar)."""
-    datei, grund = _skript_pfad(wort, basis)
+    datei, grund = _skript_pfad(wort, basis, zuw)
     if grund:
         return [("fragen", grund)]
     gate = _skript_gate(cfg, datei, wort, cmd)
@@ -1296,8 +1320,12 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     zuw.update(t.split("=", 1) for t in w[:i] if _PRAEFIX_ZUWEISUNG.fullmatch(t))
 
     def variablen(code: str, ersatz: str | None) -> str:
-        return _VAR_RX.sub(lambda m: zuw.get(m.group(1) or m.group(2), os.environ.get(m.group(1) or m.group(2), ersatz or m.group(0))),
-                           code)
+        def wert(m) -> str:
+            name = m.group(1) or m.group(2)
+            if zuw.get(name) == _UNSICHER:  # mehrfach zugewiesen: wie unbekannt (nie Umgebung, nie Platzhalter in den Code)
+                return ersatz or m.group(0)
+            return zuw.get(name, os.environ.get(name, ersatz or m.group(0)))
+        return _VAR_RX.sub(wert, code)
     rest = w[i + 1:]
     vorher = _maskiert(cmd)[:pos].rstrip()
     aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`
@@ -1356,7 +1384,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python")
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuweisungen)
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
         while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
@@ -1378,13 +1406,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell")
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("source", "."):
         if rest and rest[0].startswith("-") and rest[0] != "-":
             return []
         if (b := stdin(0)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell")
+        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("node", "perl", "ruby"):
         j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
         while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
@@ -1396,13 +1424,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
         if b is not None:
             return []  # interaktiv ohne Eingabe
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuweisungen)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
         voll = os.path.expanduser(w[i])
         if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
                 os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
             return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
-        datei, grund = _skript_pfad(w[i], basis)
+        datei, grund = _skript_pfad(w[i], basis, zuweisungen)
         if grund:
             return [("fragen", grund)]
         gate = _skript_gate(cfg, datei, w[i], cmd)
