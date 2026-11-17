@@ -10,7 +10,9 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ### Geändert (Rückmeldung aus einem Projekt: lokale Container-Probeläufe)
 - **N01:** Ein Teilbefehl, der mit `docker|podman [container|compose] rm` beginnt (auch in einer Funktion `name() { … }`), gilt
-  nicht als Datei-Löschen (Container entfernen); mit Befehlsersetzung (`$(…)`, Backtick) bleibt er geprüft. Gilt für alle Rollen.
+  nicht als Datei-Löschen (Container entfernen); mit Befehlsersetzung (`$(…)`, Backtick, `<(…)`) bleibt er geprüft. Gilt für alle Rollen (Teams dürfen damit
+  Container entfernen; vorher gesperrt). Nur am Anfang eines Teilbefehls: `if …; then docker rm -f x; fi` und
+  `trap 'docker rm -f x' EXIT` fragen weiterhin.
   `docker volume rm`, `docker system prune` und jedes andere `rm -rf` bleiben destruktiv.
 - **Skriptpfade:** `"$W/x.sh"` wird mit Zuweisungen aus **vorangehenden** Teilbefehlen aufgelöst (`W=/pfad; bash "$W/x.sh"`) und
   dann geprüft wie jedes Skript außerhalb des Projekts; Präfix-Zuweisungen (`W=… bash "$W/x"`) und `W="$(mktemp -d)"` bleiben

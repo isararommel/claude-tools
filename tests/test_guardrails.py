@@ -269,6 +269,10 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in [f"for i in 1; do bash {hart}; done", f"if bash {hart}; then echo x; fi", f"true && {{ bash {hart}; }}",
                    f"while false; do bash {hart}; done", f"! bash {hart}"]:  # Shell-Schlüsselwörter vor dem Befehl
         check(f"v11 Schlüsselwort prüft Skript: {befehl[:40]!r}", hook(repo, "claude", "claude", befehl) == "fragen")
+    for befehl in ['for n in 1 2; do python3 -c "print($n)"; done', 'N=1; N=2; python3 -c "print($N)"']:
+        check(f"v11 python3 -c mit unsicherer Variable fragt: {befehl!r}", hook(repo, "claude", "claude", befehl) == "fragen")
+    check("v11 python3 -c Variable im String ja", hook(repo, "claude", "claude",
+          'for n in 1 2; do python3 -c "print(\'$n\')"; done') == "ja")
     check("v11 einfache Zuweisung sauber ja", hook(repo, "claude", "claude", f'W={sauber_ordner}; bash "$W/hart.sh"') == "ja")
     # Präfix-Zuweisung wirkt nicht auf Wörter desselben Befehls (W=a; W=b bash "$W/x" nutzt a) → nicht auflösen
     check("v11 Präfix-Zuweisung nicht für den Pfad", hook(repo, "claude", "claude", f'W={lauf} bash "$W/sauber.sh"') == "fragen")

@@ -1320,8 +1320,12 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     zuw.update(t.split("=", 1) for t in w[:i] if _PRAEFIX_ZUWEISUNG.fullmatch(t))
 
     def variablen(code: str, ersatz: str | None) -> str:
-        return _VAR_RX.sub(lambda m: zuw.get(m.group(1) or m.group(2), os.environ.get(m.group(1) or m.group(2), ersatz or m.group(0))),
-                           code)
+        def wert(m) -> str:
+            name = m.group(1) or m.group(2)
+            if zuw.get(name) == _UNSICHER:  # mehrfach zugewiesen: wie unbekannt (nie Umgebung, nie Platzhalter in den Code)
+                return ersatz or m.group(0)
+            return zuw.get(name, os.environ.get(name, ersatz or m.group(0)))
+        return _VAR_RX.sub(wert, code)
     rest = w[i + 1:]
     vorher = _maskiert(cmd)[:pos].rstrip()
     aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`

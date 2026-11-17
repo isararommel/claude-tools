@@ -81,7 +81,7 @@ Anbieter **nach Fall, wichtige Fragen doppelt** (zwei Anbieter parallel, Claude 
 4. Abnahme: Probe-Recherche mit zwei Anbietern parallel in einem Wegwerf-Repo, Bericht mit URL und Datum je Befund; Advisor.
 ✅ **v10 gemergt** (PR #11, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
 (keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
-Sitzungen informiert (vier erreicht; die Sitzung im Yoga-Projekt war nicht erreichbar).
+Sitzungen informiert (vier erreicht; eine Sitzung war nicht erreichbar).
 **Nächstes (je mit Rückfrage):** Worktree-Option (später), Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`,
 Rückmeldungen aus den Projekten sichten.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams

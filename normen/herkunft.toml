@@ -2,10 +2,10 @@
 [quelle]
 name = "claude-tools"
 version = 11
-commit = "df54e91"
+commit = "c993db4"
 eingespielt_am = "2026-11-17"
 
 [dateien]
 "normen/normen.toml" = "68fd0eac066721ecd39d4c230954c50e050deefdb1e563eca4d52bbd77512fa5"
 "normen/rollen.toml" = "fc64708fecd55bc0c80294a71e1fab7ec5da807607765bfd0e0f8b7cec8f15c2"
-"normen/normen.py" = "a4ed679aa868b4a11b3f7aed3ab4707a47039221b47c0124be6f9a21756678f4"
+"normen/normen.py" = "33e35897b2cd204f108baceb56ba4d28ce374ce9688ffadfe604455a9c69fadf"

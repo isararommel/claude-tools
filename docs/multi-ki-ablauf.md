@@ -170,6 +170,9 @@ Weitere Regeln:
 - Read-, Edit-, Write- und MCP-Werkzeuge prüft nur der Hook (außerhalb der Sandbox).
 - Antigravity (`agy`) hat keine Hooks, nur eine Freigabeliste (`ALLOW`).
 - `eval`, `xargs`, `sudo`, Subshells und Befehlsersetzung werden nicht zerlegt (fail-closed nur, soweit erkannt).
+- Ein Befehlswort aus einer Variablen (`B=bash; $B x.sh`) und Befehle in `case`-Zweigen prüft der Hook nicht als Aufruf.
+- Eine Zuweisung, die der Hook nicht als solche erkennt (`declare W=…`, Zuweisung hinter `then`), kann ihn auf einen
+  gleichnamigen Wert aus der Umgebung führen.
 
 ## 6. Die Sub-Agenten dürfen nie selbst arbeiten
 
