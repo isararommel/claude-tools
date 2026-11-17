@@ -92,6 +92,8 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 4. **`PLAN.md` anlegen:**
    - `einrichten.sh` legt die Vorlage an, wenn sie fehlt. Platzhalter füllen: *Stand*, Verweise, erste Aufgaben (so ausführlich,
      dass eine frische Sitzung ohne Rückfrage loslegt), offene Fragen an die Inhaberin. Jede Sitzung beginnt dort.
+5. **Recherche-Vorlagen:** `docs/recherche-auftrag.md` und `docs/recherche-bericht.md` legt `einrichten.sh` an; Ablauf und wer
+   wann recherchiert: `docs/multi-ki-ablauf.md`, Abschnitt „Recherche“. Berichte liegen unter `docs/recherche/`.
 
 ---
 

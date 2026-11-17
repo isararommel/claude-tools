@@ -36,6 +36,9 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
      Dateien.“ – ohne offenen Auftrag sperrt der Normen-Hook Schreiben der Teams (Datei-Werkzeuge und seit v8 auch Bash).
    - Verlangt Claude längere Laufzeit: `--time-limit` bis 1800 und den Befehl mit `run_in_background` starten; auf die Benachrichtigung warten, nicht pollen.
    - NIE `--auto-approve`/`--yolo`, NIE `--agent flash-scout|code-worker|code-reviewer` (Sub-Agenten, schlagen als Hauptagent fehl).
+   - **Recherche-Aufträge** (Prompt nach `docs/recherche-auftrag.md`): immer `--smart-approve`, **nicht** `--agent ask` – im
+     Lese-Modus ist `web_search` gesperrt und Vibe antwortet aus dem Gedächtnis (gemessen 17.11.). Meldet `antwort.txt`, dass
+     die Websuche nicht lief, ist das Ergebnis „gescheitert“, auch wenn Vibe trotzdem antwortet.
    - **Lauf-Protokoll:** Wartest du doch auf einen Lauf, dann auf **dessen eigene PID** – nie auf `pgrep -f vibe-rs` (zeigt Läufe
      anderer Projekte, die Schleife läuft dann ewig). Solange die eigene PID lebt, ist der Lauf nicht „gescheitert“, auch wenn
      `antwort.txt` nur die Schlüsselbund-Zeile enthält. Nie einen zweiten Lauf starten, solange der erste lebt. Eine leere

@@ -731,7 +731,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         name = Path(p).name
         if any(fnmatch.fnmatchcase(name, g) for g in pf.get("geheimnisse", [])):
             pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: {name}")
-        if rel is not None and any(rel.startswith(s) for s in pf.get("gesperrt", []) if s):
+        # v12: auch der gesperrte Ordner selbst (`grep … daten/geheim/` → rel „daten/geheim“) – nicht nur Dateien darin
+        if rel is not None and any(rel.startswith(s) or rel == s.rstrip("/") for s in pf.get("gesperrt", []) if s):
             pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {rel}")
         if art != "schreiben":
             continue
