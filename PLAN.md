@@ -55,9 +55,33 @@ Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Ad
 ✅ **G7 Sandbox-Spike gemessen** (`docs/plaene/sandbox-spike.md`, nur `-p`-Modus): Sandbox sperrt Schreiben/Netz wirksam;
 vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `excludedCommands` nahm im `-p`-Modus nichts aus;
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
-**Entscheidung der Inhaberin offen:** einer der zwei Wege im Bericht; vorher interaktiv prüfen (Rückfragen, Hintergrund-Sub-Agenten,
-`excludedCommands` interaktiv, Mindestmenge der Freigaben).
-Nächste Pakete (je mit Rückfrage zum Start): G9, G10, G11 laut Entwurf;
+**Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
+Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
+✅ **v8 fertig auf Branch `normen-v8`** (17.11.): G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
+`--no-renames`), Bash-Schreibziele der Teams nur aus `.normen-auftrag` (Befund aus G10), G10 Lese-Modus `--agent ask` + Lauf-Protokoll
+(gemessen: echter Lese-Auftrag in 2 Schritten), G11 Worktree-Spike (Empfehlung: nur innerhalb unter `.worktrees/`), G5-Fix
+verschachtelte Zuweisungen. Nächster Schritt: Advisor-Abnahme, PR, `normen.py merge`, Sitzungen informieren (Hinweis auf
+`# normen-ausnahme: N02-…`), dann die offenen Fragen unten. Planungsnotizen zu G9–G11 (erledigt):
+- **G9** → mistral-team (nur `agenten-normen/projekt/normen/normen.py`). Spezifikation für die Prompt-Datei:
+  in `pruefen` bei `--diff`/`--staged` alle Testdateien des Diffs (Globs `[pfade].tests`) gemeinsam auswerten; entfernte und neue
+  Zeilen aus `git diff -U0` (bei `--staged` mit `--cached`), gelöschte Testdateien mitzählen. Assert-Zeile = Regex
+  `\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCTAssert\w*\(|pytest\.raises`. Vergleich als Multimenge der Zeilen ohne
+  führenden/abschließenden Leerraum: `entfernt − neu` (Zeilen, die nur verschoben wurden, heben sich auf). Anzahl ersatzlos
+  entfernt = max(0, Σentfernt − Σneu) minus Anzahl neuer Zeilen im ganzen Diff mit `normen-ausnahme: N02-TESTS-SIND-TABU`;
+  > 0 → `fehler` je Testdatei „Assert entfernt: …“ (mit der alten Zeile). Übrige geänderte → `hinweis` „Assert geändert: -alt“
+  (höchstens 3 je Datei). Messung über die Historie: 21 Commits, 0 Fehler, 4 Hinweise. Danach Advisor, Einspielen, Selbsttest.
+- **G10** → Opus, im Wegwerf-Repo messen (wie G7): `vibe --agent ask` mit echter Aufrufform (Prompt-Datei, Zeitlimit) –
+  werden Schreiben und Shell abgelehnt oder hängt headless? hält das auch, wenn der Teamleiter an Sub-Agenten delegiert?
+  `active_model` Large 4? Normen-Hook (Köder) aktiv? „Lese-Auftrag“ so definieren, dass ein Review wie am 16.11. (Hook-Prüfbefehl,
+  `fall.json` in `$RUN`) möglich bleibt. Lauf-Protokoll in `multi-ki/benutzer/agents/mistral-team.md` (Quelle) und
+  `multi-ki-ablauf.md`: auf die eigene PID warten statt `pgrep -f vibe-rs`; leere Statusdatei = „sauber“; nie „gescheitert“,
+  solange die eigene PID lebt. Neue Aufrufform in G5-Tests/„Betrieb ja“. Kopie nach `~/.claude/agents` nur nach Rückfrage.
+- **G11** → Opus, Worktree-Spike im Wegwerf-Klon: untracked `.normen-auftrag`/`.normen/` fehlen im Worktree; welches `normen.py`
+  und welches ROOT nutzt der Hook dort; Worktree innerhalb vs. außerhalb des Projekts (G4-B „außerhalb“, `git status`, `pruefen`);
+  Hook-Stufen für `git worktree add/remove/prune`, `git branch -D`; getrackte Sperrpfade vorhanden, untracked `.env` fehlt;
+  läuft der Testbefehl. Bericht `docs/plaene/worktree-spike.md` (gemessen/dokumentiert/offen).
+- Reihenfolge: G9-Auftrag starten; währenddessen G10/G11 nur messen (keine Dateien im Projekt ändern, sonst N06-Fehler im
+  Vibe-`pruefen`); nach G9 Dateien von G10/G11 einspielen; Advisor-Abnahme; PR; `normen.py merge`; Sitzungen informieren.
 `meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
 
 ### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
@@ -69,3 +93,6 @@ Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 
 - Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
 - v7: entschieden am 16.11. (Entwurf Abschnitt 8).
+- v8 (offen, gebündelt): (1) Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren?
+  (2) N01-Muster: `git worktree remove --force|-f` als destruktiv werten (Claude fragt, Teams nein), Teams kein `git worktree add`?
+  (3) Worktree je Team-Lauf als Option einführen (Ablauf in `docs/plaene/worktree-spike.md`)?

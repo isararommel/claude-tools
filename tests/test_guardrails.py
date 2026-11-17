@@ -85,6 +85,27 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in liest_geschuetzt:
         check(f"G3 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
 
+    # v8 (G10-Befund): Teams schreiben auch per Bash nur Pfade aus .normen-auftrag
+    for befehl in ["echo x > src.py", "printf x >> README.md", "sed -i '' s/a/b/ Makefile", "tee neu.txt < /dev/null",
+                   "cp /tmp/x neu.py"]:
+        check(f"v8 Team ohne Auftrag sperrt: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    for befehl in ["make test 2>&1 | tail -3", "git status --short", 'python3 normen/normen.py pruefen --diff > "$TMPDIR/normen-v8.txt"',
+                   'echo x > "$GIBT_ES_NICHT_V8/a.py"',  # nicht bestimmbar: Hook lässt durch, pruefen --diff prüft danach
+                   "ls -la > /dev/null"]:
+        check(f"v8 Team ohne Auftrag ja: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
+    sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "mistral-team", "--dateien", "src.py", cwd=repo)
+    check("v8 Team mit Auftrag: erlaubte Datei ja", hook(repo, "mistral-team", "vibe", "echo x > src.py") == "ja")
+    check("v8 Team mit Auftrag: andere Datei nein", hook(repo, "mistral-team", "vibe", "echo x > andere.py") == "nein")
+    sh(sys.executable, "normen/normen.py", "auftrag", "--ende", cwd=repo)
+    check("v8 Claude unberührt", hook(repo, "claude", "claude", "echo x > src.py") == "ja")
+    # Advisor-Abnahme v8: loeschbar bleibt frei, außerhalb nur Lauf-Ordner/Temp/Geräte, nicht bestimmbar → pruefen danach
+    for befehl in ["rm -rf build", "rm -rf .pytest_cache", "rm -rf __pycache__", "make test > /dev/null 2>&1",
+                   'echo x > "$TMPDIR/normen-v8.txt"', "echo x > /tmp/vibe-runs/x/notiz.txt",
+                   'd=$(mktemp -d /tmp/g9-XXXX) && git clone -q . "$d/r"']:
+        check(f"v8 Team ja: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
+    for befehl in ["echo x > ~/normen-v8-probe.txt", "echo x > ~/normen-v8-anderes-projekt/a.txt", "cp a.txt ~/.vibe/x.toml"]:
+        check(f"v8 Team außerhalb nein: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+
     # Betriebsbefehle des Orchestrators: müssen nach jedem Paket „ja“ bleiben (Hook ist fail-closed)
     for befehl in ['bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh . --test "make test"',
                    "python3 normen/normen.py auftrag --rolle mistral-team --dateien a.py", "python3 normen/normen.py auftrag --ende",
@@ -268,6 +289,10 @@ with tempfile.TemporaryDirectory() as t:
     vibe_bin = shutil.which("vibe") or "/usr/local/bin/vibe"
     g5 = [
         (agy(echt), "ja"), (vibe(echt), "ja"),
+        (f'G={runs}; RUN="$G/echt"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "ja"),  # verschachtelte Zuweisung
+        (f'RUN={echt}; cd {repo} && vibe --trust --agent ask --time-limit 540 --max-turns 12 --output-dir "$RUN/out" '
+         f'--prompt-file "$RUN/prompt.md" < /dev/null > "$RUN/antwort.txt" 2>&1', "ja"),  # G10 Lese-Modus
+        (f'G={runs}; RUN="$G/sperr"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),
         (agy(sperr), "nein"), (vibe(sperr), "nein"), (vibe(neben), "nein"), (agy(neben), "nein"),
         (agy(geheim_inhalt), "nein"), (vibe(geheim_inhalt), "nein"),
         (agy(geheim_pfad), "nein"), (vibe(geheim_pfad), "ja"),  # Vibe-Hook sperrt das Lesen selbst; agy hat keine Hooks
@@ -333,6 +358,81 @@ with tempfile.TemporaryDirectory() as t:
     check("G6 kein doppelter Hook", len(pre) == 1, json.dumps(pre))
     check("G6 Matcher ergänzt", "mcp__.*" in pre[0]["matcher"] and pre[0]["matcher"].startswith("Bash|"), pre[0]["matcher"])
     check("G6 eigene Einstellung bleibt", einst.get("enableAllProjectMcpServers") is True)
+
+    # G9 (L9): N02 – geänderte Erwartungswerte (Hinweis) und ersatzlos gelöschte Asserts (Fehler) in Testdateien
+    git = ("git", "-c", "user.name=t", "-c", "user.email=t@t")
+    sh(*git, "checkout", "-q", "-b", "g9", cwd=repo)
+    tdatei, cdatei = repo / "tests/test_rechnen.py", repo / "rechnen.py"
+    tdatei.parent.mkdir(exist_ok=True)
+    basis = ("def test_a():\n    assert add(1, 2) == 3\n    self.assertEqual(mul(2, 2), 4)\n    check(\"x\", f(1) == 1)\n\n\n"
+             "def test_b():\n    assert sub(3, 1) == 2\n")
+    tdatei.write_text(basis)
+    cdatei.write_text("def f():\n    assert x == 1\n    return 1\n")
+    sh(*git, "add", "-A", cwd=repo)
+    sh(*git, "commit", "-qm", "g9-basis", "--no-verify", cwd=repo)
+
+    def pruefen_g9(text, staged=False, code=None):
+        tdatei.write_text(text)
+        cdatei.write_text(code or "def f():\n    assert x == 1\n    return 1\n")
+        if staged:
+            sh(*git, "add", "-A", cwd=repo)
+        aus = sh(sys.executable, "normen/normen.py", "pruefen", "--staged" if staged else "--diff", cwd=repo).stdout
+        if staged:
+            sh(*git, "reset", "-q", cwd=repo)
+        zeilen = [z for z in aus.splitlines() if "N02-TESTS-SIND-TABU" in z and "Assert" in z]
+        return ([z for z in zeilen if "] fehler:" in z], [z for z in zeilen if "] hinweis:" in z])
+
+    f, h = pruefen_g9(basis.replace("== 3", "== 4"))
+    check("G9 Erwartungswert geändert → Hinweis", not f and h and "Assert geändert" in h[0], str((f, h)))
+    f, h = pruefen_g9(basis.replace("mul(2, 2), 4)", "mul(2, 2), 5)"))
+    check("G9 assertEqual geändert → Hinweis", not f and len(h) == 1, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n", "    pass\n"))
+    check("G9 Assert gelöscht → Fehler", f and "Assert entfernt" in f[0], str((f, h)))
+    f, h = pruefen_g9(basis.replace('    check("x", f(1) == 1)\n', ""))
+    check("G9 check() gelöscht → Fehler", bool(f), str((f, h)))
+    umgestellt = "def test_b():\n    assert sub(3, 1) == 2\n\n\n" + basis.split("\n\n\n")[0] + "\n"
+    f, h = pruefen_g9(umgestellt)
+    check("G9 verschoben → nichts", not f and not h, str((f, h)))
+    f, h = pruefen_g9(basis + "\n\ndef test_c():\n    assert add(2, 2) == 4\n")
+    check("G9 Assert ergänzt → nichts", not f and not h, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n",
+                                    "    # normen-ausnahme: N02-TESTS-SIND-TABU – doppelt zu test_a\n    pass\n"))
+    check("G9 begründet gelöscht → kein Fehler", not f, str((f, h)))
+    f, h = pruefen_g9(basis.replace("    assert sub(3, 1) == 2\n", "    pass\n"), staged=True)
+    check("G9 --staged: Assert gelöscht → Fehler", bool(f), str((f, h)))
+    f, h = pruefen_g9(basis, code="def f():\n    return 1\n")
+    check("G9 Assert außerhalb von Tests → nichts", not f and not h, str((f, h)))
+    zwei_weg = basis.replace("    assert sub(3, 1) == 2\n", "    pass\n").replace("    assert add(1, 2) == 3\n",
+                                                                                  "    # normen-ausnahme: N02-TESTS-SIND-TABU – doppelt\n")
+    f, h = pruefen_g9(zwei_weg)
+    check("G9 zwei gelöscht, eine Begründung → Fehler", bool(f), str((f, h)))
+    # Aufteilen/Umbenennen: Asserts wandern in eine andere Testdatei → nichts; ganze Testdatei gelöscht → Fehler
+    neu_datei = repo / "tests/test_rechnen_b.py"
+    neu_datei.write_text("def test_b():\n    assert sub(3, 1) == 2\n")
+    f, h = pruefen_g9(basis.replace("\n\n\ndef test_b():\n    assert sub(3, 1) == 2\n", "\n"))
+    check("G9 in andere Datei verschoben → nichts", not f and not h, str((f, h)))
+    neu_datei.unlink()
+    tdatei.unlink()
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 Testdatei gelöscht → Fehler", any("Assert entfernt" in z and "] fehler:" in z for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").write_text("Erklärung: `normen-ausnahme: N02-TESTS-SIND-TABU – Begründung` im Diff\n" * 4)
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 Marker nur im Fließtext → keine Begründung", any("Assert entfernt" in z and "] fehler:" in z
+                                                              for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").write_text("Test gestrichen.\n# normen-ausnahme: N02-TESTS-SIND-TABU – x\n" * 4)
+    aus = sh(sys.executable, "normen/normen.py", "pruefen", "--diff", cwd=repo).stdout
+    check("G9 gelöscht, vier Begründungen im Diff → kein Fehler", not any("Assert entfernt" in z and "] fehler:" in z
+                                                                         for z in aus.splitlines()), aus[-400:])
+    (repo / "notizen.md").unlink()
+    tdatei.write_text(basis)
+    # Umbenennen aus den Test-Globs heraus (git erkennt Umbenennungen) → Asserts gelten als entfernt
+    sh(*git, "mv", "tests/test_rechnen.py", "rechnen-umbenannt.txt", cwd=repo)
+    for art in ("--staged", "--diff"):
+        aus = sh(sys.executable, "normen/normen.py", "pruefen", art, cwd=repo).stdout
+        check(f"G9 aus tests/ umbenannt {art} → Fehler", any("Assert entfernt" in z and "] fehler:" in z
+                                                              for z in aus.splitlines()), aus[-400:])
+    sh(*git, "mv", "rechnen-umbenannt.txt", "tests/test_rechnen.py", cwd=repo)
+    cdatei.write_text("def f():\n    assert x == 1\n    return 1\n")
 
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)

@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import tomllib
+from collections import Counter
 from pathlib import Path
 
 HIER = Path(__file__).resolve().parent
@@ -643,6 +644,28 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if any(rel == s.rstrip("/") or rel.startswith(s) for s in GESCHUETZT):
                 pruefe("einstellungen", f"N10-KEIN-COMMIT-DURCH-TEAMS: Bash schreibt in Normen/Agenten-Einstellungen {rel}")
                 break
+        if rinfo.get("auftrag_pflicht"):  # v8: Bash-Schreibziele im Projekt nur aus .normen-auftrag (wie Edit/Write)
+            globs = _auftrag_globs()
+            for ziel in _schreibziele(cmd, cwd):
+                if ziel is None:
+                    continue  # nicht bestimmbar (z. B. $(mktemp …)): bleibt pruefen --diff nach dem Lauf überlassen
+                echt = Path(os.path.realpath(ziel))
+                loeschbar = _loeschbar(cfg)
+                try:
+                    rel = echt.relative_to(ROOT).as_posix()
+                except ValueError:  # außerhalb: nur Lauf-Ordner, Temp-Wurzeln aus loeschbar, Geräte (/dev/null) – wie Edit/Write
+                    if not (str(echt).startswith("/dev/") or any(echt == o or o in echt.parents for o in _lauf_ordner(cfg))
+                            or any(p in echt.parents for p, relativ in loeschbar if not relativ) or _rolle_frei(rinfo, echt)):
+                        pruefe("ausserhalb-schreiben", f"N06-NUR-ERLAUBTE-PFADE: Bash schreibt außerhalb des Projekts: {echt}")
+                    continue
+                if any(echt == p or p in echt.parents for p, relativ in loeschbar if relativ):
+                    continue  # relative [pfade].loeschbar im Projekt (build, .pytest_cache …): N01-Ausnahme
+                if globs is None:
+                    gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: kein .normen-auftrag – Rolle {rolle} darf nichts schreiben ({rel})"))
+                    break
+                if not any(passt(rel, g) for g in globs):
+                    gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Bash schreibt {rel} – steht nicht in .normen-auftrag"))
+                    break
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
@@ -675,7 +698,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
-                zuweisungen.update(_zuweisungen_aus_seg(seg))
+                # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
+                zuweisungen.update({k: _var_ersetzen(v, zuweisungen) for k, v in _zuweisungen_aus_seg(seg).items()})
                 basis = _cd_basis(seg, basis)
 
     for p in pfade:
@@ -1641,6 +1665,41 @@ def _diff(basis: str | None, staged: bool) -> tuple[dict[str, set[int] | None], 
     return geaendert, stat
 
 
+# Assert-Zeile in Tests (N02/G9): assert, assertEqual(…, expect(, check(, XCTAssert…(, pytest.raises
+_ASSERT_RX = re.compile(r"\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCTAssert\w*\(|pytest\.raises")
+
+
+def _diff_zeilen(basis: str | None, staged: bool) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Entfernte und hinzugefügte Zeilentexte je Datei (git diff --unified=0; untracked = ganze Datei neu).
+    --no-renames: eine aus den Test-Globs umbenannte Datei zählt als entfernt + neu (sonst fehlen die entfernten Zeilen)."""
+    args = (["diff", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames"]
+            + (["--cached"] if staged else [basis or "HEAD"]))
+    weg: dict[str, list[str]] = {}
+    neu: dict[str, list[str]] = {}
+    datei = None
+    for z in _git(*args).splitlines():
+        if z.startswith("--- a/"):
+            datei = z[6:]
+        elif z == "--- /dev/null":
+            datei = None
+        elif z.startswith("+++ b/"):
+            datei = z[6:]
+        elif z == "+++ /dev/null":
+            pass  # gelöschte Datei: Dateiname bleibt der vom --- a/…
+        elif datei and z.startswith("-"):
+            weg.setdefault(datei, []).append(z[1:])
+        elif datei and z.startswith("+"):
+            neu.setdefault(datei, []).append(z[1:])
+    if not staged:
+        for f in _git("ls-files", "-o", "--exclude-standard").splitlines():
+            if f:
+                try:
+                    neu[f] = (ROOT / f).read_text(encoding="utf-8").splitlines()
+                except (OSError, UnicodeDecodeError):
+                    pass  # unlesbar: überspringen (wie in _diff)
+    return weg, neu
+
+
 def erzeugt_kurz(cfg: dict, fuer_agents: bool = False) -> str:
     """kurz.md; fuer_agents=True: Block für AGENTS.md (Vibe/agy) ohne Normen mit nur_rollen."""
     meta, pj = cfg["meta"], cfg["projekt"]
@@ -1767,6 +1826,48 @@ def pruefen(cfg, diff: bool, basis: str | None, staged: bool) -> tuple[int, int,
         for rel, nz in geaendert.items():
             if nz is not None and any(passt(rel, g) for g in tests):
                 melde(rel, "N02-TESTS-SIND-TABU", "hinweis", f"Testdatei geändert – Review nötig (nur Orchestrator/{inhaberin(cfg)})")
+        # G9: Asserts in Testdateien geändert oder ersatzlos entfernt? Vergleich über alle Testdateien des Diffs
+        # gemeinsam – Verschiebungen (auch über Dateigrenzen) heben sich auf.
+        weg_z, neu_z = _diff_zeilen(basis, staged)
+        weg: Counter[str] = Counter()
+        neu: Counter[str] = Counter()
+        weg_datei: dict[str, list[str]] = {}
+        for rel, zeilen in weg_z.items():
+            if any(passt(rel, g) for g in tests):
+                for z in zeilen:
+                    if _ASSERT_RX.search(z.strip()):
+                        weg[z.strip()] += 1
+                        weg_datei.setdefault(rel, []).append(z.strip())
+        for rel, zeilen in neu_z.items():
+            if any(passt(rel, g) for g in tests):
+                for z in zeilen:
+                    if _ASSERT_RX.search(z.strip()):
+                        neu[z.strip()] += 1
+        # nur als Kommentar (# … / // …) – erklärender Text in Doku/CHANGELOG ist keine Begründung
+        begr_rx = re.compile(r"^\s*(#|//)\s*" + re.escape(f"{marker} N02-TESTS-SIND-TABU"))
+        begruendet = sum(1 for zeilen in neu_z.values() for z in zeilen if begr_rx.search(z))
+        ersatzlos = max(0, sum(weg.values()) - sum(neu.values()))
+        rest = ersatzlos - begruendet
+        if rest <= 0:
+            ausnahmen += min(begruendet, ersatzlos)
+        uebrig: list[tuple[str, str]] = []
+        neu_rest = neu.copy()
+        for rel in sorted(weg_datei):
+            for z in weg_datei[rel]:
+                if neu_rest[z] > 0:
+                    neu_rest[z] -= 1
+                else:
+                    uebrig.append((rel, z))
+        if rest > 0:
+            for rel, z in uebrig[:rest]:
+                melde(rel, "N02-TESTS-SIND-TABU", "fehler", f"Assert entfernt: {z[:100]}")
+        else:
+            je_datei: dict[str, list[str]] = {}
+            for rel, z in uebrig:
+                je_datei.setdefault(rel, []).append(z)
+            for rel in sorted(je_datei):
+                for z in je_datei[rel][:3]:
+                    melde(rel, "N02-TESTS-SIND-TABU", "hinweis", f"Assert geändert: -{z[:100]}")
         # Auftragsliste gilt für die Arbeit externer Teams (--diff). Commits macht nur Claude (N10) – pre-commit
         # (--staged) misst sie deshalb nicht dagegen, sonst blockiert ein laufender Auftrag Claudes eigene Commits.
         globs = None if staged else _auftrag_globs()
