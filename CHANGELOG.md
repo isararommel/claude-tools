@@ -4,6 +4,23 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v9 – 2026-11-17
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)
+
+### Geändert
+- **N01:** `git worktree remove --force|-f` gilt als destruktiv (Claude fragt nach, Teams gesperrt) – löscht ungesicherte Arbeit
+  im Worktree. Normales `git worktree remove`, `prune` und `list` bleiben frei (Achtung: auch ein normales `remove` löscht
+  git-ignorierte Dateien im Worktree).
+- **N10:** `git worktree add` nur durch den Orchestrator (für Teams gesperrt).
+- Grundlage: Worktree-Spike (G11, `docs/plaene/worktree-spike.md`), Entscheidung der Inhaberin vom 17.11.
+
+### Hinweise
+- `normen.py selbsttest` kann bei Vibe gelegentlich „unklar“ melden (Vibe versucht den Köder-Befehl nicht jedes Mal): einmal
+  wiederholen; nur „NICHT GESPERRT“ ist ein Befund.
+
+---
+
 ## v8 – 2026-11-17
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`; Agent-Definitionen aus
@@ -35,7 +52,7 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 ### Hinweise
 - Sperrt G9 einen Commit wegen eines bewusst entfernten Tests: Kommentar `# normen-ausnahme: N02-TESTS-SIND-TABU – Begründung`
   im selben Diff (je entferntem Assert eine Zeile).
-- Offen (Rückfrage): `git worktree remove --force` als destruktiv werten (heute „ja“, löscht ungesicherte Team-Arbeit).
+- `git worktree remove --force` als destruktiv werten: entschieden, umgesetzt in v9.
 
 ---
 

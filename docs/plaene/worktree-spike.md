@@ -18,9 +18,9 @@ Frage (Lücke L8): Teams arbeiten im Hauptordner und sehen parallele Arbeit der 
 | Worktree innerhalb des Projekts (`.worktrees/…`) | erscheint im Hauptordner als ungetracktes `.worktrees/` (gehört in `.gitignore`); `pruefen --diff` durchsucht ihn nicht |
 | Worktree außerhalb (`../wt-…`) | taucht im Hauptordner nicht auf; für Claude „außerhalb des Projekts“ (in diesem Spike lag er unter `$TMPDIR` und war deshalb frei) |
 | `make test` im Worktree | läuft (Ergebnis = Stand des Worktree-Branches) |
-| `git worktree remove` mit ungesicherten Dateien | **verweigert** („contains modified or untracked files, use --force“) – Team-Arbeit bleibt erhalten |
-| Hook-Stufen Claude | `worktree add/list/remove/prune`, `branch -d`, `merge --ff-only`: ja · `branch -D`: fragen · **`worktree remove --force`: ja** |
-| Hook-Stufen Teams | `worktree add/remove/prune`, `branch -d`: ja · `branch -D`, `merge`: nein · **`worktree remove --force`: ja** |
+| `git worktree remove` mit ungesicherten Dateien | **verweigert** („contains modified or untracked files, use --force“) – getrackte Änderungen und ungetrackte Dateien bleiben erhalten; **git-ignorierte Dateien (z. B. `__pycache__/`) löscht ein normales `remove` ohne Rückmeldung** |
+| Hook-Stufen Claude | `worktree add/list/remove/prune`, `branch -d`, `merge --ff-only`: ja · `branch -D`: fragen · **`worktree remove --force`: ja** (Stand v8; seit v9: `remove --force` fragt) |
+| Hook-Stufen Teams | `worktree add/remove/prune`, `branch -d`: ja · `branch -D`, `merge`: nein · **`worktree remove --force`: ja** (Stand v8; seit v9: `add` und `remove --force` nein) |
 
 ## Nur dokumentiert / abgeleitet (nicht gemessen)
 
@@ -38,7 +38,7 @@ Frage (Lücke L8): Teams arbeiten im Hauptordner und sehen parallele Arbeit der 
 
 ## Vorschlag (Entscheidung der Inhaberin)
 
-1. **Lücke schließen (unabhängig vom Worktree):** `git worktree remove --force|-f` als destruktiv werten (N01, wie `branch -D`);
+1. **Lücke schließen – umgesetzt in v9 (Entscheidung der Inhaberin 17.11.):** `git worktree remove --force|-f` als destruktiv werten (N01, wie `branch -D`);
    für Teams auch `git worktree add` sperren (Worktrees legt nur Claude an). Normänderung → vorher Advisor (S07 Punkt 5).
 2. **Worktree je Team-Lauf als Option**, nicht als Standard: lohnt bei parallelen Sitzungen im selben Repository. Ablauf:
    Claude legt den Worktree **innerhalb** des Projekts an (`.worktrees/<lauf>`, in `.gitignore`; außerhalb sperrt G4-B die

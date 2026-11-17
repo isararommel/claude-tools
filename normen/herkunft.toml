@@ -1,11 +1,11 @@
 # Von einrichten.sh geschrieben – nicht von Hand ändern.
 [quelle]
 name = "claude-tools"
-version = 8
-commit = "9775375"
+version = 9
+commit = "e6f842d"
 eingespielt_am = "2026-11-17"
 
 [dateien]
-"normen/normen.toml" = "53504329cfef67e0e8a311a516a285e8bc4ecff719be77eb958210da093e1b41"
+"normen/normen.toml" = "5ab45ae894b5b4d907947c99cfe1cbc07506d950d18920a433e988ecf38d5984"
 "normen/rollen.toml" = "fc64708fecd55bc0c80294a71e1fab7ec5da807607765bfd0e0f8b7cec8f15c2"
 "normen/normen.py" = "0bde5b5e9cc50831cb22357b12b8a3cf6af7e45c86b5b6933bad639a5b62ba22"

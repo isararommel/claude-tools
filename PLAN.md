@@ -57,6 +57,8 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
 **Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
+✅ **v9** (Branch `normen-v9`, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
+nach Merge Sitzungen informieren (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
 nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
 Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
@@ -95,6 +97,8 @@ Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 
 - Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
 - v7: entschieden am 16.11. (Entwurf Abschnitt 8).
-- v8 (offen, gebündelt): (1) Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren?
-  (2) N01-Muster: `git worktree remove --force|-f` als destruktiv werten (Claude fragt, Teams nein), Teams kein `git worktree add`?
-  (3) Worktree je Team-Lauf als Option einführen (Ablauf in `docs/plaene/worktree-spike.md`)?
+- v8, entschieden am 17.11.: (1) Agent-Definitionen kopieren – ja, erledigt (alle drei gleich der Quelle). (2) N01-Muster
+  `git worktree remove --force` / Teams kein `git worktree add` – ja, umgesetzt in v9. (3) Worktree je Team-Lauf – später
+  (vorher echter Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `remove` löscht git-ignorierte Dateien).
+- Selbsttest schwankt bei Vibe („unklar“ beim ersten, „gesperrt“ beim zweiten Lauf, gemeldet aus einem Projekt): offen, ob
+  `normen.py selbsttest` bei „unklar“ einmal selbst wiederholen soll (nie „NICHT GESPERRT“ überdecken).

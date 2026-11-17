@@ -106,6 +106,20 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in ["echo x > ~/normen-v8-probe.txt", "echo x > ~/normen-v8-anderes-projekt/a.txt", "cp a.txt ~/.vibe/x.toml"]:
         check(f"v8 Team außerhalb nein: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
 
+    # v9 (G11-Befund): git worktree remove --force ist destruktiv (N01); Worktrees legt nur Claude an (N10)
+    for befehl in ["git worktree remove --force ../wt", "git worktree remove -f ../wt", "git worktree remove ../wt --force",
+                   "git -C . worktree remove --force .worktrees/x", "cd . && git worktree remove -f .worktrees/x"]:
+        check(f"v9 claude fragt: {befehl}", hook(repo, "claude", "claude", befehl) == "fragen")
+        check(f"v9 Team nein: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    for befehl in ["git worktree remove .worktrees/x", "git worktree prune", "git worktree list",
+                   "git worktree add .worktrees/x -b team/x", 'git commit -m "worktree remove --force erklärt"']:
+        check(f"v9 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
+    for befehl in ["git worktree add .worktrees/x -b team/x", "git -C . worktree add ../wt"]:
+        check(f"v9 Team nein: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    for befehl in ["git worktree list", "git worktree remove .worktrees/x", "git worktree remove .worktrees/x\ntail -f log.txt"]:
+        check(f"v9 Team ja: {befehl!r}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
+    check("v9 claude ja: -f in Folgezeile", hook(repo, "claude", "claude", "git worktree remove .worktrees/x\ntail -f log.txt") == "ja")
+
     # Betriebsbefehle des Orchestrators: müssen nach jedem Paket „ja“ bleiben (Hook ist fail-closed)
     for befehl in ['bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh . --test "make test"',
                    "python3 normen/normen.py auftrag --rolle mistral-team --dateien a.py", "python3 normen/normen.py auftrag --ende",
