@@ -811,6 +811,10 @@ def cmd_selbsttest(a) -> int:
     bestanden = True
     for name in werkzeuge:
         ergebnis, grund = _selbsttest_werkzeug(name)
+        # nur wenn das Werkzeug lief, den Köder aber nicht versuchte – nicht bei fehlendem Werkzeug oder Zeitlimit
+        if ergebnis == "unklar" and grund.startswith("keine Hook-Meldung") and not koeder.exists():
+            print(f"{name}: unklar ({grund}) – Wiederholung")
+            ergebnis, grund = _selbsttest_werkzeug(name)
         if koeder.exists():
             koeder.unlink()
         if ergebnis == "gesperrt":
@@ -2087,13 +2091,17 @@ def cmd_merge(a) -> int:
     try:
         if _git("status", "--porcelain", "--untracked-files=no").strip():
             return stopp("nicht committete Änderungen – erst committen.")
-        pr = json.loads(subprocess.run(["gh", "pr", "view", str(a.pr), "--json", "state,baseRefName,headRefName,headRefOid"],
-                                       cwd=ROOT, capture_output=True, text=True, check=True).stdout)
+        _git("fetch", "-q", "origin")
+        kopf = _git("rev-parse", "HEAD").strip()
+        for versuch in range(4):  # direkt nach `git push` kennt GitHub den neuen PR-Kopf manchmal erst nach Sekunden
+            pr = json.loads(subprocess.run(["gh", "pr", "view", str(a.pr), "--json", "state,baseRefName,headRefName,headRefOid"],
+                                           cwd=ROOT, capture_output=True, text=True, check=True).stdout)
+            if pr["headRefOid"] == kopf or pr["state"] != "OPEN" or versuch == 3:
+                break
+            time.sleep(5)
         basis = pr["baseRefName"]
         if pr["state"] != "OPEN" or basis not in ("main", "master"):
             return stopp(f"PR {a.pr} ist {pr['state']} bzw. zielt auf {basis}.")
-        _git("fetch", "-q", "origin")
-        kopf = _git("rev-parse", "HEAD").strip()
         if kopf != pr["headRefOid"]:
             return stopp(f"lokaler Stand {kopf[:7]} ist nicht der PR-Kopf {pr['headRefOid'][:7]} – Branch {pr['headRefName']} "
                          "auschecken bzw. pushen.")
