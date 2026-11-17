@@ -59,9 +59,9 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
 ✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
-✅ **v10** (Branch `normen-v10`, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
+✅ **v10 gemergt** (PR #11, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
 (keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
-Sitzungen informieren.
+Sitzungen informiert (vier erreicht; die Sitzung im Yoga-Projekt war nicht erreichbar).
 **Nächstes (je mit Rückfrage):** Worktree-Option (später), Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`,
 Rückmeldungen aus den Projekten sichten.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
