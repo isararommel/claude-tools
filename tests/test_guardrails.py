@@ -248,8 +248,18 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in ["docker rm -f probe-v11", "docker container rm -f probe-v11", "podman rm -f probe-v11",
                    "docker compose rm -f -s", "docker run -d --name probe-v11 alpine sleep 60 && docker rm -f probe-v11"]:
         check(f"v11 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
-    for befehl in ["rm -f /etc/hosts", "docker volume rm daten", "docker system prune -f", "docker rm -f x; rm -rf /etc/x"]:
-        check(f"v11 bleibt fragen: {befehl}", hook(repo, "claude", "claude", befehl) == "fragen")
+    for befehl in ["rm -f /etc/hosts", "docker volume rm daten", "docker system prune -f", "docker rm -f x; rm -rf /etc/x",
+                   "ls docker\nrm -rf /etc/x", "echo compose;rm -rf /etc/x", "echo podman`rm -rf /etc/x`", "X=docker rm -rf /etc/x",
+                   "echo container && rm -rf /etc/x", "docker rm -f $(rm -rf /etc/x)"]:  # Advisor: Umgehungen des Lookbehinds
+        check(f"v11 bleibt fragen: {befehl!r}", hook(repo, "claude", "claude", befehl) == "fragen")
+    # echter Fall aus einem Projekt (Skriptzeile): docker rm in einer Aufräumfunktion ja, rm -rf auf $W bleibt fragen
+    check("v11 Funktionskopf + docker rm ja", hook(repo, "claude", "claude",
+          "cleanup() { docker rm -f probe probe-db >/dev/null 2>&1; }") == "ja")
+    check("v11 Funktionskopf + rm -rf ${W:?} fragt", hook(repo, "claude", "claude",
+          'cleanup() { docker rm -f probe >/dev/null 2>&1; rm -rf "${W:?}"; }') == "fragen")
+    check("v11 Team: docker rm -f ja (kein Datei-Löschen)", hook(repo, "mistral-team", "vibe", "docker rm -f probe-v11") == "ja")
+    # Präfix-Zuweisung wirkt nicht auf Wörter desselben Befehls (W=a; W=b bash "$W/x" nutzt a) → nicht auflösen
+    check("v11 Präfix-Zuweisung nicht für den Pfad", hook(repo, "claude", "claude", f'W={lauf} bash "$W/sauber.sh"') == "fragen")
 
     # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
     extern = Path(t) / "werkzeuge"

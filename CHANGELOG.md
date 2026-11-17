@@ -9,10 +9,14 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 **Aktualisieren nötig:** ja (`normen.py aktualisieren` – wird es für Claude abgelehnt, gibt die Inhaberin `! python3 normen/normen.py aktualisieren` ein; dann `normen.py selbsttest`)
 
 ### Geändert (Rückmeldung aus einem Projekt: lokale Container-Probeläufe)
-- **N01:** Das Muster für Datei-Löschen (`rm -f` …) greift nicht mehr hinter `docker`, `podman`, `container`, `compose`
-  (`docker rm -f <container>` ist kein Datei-Löschen). `docker volume rm` und `docker system prune` bleiben destruktiv.
-- **Skriptpfade:** `"$W/x.sh"` wird mit Zuweisungen aus demselben Befehl aufgelöst (`W=/pfad; bash "$W/x.sh"`) und dann geprüft
-  wie jedes Skript außerhalb des Projekts; unbekannte Variablen bleiben „nicht prüfbar“.
+- **N01:** Ein Teilbefehl, der mit `docker|podman [container|compose] rm` beginnt (auch in einer Funktion `name() { … }`), gilt
+  nicht als Datei-Löschen (Container entfernen); mit Befehlsersetzung (`$(…)`, Backtick) bleibt er geprüft. Gilt für alle Rollen.
+  `docker volume rm`, `docker system prune` und jedes andere `rm -rf` bleiben destruktiv.
+- **Skriptpfade:** `"$W/x.sh"` wird mit Zuweisungen aus **vorangehenden** Teilbefehlen aufgelöst (`W=/pfad; bash "$W/x.sh"`) und
+  dann geprüft wie jedes Skript außerhalb des Projekts; Präfix-Zuweisungen (`W=… bash "$W/x"`) und `W="$(mktemp -d)"` bleiben
+  „nicht prüfbar“.
+- Echter Fall aus dem Projekt (Skript mit Container-Probelauf) nachgespielt: `docker rm` wird nicht mehr beanstandet; weiter
+  streng bleiben `rm -rf "${W:?}"` (fragen), `*.secret`-Dateien (gesperrt), Skriptpfade unter einem `mktemp`-Ordner.
 - Unverändert (Entscheidung der Inhaberin): N03 sperrt Dateinamen wie `*.secret` auch in Temp-Ordnern – Testdateien anders benennen.
 
 ---

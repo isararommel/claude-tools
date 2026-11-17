@@ -1356,7 +1356,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuw)
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuweisungen)
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
         while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
@@ -1378,13 +1378,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuw)
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("source", "."):
         if rest and rest[0].startswith("-") and rest[0] != "-":
             return []
         if (b := stdin(0)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuw)
+        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("node", "perl", "ruby"):
         j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
         while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
@@ -1396,13 +1396,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
         if b is not None:
             return []  # interaktiv ohne Eingabe
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuw)
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuweisungen)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
         voll = os.path.expanduser(w[i])
         if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
                 os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
             return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
-        datei, grund = _skript_pfad(w[i], basis, zuw)
+        datei, grund = _skript_pfad(w[i], basis, zuweisungen)
         if grund:
             return [("fragen", grund)]
         gate = _skript_gate(cfg, datei, w[i], cmd)
