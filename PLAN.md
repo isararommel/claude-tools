@@ -61,6 +61,10 @@ Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (a
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
 **Nächstes (je mit Rückfrage):** Selbsttest-Wiederholung bei „unklar“ (siehe offene Fragen), Worktree-Option (später),
 Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`, Rückmeldungen aus den Projekten sichten.
+Rückmeldungen nach v9 (für das nächste Release bündeln): N01-Prompt nennt `git worktree remove --force` noch nicht (Normtext →
+Advisor, Version); `normen.py merge` direkt nach `git push` scheitert gelegentlich („lokaler Stand ≠ PR-Kopf“, GitHub kennt den
+neuen Kopf noch nicht) → kurze begrenzte Wiederholung im Prüftor; `normen.py aktualisieren` sperrt der Auto-Modus-Klassifizierer für
+Claude (die Inhaberin führt es mit `!` aus) – in Doku/Benachrichtigung nennen.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
 nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
 Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
