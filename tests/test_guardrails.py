@@ -412,6 +412,22 @@ with tempfile.TemporaryDirectory() as t:
     check("G6 Matcher ergänzt", "mcp__.*" in pre[0]["matcher"] and pre[0]["matcher"].startswith("Bash|"), pre[0]["matcher"])
     check("G6 eigene Einstellung bleibt", einst.get("enableAllProjectMcpServers") is True)
 
+    # v12: Vibe-Hooks prüfen auch `edit` (Vibe 3.1.x); einrichten.sh ersetzt eine reine Normen-hooks.toml, eigene bleiben
+    vorlage_hooks = (VORLAGE / "projekt/.vibe/hooks.toml").read_text()
+    for name in ("edit", "write_file", "bash", "experimental_bash", "git_bash", "managed_shell"):
+        check(f"v12 hooks.toml prüft {name}", f'match = "{name}"' in vorlage_hooks)
+    alt_hooks = alt / ".vibe/hooks.toml"
+    alt_hooks.write_text('[[hooks]]\nname = "normen-bash"\ntype = "pre_tool"\nmatch = "bash"\n'
+                         'command = "python3 normen/normen.py hook --rolle mistral-team --werkzeug vibe"\nstrict = true\n')
+    r = sh("bash", str(VORLAGE / "einrichten.sh"), str(alt), "--test", "true")
+    check("v12 reine Normen-hooks.toml ersetzt", alt_hooks.read_text() == vorlage_hooks and "ersetzt" in r.stdout, r.stdout[-300:])
+    alt_hooks.write_text(alt_hooks.read_text() + '\n[[hooks]]\nname = "eigen"\ntype = "pre_tool"\nmatch = "bash"\n'
+                         'command = "python3 eigenes.py"\n')
+    eigen = alt_hooks.read_text()
+    r = sh("bash", str(VORLAGE / "einrichten.sh"), str(alt), "--test", "true")
+    check("v12 eigene Hooks bleiben, .vorlage daneben", alt_hooks.read_text() == eigen
+          and (alt / ".vibe/hooks.toml.vorlage").exists(), r.stdout[-300:])
+
     # G9 (L9): N02 – geänderte Erwartungswerte (Hinweis) und ersatzlos gelöschte Asserts (Fehler) in Testdateien
     git = ("git", "-c", "user.name=t", "-c", "user.email=t@t")
     sh(*git, "checkout", "-q", "-b", "g9", cwd=repo)

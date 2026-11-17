@@ -35,4 +35,7 @@ Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.
 Format genau wie in `docs/recherche-bericht.md` (Kurzantwort, Befunde-Tabelle, Widersprüche, offene Fragen, Methode).
 
 ## Pflichtsätze
-<Ausgabe von `python3 normen/normen.py auftrag --rolle <team>` hier einfügen>
+<Ausgabe von `python3 normen/normen.py auftrag --rolle <team>` hier einfügen – ohne `--dateien`: Recherche ändert nichts>
+
+Für diesen Recherche-Auftrag gilt zusätzlich: keine Test-, Build- oder Prüfbefehle ausführen; eine „Abnahme“-Zeile im Block oben
+gilt hier nicht – das Ergebnis ist allein die Antwort im Berichtsformat.

@@ -171,6 +171,11 @@ Vorlagen: `docs/recherche-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs
 | Abwägung, wenige Quellen, privater Zusammenhang | Claude selbst | Primärquelle per Webseitenabruf; Suchtreffer können veraltet sein |
 | wichtige Entscheidung | zwei Anbieter parallel | dieselbe ausgefüllte Auftragsvorlage an `gemini-analyst` und `mistral-team`; Claude vergleicht und schreibt den Bericht |
 
+- **Aufruf:** Claude nennt im Agent-Aufruf ausdrücklich „Recherche-Auftrag, normaler Modus (`--smart-approve`), nicht
+  `--agent ask`“ – ältere Agent-Definitionen schicken „nur lesen“ in den Lese-Modus, in dem die Websuche gesperrt ist.
+  Abbruch prüfen: meldet das Team, dass die Suche nicht lief, ist der Lauf gescheitert (nicht aus dem Gedächtnis übernehmen).
+- **Projekte mit `[pfade].gesperrt` oder `[pfade].forschungsdaten`:** Recherche dort durch Claude selbst – ein Team-Lauf liest
+  ungeprüfte Webseiten in einer Sitzung, die das Projekt lesen kann, und schickt Suchanfragen, die der Hook nicht sieht.
 - **Ablage:** Claude schreibt den Bericht nach `docs/recherche/<JJJJ-MM-TT>-<thema>.md` und committet ihn; die Antworten der Teams
   bleiben im Lauf-Ordner.
 - **Prüfen:** Jede Befundzeile braucht URL, Datum der Quelle und Zugriff („Seite abgerufen“ oder „nur Suchtreffer“). Quellen
@@ -192,6 +197,8 @@ Vorlagen: `docs/recherche-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs
 - Antigravity (`agy`) hat keine Hooks, nur eine Freigabeliste (`ALLOW`).
 - `eval`, `xargs`, `sudo`, Subshells und Befehlsersetzung werden nicht zerlegt (fail-closed nur, soweit erkannt).
 - Ein Befehlswort aus einer Variablen (`B=bash; $B x.sh`) und Befehle in `case`-Zweigen prüft der Hook nicht als Aufruf.
+- Websuche und Seitenabruf der Teams (Vibe `connector_web_search`/`open_url`, agy-Suche) sieht der Hook nicht: Webinhalte
+  gelangen ungeprüft in die Team-Sitzung, Suchanfragen ungeprüft zum Anbieter.
 - Eine Zuweisung, die der Hook nicht als solche erkennt (`declare W=…`, Zuweisung hinter `then`), kann ihn auf einen
   gleichnamigen Wert aus der Umgebung führen.
 

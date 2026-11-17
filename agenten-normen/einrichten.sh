@@ -110,7 +110,15 @@ PY
   else echo "  ergänzt      .claude/settings.json (Sicherung settings.json.bak-$HEUTE)"; fi
 fi
 
-lege "$P/.vibe/hooks.toml" .vibe/hooks.toml
+H="$ZIEL/.vibe/hooks.toml"
+if [ -e "$H" ] && ! cmp -s "$P/.vibe/hooks.toml" "$H" && grep -qE '^[[:space:]]*command[[:space:]]*=' "$H" \
+   && ! grep -E '^[[:space:]]*command[[:space:]]*=' "$H" | grep -vqF 'normen/normen.py hook --rolle mistral-team --werkzeug vibe'; then
+  # enthält nur Normen-Hooks → durch die aktuelle Fassung ersetzen (neue Werkzeugnamen wie `edit` kommen sonst nie an)
+  cp -p "$H" "$H.bak-$HEUTE"; cp "$P/.vibe/hooks.toml" "$H"
+  echo "  ersetzt      .vibe/hooks.toml (nur Normen-Hooks; Sicherung hooks.toml.bak-$HEUTE)"
+else
+  lege "$P/.vibe/hooks.toml" .vibe/hooks.toml
+fi
 lege "$P/.githooks/pre-commit" .githooks/pre-commit
 chmod +x "$ZIEL/.githooks/pre-commit"
 if [ -d "$ZIEL/.git" ]; then

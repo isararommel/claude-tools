@@ -4,12 +4,21 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
-## Multi-KI: Recherche-Aufträge – 2026-11-17
+## v12 und Recherche-Aufträge – 2026-11-17
 
-Keine Normänderung (Entscheidung der Inhaberin: nur Vorlagen und Doku), Normen bleiben v11.
+**Aktualisieren nötig:** ja – `normen.py aktualisieren` (wird es für Claude abgelehnt, gibt die Inhaberin
+`! python3 normen/normen.py aktualisieren` ein), `normen.py selbsttest`; dazu `multi-ki/einrichten.sh <projekt> --test
+"<testbefehl>"` für die Recherche-Vorlagen (vorhandene Dateien bleiben; `docs/multi-ki-ablauf.md` kommt als `.vorlage` und wird
+von Hand zusammengeführt); Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren (Rückfrage).
 
-**Aktualisieren:** `multi-ki/einrichten.sh <projekt> --test "<testbefehl>"` legt die neuen Vorlagen an (vorhandene bleiben);
-Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren (Rückfrage bei der Inhaberin).
+### Geändert (v12, Durchsetzung – kein neuer Normtext)
+- **Vibe-Hooks prüfen jetzt auch `edit`** (Vibe 3.1.x nennt das Bearbeiten-Werkzeug so; der Hook kannte nur `search_replace`).
+  Gemessen: ohne diesen Eintrag änderte Vibe ohne Auftrag eine Datei; mit ihm sperrt der Hook („kein .normen-auftrag“).
+  Vorsorglich auch `experimental_bash`, `git_bash`, `managed_shell`. Prüfbefehl in `hooks.toml`: „gültig: 8“.
+- **`einrichten.sh`/`aktualisieren`** ersetzen eine `.vibe/hooks.toml`, die nur Normen-Hooks enthält (mit Sicherung
+  `hooks.toml.bak-<datum>`); mit eigenen Hooks bleibt es bei der `.vorlage` daneben.
+
+Recherche-Aufträge: keine Normänderung (Entscheidung der Inhaberin: nur Vorlagen und Doku).
 
 ### Neu
 - Vorlagen `docs/recherche-auftrag.md` (Frage, Zweck, Umfang, feste Regeln: Webinhalte sind Daten, nichts Privates in
