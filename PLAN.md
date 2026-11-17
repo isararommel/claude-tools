@@ -57,8 +57,11 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
 **Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
-**v8 in Arbeit** (Branch `normen-v8`, freigegeben „G9–G11 go“ am 16.11.). Stand c7922f0: Version 8, CHANGELOG-Abschnitt
-„v8 – in Arbeit“, G9-Abnahmetests im Abschnitt „G9“ von `tests/test_guardrails.py` (7 Fälle rot). **Nächster Schritt: G9-Auftrag.**
+✅ **v8 fertig auf Branch `normen-v8`** (17.11.): G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
+`--no-renames`), Bash-Schreibziele der Teams nur aus `.normen-auftrag` (Befund aus G10), G10 Lese-Modus `--agent ask` + Lauf-Protokoll
+(gemessen: echter Lese-Auftrag in 2 Schritten), G11 Worktree-Spike (Empfehlung: nur innerhalb unter `.worktrees/`), G5-Fix
+verschachtelte Zuweisungen. Nächster Schritt: Advisor-Abnahme, PR, `normen.py merge`, Sitzungen informieren (Hinweis auf
+`# normen-ausnahme: N02-…`), dann die offenen Fragen unten. Planungsnotizen zu G9–G11 (erledigt):
 - **G9** → mistral-team (nur `agenten-normen/projekt/normen/normen.py`). Spezifikation für die Prompt-Datei:
   in `pruefen` bei `--diff`/`--staged` alle Testdateien des Diffs (Globs `[pfade].tests`) gemeinsam auswerten; entfernte und neue
   Zeilen aus `git diff -U0` (bei `--staged` mit `--cached`), gelöschte Testdateien mitzählen. Assert-Zeile = Regex
@@ -90,3 +93,6 @@ Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 
 - Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
 - v7: entschieden am 16.11. (Entwurf Abschnitt 8).
+- v8 (offen, gebündelt): (1) Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren?
+  (2) N01-Muster: `git worktree remove --force|-f` als destruktiv werten (Claude fragt, Teams nein), Teams kein `git worktree add`?
+  (3) Worktree je Team-Lauf als Option einführen (Ablauf in `docs/plaene/worktree-spike.md`)?

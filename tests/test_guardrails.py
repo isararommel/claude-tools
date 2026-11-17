@@ -85,6 +85,19 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in liest_geschuetzt:
         check(f"G3 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
 
+    # v8 (G10-Befund): Teams schreiben auch per Bash nur Pfade aus .normen-auftrag
+    for befehl in ["echo x > src.py", "printf x >> README.md", "sed -i '' s/a/b/ Makefile", "tee neu.txt < /dev/null",
+                   "cp /tmp/x neu.py", 'echo x > "$GIBT_ES_NICHT_V8/a.py"']:
+        check(f"v8 Team ohne Auftrag sperrt: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
+    for befehl in ["make test 2>&1 | tail -3", "git status --short", "python3 normen/normen.py pruefen --diff > /tmp/normen-v8.txt",
+                   "ls -la > /dev/null"]:
+        check(f"v8 Team ohne Auftrag ja: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
+    sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "mistral-team", "--dateien", "src.py", cwd=repo)
+    check("v8 Team mit Auftrag: erlaubte Datei ja", hook(repo, "mistral-team", "vibe", "echo x > src.py") == "ja")
+    check("v8 Team mit Auftrag: andere Datei nein", hook(repo, "mistral-team", "vibe", "echo x > andere.py") == "nein")
+    sh(sys.executable, "normen/normen.py", "auftrag", "--ende", cwd=repo)
+    check("v8 Claude unberührt", hook(repo, "claude", "claude", "echo x > src.py") == "ja")
+
     # Betriebsbefehle des Orchestrators: müssen nach jedem Paket „ja“ bleiben (Hook ist fail-closed)
     for befehl in ['bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh . --test "make test"',
                    "python3 normen/normen.py auftrag --rolle mistral-team --dateien a.py", "python3 normen/normen.py auftrag --ende",
@@ -404,6 +417,13 @@ with tempfile.TemporaryDirectory() as t:
                                                                          for z in aus.splitlines()), aus[-400:])
     (repo / "notizen.md").unlink()
     tdatei.write_text(basis)
+    # Umbenennen aus den Test-Globs heraus (git erkennt Umbenennungen) → Asserts gelten als entfernt
+    sh(*git, "mv", "tests/test_rechnen.py", "rechnen-umbenannt.txt", cwd=repo)
+    for art in ("--staged", "--diff"):
+        aus = sh(sys.executable, "normen/normen.py", "pruefen", art, cwd=repo).stdout
+        check(f"G9 aus tests/ umbenannt {art} → Fehler", any("Assert entfernt" in z and "] fehler:" in z
+                                                              for z in aus.splitlines()), aus[-400:])
+    sh(*git, "mv", "rechnen-umbenannt.txt", "tests/test_rechnen.py", cwd=repo)
     cdatei.write_text("def f():\n    assert x == 1\n    return 1\n")
 
 print(f"{OK} ok, {FAIL} Fehler")

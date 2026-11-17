@@ -115,9 +115,10 @@ Nutzerin ──► Claude Opus: versteht, plant, zerlegt
    - Die Prompt-Quelle muss im selben Befehl auflösbar sein (z. B. `RUN=…; vibe … --prompt-file "$RUN/prompt.md"`), sonst wird der Aufruf gesperrt.
    - *Hinweis:* Ein „fragen“ aus einem im Hintergrund laufenden Sub-Agenten erreicht die Inhaberin möglicherweise nicht und wirkt dann wie „nein“.
 4. **Delegieren.** Über das Agent-Tool mit `subagent_type: "mistral-team"` bzw. `"gemini-analyst"`. Unabhängige Aufträge parallel starten. Zwei Teams nie gleichzeitig dieselben Dateien ändern lassen.
-   - **Nur lesen:** Für Analysen ohne Shell „nur lesen“ in den Agent-Aufruf schreiben; die Schnittstelle startet Vibe dann mit
-     `--agent ask` (Shell und Schreiben abgelehnt, auch bei Vibes Sub-Agenten). Reviews, die Befehle brauchen, laufen normal mit
-     „Ändere keine Dateien.“ – ohne offenen Auftrag (`.normen-auftrag`) sperrt der Hook Schreibzugriffe der Teams.
+   - **Nur lesen:** Für Analysen ohne ändernde Befehle „nur lesen“ in den Agent-Aufruf schreiben; die Schnittstelle startet Vibe
+     dann mit `--agent ask` (Schreiben und nicht-lesende Shell-Befehle abgelehnt, auch bei Vibes Sub-Agenten; `ls`/`cat`/`grep`
+     laufen). Reviews, die Befehle brauchen, laufen normal mit „Ändere keine Dateien.“ – ohne offenen Auftrag (`.normen-auftrag`)
+     sperrt der Hook Schreibzugriffe der Teams (Datei-Werkzeuge und Bash).
    - **Lauf-Protokoll:** Die Schnittstelle wartet auf die eigene PID (nicht `pgrep`), meldet nie „gescheitert“, solange der Lauf
      lebt, startet keinen zweiten Lauf und liest eine leere Statusdatei als „sauber“. Während ein Team an einem Auftrag arbeitet,
      ändert Claude keine weiteren Dateien im Projekt (sonst meldet `pruefen --diff` des Teams N06-Fehler).

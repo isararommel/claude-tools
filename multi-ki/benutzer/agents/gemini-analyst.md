@@ -27,6 +27,8 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    ```
    ALLOW='{"permissions":{"allow":["command(make test)","command(make test*)","command(git log)","command(git log*)","command(git diff)","command(git diff*)","command(git status)","command(git status*)","command(git show*)","command(swift build)","command(swift build*)","command(swift test)","command(swift test*)","command(python3 normen/normen.py pruefen)","command(python3 normen/normen.py pruefen*)","command(ls)","command(ls *)","command(cat *)","command(head *)","command(tail *)","command(wc *)","command(grep *)","command(rg *)","command(pwd)","command(tree)","command(tree *)"]}}'
    ```
+   `RUN` und `ALLOW` **im selben Befehl** wie `agy` zuweisen, `RUN` mit wörtlichem Pfad (`RUN=<lauf-ordner>; ALLOW='…'; agy …`):
+   Der Normen-Hook prüft die Prompt-Datei vor dem Start und sperrt, wenn er `$RUN` nicht auflösen kann.
    Wichtig: `command(x*)` deckt den Befehl ohne Argumente NICHT ab, deshalb stehen beide Formen in der Liste. Die Liste nie kürzen. `--settings` ERSETZT die Allow-Liste aus `~/.gemini/antigravity-cli/settings.json` (geprüft 15.11.2026 im agy-Protokoll), deshalb stehen die Lesebefehle hier noch einmal; `find` bewusst nicht (`-delete`/`-exec`).
 
    **Analyse (Standard, nur lesen):** In den Prompt „Ändere keine Dateien.“ schreiben.

@@ -4,15 +4,33 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
-## v8 – in Arbeit
+## v8 – 2026-11-17
 
-**Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)
+**Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`; Agent-Definitionen aus
+`multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren – Rückfrage bei der Inhaberin)
 
 ### Neu
+- **Teams schreiben auch per Bash nur Auftragspfade:** Bash-Schreibziele (Umleitung, `tee`, `sed -i`, `cp`, …) im Projekt sind für
+  Rollen mit Auftragspflicht nur erlaubt, wenn sie in `.normen-auftrag` stehen; ohne Auftrag gesperrt, nicht bestimmbares Ziel
+  gesperrt (bisher galt das nur für Datei-Werkzeuge – gefunden beim Messen von G10).
+- **Lese-Modus und Lauf-Protokoll (G10):** reine Lese-Aufträge an Vibe mit `--agent ask` (Schreiben und nicht-lesende Befehle
+  abgelehnt, auch bei Sub-Agenten; gemessen mit Vibe 3.1.2); Schnittstelle wartet auf die eigene PID statt `pgrep`, meldet nie
+  „gescheitert“ bei laufendem Prozess, leere Statusdatei = sauber; `RUN` im selben Befehl wie `vibe`/`agy`.
+- **Spikes:** `docs/plaene/sandbox-spike.md` (G7, Entscheidung: vibe/agy ausnehmen, Sandbox nicht aktiviert) und
+  `docs/plaene/worktree-spike.md` (G11, Worktree je Team-Lauf als Option, nur innerhalb des Projekts).
 - **Asserts in Tests (G9):** `pruefen --diff`/`--staged` vergleicht entfernte und neue Assert-Zeilen (`assert`, `assertX(`,
   `expect(`, `check(`, `XCTAssert…(`, `pytest.raises`) über alle Testdateien des Diffs: geänderte Asserts → Hinweis, ersatzlos
   entfernte → Fehler. Jede Zeile `normen-ausnahme: N02-TESTS-SIND-TABU – Begründung` im Diff entschuldigt genau ein entferntes Assert.
+  Die Begründung zählt nur als Kommentar (`# …` / `// …`). Umbenennen aus den Test-Globs heraus zählt als Entfernen.
   Grenze: Erwartungswerte in Tabellenzeilen (z. B. `("befehl", "ja")`) sind keine Assert-Zeilen und werden nicht erkannt.
+
+### Geändert
+- G5: verschachtelte Zuweisungen werden aufgelöst (`G=/x; RUN="$G/lauf"; vibe … --prompt-file "$RUN/prompt.md"`).
+
+### Hinweise
+- Sperrt G9 einen Commit wegen eines bewusst entfernten Tests: Kommentar `# normen-ausnahme: N02-TESTS-SIND-TABU – Begründung`
+  im selben Diff (je entferntem Assert eine Zeile).
+- Offen (Rückfrage): `git worktree remove --force` als destruktiv werten (heute „ja“, löscht ungesicherte Team-Arbeit).
 
 ---
 

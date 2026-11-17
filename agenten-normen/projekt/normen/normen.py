@@ -644,6 +644,23 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if any(rel == s.rstrip("/") or rel.startswith(s) for s in GESCHUETZT):
                 pruefe("einstellungen", f"N10-KEIN-COMMIT-DURCH-TEAMS: Bash schreibt in Normen/Agenten-Einstellungen {rel}")
                 break
+        if rinfo.get("auftrag_pflicht"):  # v8: Bash-Schreibziele im Projekt nur aus .normen-auftrag (wie Edit/Write)
+            globs = _auftrag_globs()
+            for ziel in _schreibziele(cmd, cwd):
+                if ziel is None:
+                    gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: Bash-Schreibziel nicht bestimmbar – Rolle "
+                                            f"{rolle} schreibt nur Pfade aus .normen-auftrag"))
+                    break
+                try:
+                    rel = Path(os.path.realpath(ziel)).relative_to(ROOT).as_posix()
+                except ValueError:
+                    continue  # außerhalb des Projekts: eigene Prüfungen (Lauf-Ordner, außerhalb-schreiben)
+                if globs is None:
+                    gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: kein .normen-auftrag – Rolle {rolle} darf nichts schreiben ({rel})"))
+                    break
+                if not any(passt(rel, g) for g in globs):
+                    gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Bash schreibt {rel} – steht nicht in .normen-auftrag"))
+                    break
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
@@ -1648,8 +1665,10 @@ _ASSERT_RX = re.compile(r"\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCT
 
 
 def _diff_zeilen(basis: str | None, staged: bool) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Entfernte und hinzugefügte Zeilentexte je Datei (git diff --unified=0; untracked = ganze Datei neu)."""
-    args = ["diff", "--unified=0", "--no-color", "--no-ext-diff"] + (["--cached"] if staged else [basis or "HEAD"])
+    """Entfernte und hinzugefügte Zeilentexte je Datei (git diff --unified=0; untracked = ganze Datei neu).
+    --no-renames: eine aus den Test-Globs umbenannte Datei zählt als entfernt + neu (sonst fehlen die entfernten Zeilen)."""
+    args = (["diff", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames"]
+            + (["--cached"] if staged else [basis or "HEAD"]))
     weg: dict[str, list[str]] = {}
     neu: dict[str, list[str]] = {}
     datei = None
