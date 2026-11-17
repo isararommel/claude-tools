@@ -12,7 +12,7 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 9
+version = 10
 stand = "2026-11-16"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
@@ -31,7 +31,7 @@ ausnahme_marker = "normen-ausnahme:"
 id = "N01-KEINE-ZERSTOERUNG"
 stufe = "muss"
 titel = "Keine destruktiven Befehle"
-prompt = "Führe niemals destruktive Befehle aus (rm -r/-f, rmdir, git reset --hard, git clean, git checkout --/restore auf fremde Dateien, git push --force, DROP/TRUNCATE, docker volume/system prune, dd, mkfs). Schlage den Befehl vor und halte an. Ausnahme: rm auf Pfade aus projekt.toml [pfade].loeschbar (z. B. .venv, build, Temp-Ordner) ist erlaubt. Claude (Orchestrator) darf im Projekt außerdem löschen, wenn alle Ziele aus git wiederherstellbar sind (getrackt, unverändert); sonst erst committen, dann löschen."
+prompt = "Führe niemals destruktive Befehle aus (rm -r/-f, rmdir, git reset --hard, git clean, git checkout --/restore auf fremde Dateien, git push --force, git worktree remove --force, DROP/TRUNCATE, docker volume/system prune, dd, mkfs). Schlage den Befehl vor und halte an. Ausnahme: rm auf Pfade aus projekt.toml [pfade].loeschbar (z. B. .venv, build, Temp-Ordner) ist erlaubt. Claude (Orchestrator) darf im Projekt außerdem löschen, wenn alle Ziele aus git wiederherstellbar sind (getrackt, unverändert); sonst erst committen, dann löschen."
 begruendung = "Dokumentierte Datenverluste: Claude Code rm -rf auf $HOME (leere Variable, trap), Gemini CLI überschreibt Dateien nach still gescheitertem mkdir, Antigravity löscht Laufwerk D:, Replit-Agent löscht Produktionsdatenbank trotz Code-Freeze im Chat."
 quellen = ["anthropics/claude-code#10077 #12637 #75859 #88462", "google-gemini/gemini-cli#4586", "Antigravity D:-Vorfall 12/2025", "Replit 07/2025"]
 durchsetzung = ["hook", "pruefen"]

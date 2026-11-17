@@ -40,6 +40,8 @@ def hook(repo, rolle, werkzeug, befehl):
 # Attrappen: sperrt = Hook-Meldung mit Marke, keine Datei; durch = Datei angelegt; nichts = weder noch.
 CLAUDE = r"""#!/usr/bin/env bash
 echo "$*" >> "$ATTRAPPE_LOG"
+# erstnichts: erster Aufruf wie nichts, jeder weitere wie sperrt (Wiederholung bei „unklar“, v10)
+if [ "$NORMEN_ATTRAPPE" = erstnichts ]; then if [ -e "$ATTRAPPE_LOG.n" ]; then NORMEN_ATTRAPPE=sperrt; else touch "$ATTRAPPE_LOG.n"; NORMEN_ATTRAPPE=nichts; fi; fi
 case "$NORMEN_ATTRAPPE" in
   sperrt) echo '{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":"PreToolUse:Bash hook error: Agenten-Normen: SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt."}]}}' ;;
   durch) mkdir -p .normen && touch .normen/normen-koeder.txt && echo '{"type":"result","result":"FERTIG"}' ;;
@@ -48,6 +50,8 @@ esac
 """
 VIBE = r"""#!/usr/bin/env bash
 echo "$*" >> "$ATTRAPPE_LOG"
+# erstnichts: erster Aufruf wie nichts, jeder weitere wie sperrt (Wiederholung bei „unklar“, v10)
+if [ "$NORMEN_ATTRAPPE" = erstnichts ]; then if [ -e "$ATTRAPPE_LOG.n" ]; then NORMEN_ATTRAPPE=sperrt; else touch "$ATTRAPPE_LOG.n"; NORMEN_ATTRAPPE=nichts; fi; fi
 OUT=""; while [ $# -gt 0 ]; do [ "$1" = "--output-dir" ] && OUT="$2"; shift; done
 case "$NORMEN_ATTRAPPE" in
   sperrt) mkdir -p "$OUT/session/journal" && echo '{"hook":"Agenten-Normen: SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt."}' > "$OUT/session/journal/1.jsonl"; echo "blockiert" ;;
@@ -106,6 +110,14 @@ with tempfile.TemporaryDirectory() as t:
         check(f"{werkzeug} durch → Köder-Datei danach entfernt", not koeder.exists())
         r = selbsttest("nichts", "--werkzeug", werkzeug)
         check(f"{werkzeug} nichts → Exit 1, unklar", r.returncode == 1 and f"{werkzeug}: unklar" in r.stdout, r.stdout + r.stderr)
+    for werkzeug in ("claude", "vibe"):  # v10: bei „unklar“ einmal wiederholen
+        Path(f"{log}.n").unlink(missing_ok=True)
+        r = selbsttest("erstnichts", "--werkzeug", werkzeug)
+        check(f"{werkzeug} erst unklar, dann gesperrt → Exit 0", r.returncode == 0 and f"{werkzeug}: gesperrt" in r.stdout
+              and "Wiederholung" in r.stdout, r.stdout + r.stderr)
+        r = selbsttest("durch", "--werkzeug", werkzeug)
+        check(f"{werkzeug} durch → keine Wiederholung", "Wiederholung" not in r.stdout and "NICHT GESPERRT" in r.stdout,
+              r.stdout + r.stderr)
     r = selbsttest("sperrt")
     check("ohne --werkzeug: beide geprüft", r.returncode == 0 and "claude: gesperrt" in r.stdout and "vibe: gesperrt" in r.stdout,
           r.stdout + r.stderr)
@@ -122,6 +134,7 @@ with tempfile.TemporaryDirectory() as t:
     leer.mkdir()
     r = selbsttest("sperrt", "--werkzeug", "vibe", pfad=f"{leer}:/usr/bin:/bin")
     check("vibe fehlt → unklar, Exit 1", r.returncode == 1 and "vibe: unklar" in r.stdout, r.stdout + r.stderr)
+    check("vibe fehlt → keine Wiederholung", "Wiederholung" not in r.stdout, r.stdout)
     check("Hook: selbsttest für Claude ja", hook(repo, "claude", "claude", "python3 normen/normen.py selbsttest") == "ja")
 
 print(f"{OK} ok, {FAIL} Fehler")

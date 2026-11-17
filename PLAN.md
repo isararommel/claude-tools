@@ -59,12 +59,11 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
 ✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
-**Nächstes (je mit Rückfrage):** Selbsttest-Wiederholung bei „unklar“ (siehe offene Fragen), Worktree-Option (später),
-Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`, Rückmeldungen aus den Projekten sichten.
-Rückmeldungen nach v9 (für das nächste Release bündeln): N01-Prompt nennt `git worktree remove --force` noch nicht (Normtext →
-Advisor, Version); `normen.py merge` direkt nach `git push` scheitert gelegentlich („lokaler Stand ≠ PR-Kopf“, GitHub kennt den
-neuen Kopf noch nicht) → kurze begrenzte Wiederholung im Prüftor; `normen.py aktualisieren` sperrt der Auto-Modus-Klassifizierer für
-Claude (die Inhaberin führt es mit `!` aus) – in Doku/Benachrichtigung nennen.
+✅ **v10** (Branch `normen-v10`, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
+(keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
+Sitzungen informieren.
+**Nächstes (je mit Rückfrage):** Worktree-Option (später), Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`,
+Rückmeldungen aus den Projekten sichten.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
 nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
 Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
@@ -106,5 +105,4 @@ Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
 - v8, entschieden am 17.11.: (1) Agent-Definitionen kopieren – ja, erledigt (alle drei gleich der Quelle). (2) N01-Muster
   `git worktree remove --force` / Teams kein `git worktree add` – ja, umgesetzt in v9. (3) Worktree je Team-Lauf – später
   (vorher echter Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `remove` löscht git-ignorierte Dateien).
-- Selbsttest schwankt bei Vibe („unklar“ beim ersten, „gesperrt“ beim zweiten Lauf, gemeldet aus einem Projekt): offen, ob
-  `normen.py selbsttest` bei „unklar“ einmal selbst wiederholen soll (nie „NICHT GESPERRT“ überdecken).
+- Selbsttest schwankt bei Vibe: entschieden 17.11. („mach das“), umgesetzt in v10 (einmalige Wiederholung bei „unklar“).

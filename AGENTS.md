@@ -1,10 +1,10 @@
 <!-- normen:anfang (erzeugt von normen/normen.py sync – nicht von Hand ändern) -->
-# Agenten-Normen (Kurzfassung, v9, Stand 2026-11-16)
+# Agenten-Normen (Kurzfassung, v10, Stand 2026-11-16)
 
 Gilt für alle Agenten in diesem Projekt (Claude Code, Mistral Vibe, Antigravity/Gemini, lokale Modelle). Volltext mit Begründungen und Quellen: `normen/normen.toml`; Zuständigkeiten: `normen/rollen.toml`; Projektwerte: `normen/projekt.toml`. Bei Widerspruch gilt die strengere Regel.
 
 ## Muss (technisch durchgesetzt, soweit möglich)
-- **N01-KEINE-ZERSTOERUNG – Keine destruktiven Befehle:** Führe niemals destruktive Befehle aus (rm -r/-f, rmdir, git reset --hard, git clean, git checkout --/restore auf fremde Dateien, git push --force, DROP/TRUNCATE, docker volume/system prune, dd, mkfs). Schlage den Befehl vor und halte an. Ausnahme: rm auf Pfade aus projekt.toml [pfade].loeschbar (z. B. .venv, build, Temp-Ordner) ist erlaubt. Claude (Orchestrator) darf im Projekt außerdem löschen, wenn alle Ziele aus git wiederherstellbar sind (getrackt, unverändert); sonst erst committen, dann löschen.
+- **N01-KEINE-ZERSTOERUNG – Keine destruktiven Befehle:** Führe niemals destruktive Befehle aus (rm -r/-f, rmdir, git reset --hard, git clean, git checkout --/restore auf fremde Dateien, git push --force, git worktree remove --force, DROP/TRUNCATE, docker volume/system prune, dd, mkfs). Schlage den Befehl vor und halte an. Ausnahme: rm auf Pfade aus projekt.toml [pfade].loeschbar (z. B. .venv, build, Temp-Ordner) ist erlaubt. Claude (Orchestrator) darf im Projekt außerdem löschen, wenn alle Ziele aus git wiederherstellbar sind (getrackt, unverändert); sonst erst committen, dann löschen.
 - **N02-TESTS-SIND-TABU – Tests nicht ändern, überspringen oder abschwächen:** Ändere, überspringe oder schwäche keine bestehenden Tests ab und kodiere keine Sonderfälle für Tests. Wenn ein Test falsch erscheint: anhalten und melden. Neue Tests nur, wenn der Auftrag sie verlangt.
 - **N03-KEINE-GEHEIMNISSE – Keine Geheimnisse lesen, ausgeben oder einchecken:** Lies, zeige oder schreibe niemals Geheimnisse (.env, *.secret, Schlüssel, Tokens, Passwörter). Geheimnisse entstehen auf dem Server bzw. liegen im Schlüsselbund. Lesen und Schreiben von ~/.ssh und ~/.config/gh ist ebenfalls verboten.
 - **N04-BELEG-STATT-BEHAUPTUNG – „Fertig“ nur mit ausgeführtem Test:** Melde Erfolg nur mit dem ausgeführten Testbefehl und seinem Ergebnis. Prüfe nach Datei- und Verzeichnisoperationen, ob sie wirklich geklappt haben (ls, test -d). Behaupte nichts, was du nicht ausgeführt hast.

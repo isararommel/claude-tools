@@ -4,6 +4,20 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v10 – 2026-11-17
+
+**Aktualisieren nötig:** ja (`normen.py aktualisieren` – wird es für Claude abgelehnt, gibt die Inhaberin `! python3 normen/normen.py aktualisieren` ein; dann `normen.py selbsttest`)
+
+### Geändert
+- **N01-Text:** nennt `git worktree remove --force` (die Sperre gilt seit v9; Rückmeldung aus einem Projekt).
+- **`normen.py selbsttest`:** lief ein Werkzeug, ohne den Köder zu versuchen („unklar“, keine Hook-Meldung), wird es einmal wiederholt (nicht bei fehlendem Werkzeug oder Zeitlimit); bleibt es „unklar“, der Inhaberin melden;
+  „NICHT GESPERRT“ wird nie wiederholt.
+- **`normen.py merge`:** kennt GitHub den gerade gepushten PR-Kopf noch nicht, wartet das Prüftor bis zu dreimal 5 Sekunden.
+- **Doku:** Wird `aktualisieren` für Claude abgelehnt (in einem Projekt im Auto-Modus beobachtet), führt es die Inhaberin mit `!` aus.
+- `normen.py merge`: der Wartepfad ist nicht durch Tests abgedeckt (Kopf-Prüfung danach unverändert).
+
+---
+
 ## v9 – 2026-11-17
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren`, dann `normen.py selbsttest`)

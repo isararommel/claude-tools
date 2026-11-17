@@ -199,6 +199,10 @@ Aktualisierungen aus `claude-tools` werden kontrolliert ins Projekt übernommen:
 python3 normen/normen.py aktualisieren [--quelle <pfad>]
 ```
 
+- **Wird der Befehl für Claude abgelehnt** (in einem Projekt im Auto-Modus beobachtet – er ändert Einstellungen wie
+  `.claude/settings.json`), bittet Claude die Inhaberin, `! python3 normen/normen.py aktualisieren` selbst einzugeben; danach
+  `python3 normen/normen.py selbsttest` (bei „unklar“ wiederholt er einmal selbst; bleibt es „unklar“, der Inhaberin melden).
+
 - **Bedeutung von `normen/herkunft.toml`:** Diese Datei dokumentiert den Versionsstand, den Quell-Commit, das Einspieldatum sowie SHA256-Prüfsummen der gemeinsamen Dateien (`normen.toml`, `rollen.toml`, `normen.py`).
 - **Keine manuellen Änderungen:** Die gemeinsamen Vorlagendateien dürfen im Projekt nicht von Hand bearbeitet werden. Weicht eine Prüfsumme ab, verweigert `normen.py aktualisieren` das Überschreiben, um versehentlichen Datenverlust zu verhindern. Projektspezifische Anpassungen gehören ausschließlich in `normen/projekt.toml`.
 - **Abnahme:** Nach jeder Aktualisierung müssen der Testbefehl und `python3 normen/normen.py pruefen --diff` fehlerfrei durchlaufen.
