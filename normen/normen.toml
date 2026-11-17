@@ -12,7 +12,7 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 10
+version = 11
 stand = "2026-11-16"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
@@ -40,7 +40,7 @@ faehigkeiten = ["loeschen"]
   ziel = "befehl"
   faehigkeit = "loeschen"
   loeschbar_ausnehmen = true  # einfaches rm, dessen Ziele alle in [pfade].loeschbar liegen
-  regex = '(^|[;&|`(\s])(sudo\s+)?(/(usr/)?bin/)?(rm\s+(-[a-zA-Z]*[rRf]|--recursive|--force)|rmdir\b|shred\b|unlink\b|find\b[^;&|]*\s-delete\b|mkfs|dd\s+if=|git\s+(-C\s+\S+\s+)?(reset\s+--hard|clean\s+-[a-zA-Z]*f|checkout\s+--\s|restore\b|branch\s+-D|push\s[^;&|]*(--force|\s-f\b))|docker\s+(volume\s+rm|system\s+prune|volume\s+prune)|(DROP|TRUNCATE)\s+(TABLE|DATABASE))'
+  regex = '(?<!docker)(?<!podman)(?<!container)(?<!compose)(^|[;&|`(\s])(sudo\s+)?(/(usr/)?bin/)?(rm\s+(-[a-zA-Z]*[rRf]|--recursive|--force)|rmdir\b|shred\b|unlink\b|find\b[^;&|]*\s-delete\b|mkfs|dd\s+if=|git\s+(-C\s+\S+\s+)?(reset\s+--hard|clean\s+-[a-zA-Z]*f|checkout\s+--\s|restore\b|branch\s+-D|push\s[^;&|]*(--force|\s-f\b))|docker\s+(volume\s+rm|system\s+prune|volume\s+prune)|(DROP|TRUNCATE)\s+(TABLE|DATABASE))'
   meldung = "Destruktiver Befehl – nur {inhaberin} (bzw. mit Rückfrage)."
   [[norm.muster]]
   ziel = "befehl"

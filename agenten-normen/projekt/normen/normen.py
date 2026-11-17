@@ -1185,10 +1185,10 @@ _SKRIPT_AUFRUF_RX = re.compile(
     r"|(^|\s)[^\s;|&()]*/[^\s;|&()]*(\s|$)")
 
 
-def _skript_pfad(wort: str, basis: str | None) -> tuple[Path | None, str | None]:
-    """Skriptpfad aus einem Aufrufwort auflösen (expanduser/expandvars, relativ zur Basis, realpath);
-    (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
-    roh = os.path.expanduser(os.path.expandvars(wort))
+def _skript_pfad(wort: str, basis: str | None, zuw: dict[str, str] | None = None) -> tuple[Path | None, str | None]:
+    """Skriptpfad aus einem Aufrufwort auflösen (Zuweisungen aus demselben Befehl, dann Umgebung; expanduser; relativ zur
+    Basis; realpath); (None, grund) bei unaufgelöster Variable oder unbekannter Basis."""
+    roh = os.path.expanduser(_var_ersetzen(wort, zuw or {}))
     if "$" in roh:
         return None, f"S06-CODE-MODE: Skriptpfad mit unaufgelöster Variable ({wort}) – nicht prüfbar"
     p = Path(roh)
@@ -1257,10 +1257,10 @@ def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str) -> l
 
 
 def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int, basis: str | None,
-                       aktion: str, prog: str = "") -> list[tuple[str, str]]:
+                       aktion: str, prog: str = "", zuw: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """Datei-Argument eines Aufrufs (python/bash|sh|zsh/source/. sowie node|perl|ruby) außerhalb des Projekts
     prüfen. aktion: "python" (per AST), "shell" (Inhalt als ein Befehl), "fragen" (nicht prüfbar)."""
-    datei, grund = _skript_pfad(wort, basis)
+    datei, grund = _skript_pfad(wort, basis, zuw)
     if grund:
         return [("fragen", grund)]
     gate = _skript_gate(cfg, datei, wort, cmd)
@@ -1356,7 +1356,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python")
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuw)
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
         while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
@@ -1378,13 +1378,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell")
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuw)
     if prog in ("source", "."):
         if rest and rest[0].startswith("-") and rest[0] != "-":
             return []
         if (b := stdin(0)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell")
+        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuw)
     if prog in ("node", "perl", "ruby"):
         j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
         while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
@@ -1396,13 +1396,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
         if b is not None:
             return []  # interaktiv ohne Eingabe
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog)
+        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuw)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
         voll = os.path.expanduser(w[i])
         if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
                 os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
             return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
-        datei, grund = _skript_pfad(w[i], basis)
+        datei, grund = _skript_pfad(w[i], basis, zuw)
         if grund:
             return [("fragen", grund)]
         gate = _skript_gate(cfg, datei, w[i], cmd)

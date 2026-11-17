@@ -59,6 +59,9 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
 ✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
+✅ **v11** (Branch `normen-v11`, 17.11., „ja, so machen“): N01 `rm -f` nicht hinter docker/podman/container/compose;
+Skriptpfade `"$W/x.sh"` mit Zuweisungen aus demselben Befehl; N03 für `*.secret` in Temp bleibt (Entscheidung). Nach Merge
+Sitzungen informieren.
 ✅ **v10 gemergt** (PR #11, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
 (keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
 Sitzungen informiert (vier erreicht; die Sitzung im Yoga-Projekt war nicht erreichbar).

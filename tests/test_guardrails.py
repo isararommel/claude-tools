@@ -239,6 +239,17 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in (f"bash {hart}", f"bash {umgeht}", f"python3 {py_ohne_endung}", f"node {js}", f"{hart}"):
         check(f"G4-B vibe nein: {befehl[-60:]!r}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
     (repo / "werkzeug.sh").unlink()
+    # v11: Skriptpfad mit Variable aus demselben Befehl wird aufgelöst und geprüft
+    for befehl, soll in [(f'W={lauf}; bash "$W/hart.sh"', "fragen"), (f'W={lauf}; bash "$W/sauber.sh"', "ja"),
+                         (f'W={lauf}; "$W/hart.sh"', "fragen"), (f'W={lauf} && python3 "$W/auswerten"', "nein"),
+                         ('bash "$W_GIBT_ES_NICHT_V11/x.sh"', "fragen")]:
+        check(f"v11 {soll}: {befehl[-50:]!r}", hook(repo, "claude", "claude", befehl) == soll)
+    # v11: Container-rm ist kein Datei-Löschen (N01-Muster für rm -f greift nicht hinter docker/podman)
+    for befehl in ["docker rm -f probe-v11", "docker container rm -f probe-v11", "podman rm -f probe-v11",
+                   "docker compose rm -f -s", "docker run -d --name probe-v11 alpine sleep 60 && docker rm -f probe-v11"]:
+        check(f"v11 claude ja: {befehl}", hook(repo, "claude", "claude", befehl) == "ja")
+    for befehl in ["rm -f /etc/hosts", "docker volume rm daten", "docker system prune -f", "docker rm -f x; rm -rf /etc/x"]:
+        check(f"v11 bleibt fragen: {befehl}", hook(repo, "claude", "claude", befehl) == "fragen")
 
     # Entscheidung 10: Fehlalarm bei Arbeitsordner in [pfade].lesbar_extern
     extern = Path(t) / "werkzeuge"
