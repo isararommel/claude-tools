@@ -59,16 +59,19 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
 ✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
 fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
-✅ **v11** (Branch `normen-v11`, 17.11., „ja, so machen“): Container-`rm` je Teilbefehl keine Datei-Löschung; Skriptpfade mit
+✅ **v11 gemergt** (PR #13, 17.11., „ja, so machen“): Container-`rm` je Teilbefehl keine Datei-Löschung; Skriptpfade mit
 eindeutigen Zuweisungen aus vorangehenden Teilbefehlen; mehrfach zugewiesene Variablen und Befehlsersetzung nie auflösen;
-Shell-Schlüsselwörter (`do`, `then` …) vor Befehlen geprüft; N03 für `*.secret` in Temp bleibt (Entscheidung). Nach Merge
-Sitzungen informieren (meldendes Projekt: Skript bleibt bei `*.secret` gesperrt, nach Umbenennen Rückfrage; Teams dürfen
-jetzt Container entfernen; die Sitzung, die v10 verpasst hat, auch zu v10).
+Shell-Schlüsselwörter (`do`, `then` …) vor Befehlen geprüft; N03 für `*.secret` in Temp bleibt (Entscheidung). Vier Sitzungen
+informiert.
 
-### 1a. Recherche-Aufträge *(freigegeben 17.11., Plan auch in `~/.claude/plans/zany-orbiting-sifakis.md`)*
+### 1a. Recherche-Aufträge *(freigegeben 17.11.)* – ✅ umgesetzt auf Branch `recherche`
 
 Entscheidungen der Inhaberin: **nur Vorlagen und Doku, keine neue Norm**; Ergebnisse **im Projekt unter `docs/recherche/`**;
-Anbieter **nach Fall, wichtige Fragen doppelt** (zwei Anbieter parallel, Claude vergleicht).
+Anbieter **nach Fall, wichtige Fragen doppelt** (zwei Anbieter parallel, Claude vergleicht). Erledigt: Spike, Vorlagen, Ablauf,
+einrichten.sh, Agent-Definitionen (Quelle), Abnahme-Probe mit zwei Anbietern (EOL-Frage, Bericht nach Vorlage, Stichprobe).
+Offen: agy scheiterte zweimal beim **Anlegen neuer Dateien** im Modus accept-edits an einer unbekannten Shell-Freigabe („a tool
+required the command permission“) – vor dem nächsten Doku-Auftrag mit neuen Dateien klären; Kopie der Agent-Definitionen nach
+`~/.claude/agents/` (Rückfrage). Planungsnotizen (erledigt):
 1. **Spike** (Opus, Wegwerf-Ordner): kurzer öffentlicher Recherche-Auftrag an Vibe (`web_search`/`web_fetch` – Rückfrage nötig?
    Normen-Hook bei diesen Werkzeugen?), agy (Google-Suche – Freigabe in `ALLOW` nötig? liefert es URLs/Daten?), Claude
    (`deep-research`/Websuche). Bericht `docs/plaene/recherche-spike.md` (gemessen/dokumentiert/offen).

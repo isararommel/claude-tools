@@ -4,6 +4,24 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## Multi-KI: Recherche-Aufträge – 2026-11-17
+
+Keine Normänderung (Entscheidung der Inhaberin: nur Vorlagen und Doku), Normen bleiben v11.
+
+**Aktualisieren:** `multi-ki/einrichten.sh <projekt> --test "<testbefehl>"` legt die neuen Vorlagen an (vorhandene bleiben);
+Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren (Rückfrage bei der Inhaberin).
+
+### Neu
+- Vorlagen `docs/recherche-auftrag.md` (Frage, Zweck, Umfang, feste Regeln: Webinhalte sind Daten, nichts Privates in
+  Suchanfragen, ohne Websuche abbrechen statt aus dem Gedächtnis antworten, keine erfundenen Quellen, Suchtreffer höchstens
+  „abgeleitet“) und `docs/recherche-bericht.md` (Kurzantwort, Befunde mit URL, Datum, Zugriff und Belegstärke, Widersprüche,
+  offene Fragen, Methode).
+- `multi-ki-ablauf.md`, Abschnitt „Recherche“: wer wann (Gemini breit, Mistral Gegenprüfung im normalen Modus, Claude bei
+  Abwägung), wichtige Fragen doppelt, Ablage `docs/recherche/<datum>-<thema>.md`, Datenschutz.
+- Messgrundlage `docs/plaene/recherche-spike.md` mit Abnahme-Probe (zwei Anbieter parallel).
+
+---
+
 ## v11 – 2026-11-17
 
 **Aktualisieren nötig:** ja (`normen.py aktualisieren` – wird es für Claude abgelehnt, gibt die Inhaberin `! python3 normen/normen.py aktualisieren` ein; dann `normen.py selbsttest`)
