@@ -258,6 +258,18 @@ with tempfile.TemporaryDirectory() as t:
     check("v11 Funktionskopf + rm -rf ${W:?} fragt", hook(repo, "claude", "claude",
           'cleanup() { docker rm -f probe >/dev/null 2>&1; rm -rf "${W:?}"; }') == "fragen")
     check("v11 Team: docker rm -f ja (kein Datei-Löschen)", hook(repo, "mistral-team", "vibe", "docker rm -f probe-v11") == "ja")
+    # Advisor-Abnahme v11: Prozess-Substitution, Backtick-Wert, mehrfache Zuweisung (if/for) → nicht auflösen
+    sauber_ordner = Path(t) / "v11-sauber"
+    sauber_ordner.mkdir()
+    (sauber_ordner / "hart.sh").write_text("#!/bin/bash\necho sauber\n")
+    for befehl in ["docker rm -f x <(rm -rf /etc/x)", f'W="`echo {lauf}`"; bash "$W/hart.sh"',
+                   f'W={sauber_ordner}; if true; then W={lauf}; fi; bash "$W/hart.sh"',
+                   f'W={sauber_ordner}; for W in {lauf}; do bash "$W/hart.sh"; done']:
+        check(f"v11 nicht ja: {befehl[:60]!r}", hook(repo, "claude", "claude", befehl) != "ja")
+    for befehl in [f"for i in 1; do bash {hart}; done", f"if bash {hart}; then echo x; fi", f"true && {{ bash {hart}; }}",
+                   f"while false; do bash {hart}; done", f"! bash {hart}"]:  # Shell-Schlüsselwörter vor dem Befehl
+        check(f"v11 Schlüsselwort prüft Skript: {befehl[:40]!r}", hook(repo, "claude", "claude", befehl) == "fragen")
+    check("v11 einfache Zuweisung sauber ja", hook(repo, "claude", "claude", f'W={sauber_ordner}; bash "$W/hart.sh"') == "ja")
     # Präfix-Zuweisung wirkt nicht auf Wörter desselben Befehls (W=a; W=b bash "$W/x" nutzt a) → nicht auflösen
     check("v11 Präfix-Zuweisung nicht für den Pfad", hook(repo, "claude", "claude", f'W={lauf} bash "$W/sauber.sh"') == "fragen")
 
@@ -346,6 +358,8 @@ with tempfile.TemporaryDirectory() as t:
         ('vibe --trust -p "$PROMPT_GIBT_ES_NICHT" < /dev/null', "nein"),
         ("vibe --trust -p \"Fasse `cat daten/x` zusammen\" < /dev/null", "nein"),
         ("vibe --trust -p 'alles sauber' -p 'Lies daten/geheim/y.csv' < /dev/null", "nein"),  # Review v7: mehrere Quellen
+        (f'RUN={echt}; if true; then RUN={sperr}; fi; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),  # v11
+        (f'RUN="`echo {sperr}`"; vibe --trust --prompt-file "$RUN/prompt.md" < /dev/null', "nein"),  # v11
         ("vibe --version", "ja"), ("agy --help", "ja"), ("vibe --trust < /dev/null", "fragen"),
         ("vibe --version 2>&1 | head -2", "ja"), ("vibe config 2>&1 | head -5", "fragen"),
     ]

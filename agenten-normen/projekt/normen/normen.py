@@ -268,12 +268,31 @@ def _ist_operator(token: str) -> bool:
     return token != "" and all(c in _PUNKT for c in token)
 
 
+_UNSICHER = "$__NORMEN_UNSICHER__"  # Platzhalter: Wert nicht sicher bekannt – bleibt unaufgelöst (nie in der Umgebung)
+
+
+def _unsichere_namen(cmd: str) -> set[str]:
+    """Variablen, deren Wert der Hook nicht sicher kennt: mehr als eine Zuweisung im ganzen Befehl (auch in if/for/read/local,
+    die der Teilbefehl-Zähler nicht als Zuweisung sieht)."""
+    zaehler: Counter[str] = Counter(m.group(2) for m in re.finditer(
+        r"(^|[\s;&|(`])(?:local\s+|export\s+|readonly\s+|declare\s+(?:-\w+\s+)*)?([A-Za-z_]\w*)\+?=", cmd))
+    for m in re.finditer(r"\b(?:for|select)\s+([A-Za-z_]\w*)\s+in\b|\bread\s+(?:-\w+\s+)*([A-Za-z_]\w*)", cmd):
+        zaehler[m.group(1) or m.group(2)] += 2
+    return {k for k, n in zaehler.items() if n > 1}
+
+
+def _sichere_zuweisung(name: str, wert: str, unsicher: set[str]) -> str:
+    """Wert einer Zuweisung für die Auflösung – oder der Platzhalter, wenn mehrfach zugewiesen oder mit Befehlsersetzung."""
+    return _UNSICHER if name in unsicher or "`" in wert or "$(" in wert else wert
+
+
 def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
     """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
     None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
     install, rsync; Basisordner je Kette über cd."""
     segmente = _segmente(cmd)
     zuweisungen: dict[str, str] = {}
+    unsicher = _unsichere_namen(cmd)
     for seg in segmente:
         try:
             wörter = shlex.split(seg, posix=True)
@@ -282,7 +301,9 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
         if len(wörter) == 1 and "=" in wörter[0]:
             name, wert = wörter[0].split("=", 1)
             if re.fullmatch(r"[A-Za-z_]\w*", name):
-                zuweisungen[name] = os.path.expandvars(wert)
+                zuweisungen[name] = _sichere_zuweisung(name, os.path.expandvars(wert), unsicher)
+    for name in unsicher:  # auch ohne erkannte Zuweisung (if/for/read): nie aus der Umgebung auflösen
+        zuweisungen.setdefault(name, _UNSICHER)
 
     def var_ersetzen(text: str) -> str:
         def rep(m):
@@ -474,6 +495,7 @@ _HEREDOC_AUF = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
 _AUSGABE_UMLEITUNG = re.compile(r"(^|[\s;&|])(&?\d*)?>>?")  # >, >>, 2>, &> … (nicht <<)
 _PRAEFIX_ZUWEISUNG = re.compile(r"[A-Za-z_]\w*=.*")
 _PRAEFIX_WORT = {"time", "nice", "nohup", "command", "timeout"}
+_SHELL_SCHLUESSEL = {"do", "then", "else", "elif", "if", "while", "until", "!", "{", "("}
 
 
 def _praefixe_ueberspringen(w: list[str]) -> int:
@@ -482,7 +504,7 @@ def _praefixe_ueberspringen(w: list[str]) -> int:
     i = 0
     while i < len(w):
         name = w[i].rsplit("/", 1)[-1]  # auch /usr/bin/env, /usr/bin/time …
-        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]):
+        if _PRAEFIX_ZUWEISUNG.fullmatch(w[i]) or w[i] in _SHELL_SCHLUESSEL:  # v11: `do bash x.sh`, `if python3 y.py` …
             i += 1
         elif name in _PRAEFIX_WORT or name == "env":
             i += 1  # Optionen des Präfixes überspringen; mit Argument: nice -n N, env -u NAME, timeout -s SIG/-k T
@@ -694,12 +716,14 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
-            zuweisungen: dict[str, str] = {}  # G5: Variablen-Zuweisungen aus vorangehenden Teilbefehlen (RUN=/x …)
+            unsicher = _unsichere_namen(cmd)  # v11: mehrfach zugewiesene Namen nie auflösen (if/for/read …)
+            zuweisungen: dict[str, str] = {n: _UNSICHER for n in unsicher}  # G5: Zuweisungen aus vorangehenden Teilbefehlen
             for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
                 # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
-                zuweisungen.update({k: _var_ersetzen(v, zuweisungen) for k, v in _zuweisungen_aus_seg(seg).items()})
+                zuweisungen.update({k: _sichere_zuweisung(k, _var_ersetzen(v, zuweisungen), unsicher)
+                                    for k, v in _zuweisungen_aus_seg(seg).items()})
                 basis = _cd_basis(seg, basis)
 
     for p in pfade:

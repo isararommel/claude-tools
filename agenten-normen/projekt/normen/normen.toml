@@ -43,7 +43,7 @@ faehigkeiten = ["loeschen"]
   regex = '(^|[;&|`(\s])(sudo\s+)?(/(usr/)?bin/)?(rm\s+(-[a-zA-Z]*[rRf]|--recursive|--force)|rmdir\b|shred\b|unlink\b|find\b[^;&|]*\s-delete\b|mkfs|dd\s+if=|git\s+(-C\s+\S+\s+)?(reset\s+--hard|clean\s+-[a-zA-Z]*f|checkout\s+--\s|restore\b|branch\s+-D|push\s[^;&|]*(--force|\s-f\b))|docker\s+(volume\s+rm|system\s+prune|volume\s+prune)|(DROP|TRUNCATE)\s+(TABLE|DATABASE))'
   # v11: Teilbefehl `docker|podman [container|compose] rm …` entfernt Container, keine Dateien (Befehlswort am Anfang des
   # Teilbefehls, ohne Befehlsersetzung) – `docker volume rm`/`system prune` bleiben destruktiv
-  ausser_regex = '^\s*([\w-]+\(\)\s*)?\{?\s*(sudo\s+)?(docker|podman)\s+((container|compose)\s+)?rm\b(?![^\n]*(\$\(|`))'
+  ausser_regex = '^\s*([\w-]+\(\)\s*)?\{?\s*(sudo\s+)?(docker|podman)\s+((container|compose)\s+)?rm\b(?![^\n]*(\$\(|`|<\(|>\())'
   meldung = "Destruktiver Befehl – nur {inhaberin} (bzw. mit Rückfrage)."
   [[norm.muster]]
   ziel = "befehl"

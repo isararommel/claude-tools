@@ -15,6 +15,12 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 - **Skriptpfade:** `"$W/x.sh"` wird mit Zuweisungen aus **vorangehenden** Teilbefehlen aufgelöst (`W=/pfad; bash "$W/x.sh"`) und
   dann geprüft wie jedes Skript außerhalb des Projekts; Präfix-Zuweisungen (`W=… bash "$W/x"`) und `W="$(mktemp -d)"` bleiben
   „nicht prüfbar“.
+- **Variablen nur bei eindeutiger Zuweisung:** Ist ein Name im Befehl mehrfach zugewiesen (auch in `if`/`for`/`read`/`local`) oder
+  stammt sein Wert aus einer Befehlsersetzung (`` `…` ``, `$(…)`), löst der Hook ihn nicht auf – gilt für Skriptpfade, Prompt-Dateien
+  (G5) und Bash-Schreibziele (G3/v8). Container-Ausnahme auch nicht bei Prozess-Substitution (`<(…)`, `>(…)`).
+- **Shell-Schlüsselwörter:** Befehle hinter `do`, `then`, `else`, `if`, `while`, `until`, `!`, `{`, `(` werden geprüft wie jeder
+  andere (vorher blieb z. B. `for …; do bash x.sh; done` ungeprüft). Folge: `for f in …; do python3 tests/$f.py; done` fragt jetzt
+  nach (Schleifenvariable nicht auflösbar) – stattdessen `make test` oder die Dateien ausschreiben.
 - Echter Fall aus dem Projekt (Skript mit Container-Probelauf) nachgespielt: `docker rm` wird nicht mehr beanstandet; weiter
   streng bleiben `rm -rf "${W:?}"` (fragen), `*.secret`-Dateien (gesperrt), Skriptpfade unter einem `mktemp`-Ordner.
 - Unverändert (Entscheidung der Inhaberin): N03 sperrt Dateinamen wie `*.secret` auch in Temp-Ordnern – Testdateien anders benennen.
