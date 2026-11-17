@@ -307,6 +307,18 @@ with tempfile.TemporaryDirectory() as t:
     pt.write_text(re.sub(r"gesperrt = \[\s*\]", 'gesperrt = ["daten/geheim/"]', pt.read_text())
                   .replace("forschungsdaten = []", 'forschungsdaten = ["daten/roh/**", "PROBAND-"]'))
     check("G5 Vorlage hat forschungsdaten", 'forschungsdaten = ["daten/roh/**"' in pt.read_text())
+
+    # v12: Lese-Werkzeuge der Teams (read_file, grep) auch auf den gesperrten Ordner selbst gesperrt
+    def team_werkzeug(werkzeug, eingabe):
+        data = {"tool_name": werkzeug, "tool_input": eingabe, "cwd": str(repo)}
+        r = sh(sys.executable, "normen/normen.py", "hook", "--rolle", "mistral-team", "--werkzeug", "vibe", cwd=repo,
+               eingabe=json.dumps(data))
+        return "nein" if r.stdout.strip() and json.loads(r.stdout.splitlines()[0])["decision"] == "deny" else "ja"
+
+    for werkzeug, eingabe in [("grep", {"pattern": "x", "path": "daten/geheim/"}), ("grep", {"pattern": "x", "path": "daten/geheim"}),
+                              ("grep", {"pattern": "x", "path": "daten/geheim/a.csv"}), ("read_file", {"path": "daten/geheim/a.csv"})]:
+        check(f"v12 Team {werkzeug} {eingabe['path']} nein", team_werkzeug(werkzeug, eingabe) == "nein")
+    check("v12 Team grep anderer Ordner ja", team_werkzeug("grep", {"pattern": "x", "path": "daten/"}) == "ja")
     block = sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "gemini-analyst", cwd=repo).stdout
     check("G5 Auftragsblock nennt den Sperrpfad", "daten/geheim/" in block, block[-300:])
     runs = Path(t) / "agy-runs"
@@ -414,7 +426,7 @@ with tempfile.TemporaryDirectory() as t:
 
     # v12: Vibe-Hooks prüfen auch `edit` (Vibe 3.1.x); einrichten.sh ersetzt eine reine Normen-hooks.toml, eigene bleiben
     vorlage_hooks = (VORLAGE / "projekt/.vibe/hooks.toml").read_text()
-    for name in ("edit", "write_file", "bash", "experimental_bash", "git_bash", "managed_shell"):
+    for name in ("edit", "write_file", "bash", "grep", "experimental_bash", "git_bash", "managed_shell"):
         check(f"v12 hooks.toml prüft {name}", f'match = "{name}"' in vorlage_hooks)
     alt_hooks = alt / ".vibe/hooks.toml"
     alt_hooks.write_text('[[hooks]]\nname = "normen-bash"\ntype = "pre_tool"\nmatch = "bash"\n'

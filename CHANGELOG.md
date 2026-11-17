@@ -14,7 +14,11 @@ von Hand zusammengeführt); Agent-Definitionen aus `multi-ki/benutzer/agents/` n
 ### Geändert (v12, Durchsetzung – kein neuer Normtext)
 - **Vibe-Hooks prüfen jetzt auch `edit`** (Vibe 3.1.x nennt das Bearbeiten-Werkzeug so; der Hook kannte nur `search_replace`).
   Gemessen: ohne diesen Eintrag änderte Vibe ohne Auftrag eine Datei; mit ihm sperrt der Hook („kein .normen-auftrag“).
-  Vorsorglich auch `experimental_bash`, `git_bash`, `managed_shell`. Prüfbefehl in `hooks.toml`: „gültig: 8“.
+  Ebenso `grep` (liefert Dateiinhalte) und vorsorglich `experimental_bash`, `git_bash`, `managed_shell`. Prüfbefehl in
+  `hooks.toml`: „gültig: 9“. Nachgewiesen: erlaubte Änderungen (48 `edit`-Aufrufe aus früheren Läufen, je mit ihrem Auftrag) gehen
+  durch, ohne Auftrag gesperrt; live: Datei aus dem Auftrag geändert, andere gesperrt; auch Vibes Sub-Agenten werden gesperrt.
+- **Gesperrter Ordner selbst:** Lese-Werkzeuge auf den Ordner eines Sperrpfads (`grep … daten/geheim/`) sind jetzt gesperrt,
+  nicht nur Dateien darin.
 - **`einrichten.sh`/`aktualisieren`** ersetzen eine `.vibe/hooks.toml`, die nur Normen-Hooks enthält (mit Sicherung
   `hooks.toml.bak-<datum>`); mit eigenen Hooks bleibt es bei der `.vorlage` daneben.
 

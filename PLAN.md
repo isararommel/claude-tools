@@ -64,6 +64,14 @@ eindeutigen Zuweisungen aus vorangehenden Teilbefehlen; mehrfach zugewiesene Var
 Shell-Schlüsselwörter (`do`, `then` …) vor Befehlen geprüft; N03 für `*.secret` in Temp bleibt (Entscheidung). Vier Sitzungen
 informiert.
 
+### 1b. v12 – Vibe-Hooks für `edit`/`grep` *(Befund 17.11., Freigabe der Inhaberin offen)* – Branch `recherche`
+
+Beim Prüfen der Recherche gefunden: Vibe 3.1.2 nennt das Bearbeiten-Werkzeug `edit`, der Hook kannte nur `search_replace` – Teams
+konnten ohne Auftrag Dateien ändern (live gemessen). Behoben in der Hook-Vorlage (`edit`, `grep`, weitere Shell-Werkzeuge), dazu
+der gesperrte Ordner selbst; `einrichten.sh`/`aktualisieren` ersetzen reine Normen-`hooks.toml`. Nachgewiesen: erlaubte Edits
+gehen durch, verbotene (auch durch Sub-Agenten) werden gesperrt. Offen: Freigabe der Inhaberin für v12 (Einstellungsdatei in allen
+Projekten); Selbsttest mit Köder auch für `edit` (Entscheidung der Inhaberin); nach dem Update in den Projekten „gültig: 9“ prüfen.
+
 ### 1a. Recherche-Aufträge *(freigegeben 17.11.)* – ✅ umgesetzt auf Branch `recherche`
 
 Entscheidungen der Inhaberin: **nur Vorlagen und Doku, keine neue Norm**; Ergebnisse **im Projekt unter `docs/recherche/`**;

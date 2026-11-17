@@ -199,6 +199,10 @@ Vorlagen: `docs/recherche-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs
 - Ein Befehlswort aus einer Variablen (`B=bash; $B x.sh`) und Befehle in `case`-Zweigen prüft der Hook nicht als Aufruf.
 - Websuche und Seitenabruf der Teams (Vibe `connector_web_search`/`open_url`, agy-Suche) sieht der Hook nicht: Webinhalte
   gelangen ungeprüft in die Team-Sitzung, Suchanfragen ungeprüft zum Anbieter.
+- Vibes `grep` über einen übergeordneten Ordner (`daten/`, `.`) durchsucht auch gesperrte Unterordner; gesperrt ist nur der
+  Sperrpfad selbst. Nicht nachgewiesen: ob `run_typescript` am Hook vorbei direkt ins Dateisystem schreiben kann (Vibe verweigerte
+  den Versuch selbst).
+- `normen.py selbsttest` prüft nur Bash (Köder-Befehl), nicht `edit`/`write_file`.
 - Eine Zuweisung, die der Hook nicht als solche erkennt (`declare W=…`, Zuweisung hinter `then`), kann ihn auf einen
   gleichnamigen Wert aus der Umgebung führen.
 

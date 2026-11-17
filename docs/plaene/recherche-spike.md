@@ -13,7 +13,7 @@ Quellen mit URL und Datum.“
 | **agy** (Aufrufform von `gemini-analyst`, Freigabeliste nur Lesebefehle) | Google-Suche läuft **ohne zusätzliche Freigabe** (kein Shell-Befehl). Antwort mit zwei Quellen und Datum. | Exit 0 |
 | **Gegenprüfung Vibe ↔ agy** | übereinstimmend (gleiche Version, gleiches Datum) | – |
 | **Claude, Websuche** (`standard`) | Treffer aus einem älteren Suchindex, widersprüchliche Stände; für aktuelle Fakten die Primärquelle direkt abrufen (Webseitenabruf), nicht der Trefferliste trauen. | – |
-| **Normen-Hook bei Vibes Websuche** | greift nicht: die Vibe-Hooks prüfen nur `bash`, `write_file`, `search_replace`, `read_file`. Suchanfragen selbst sieht der Hook nicht; geprüft wird nur der Auftrag vorab (G5). | `.vibe/hooks.toml` |
+| **Normen-Hook bei Vibes Websuche** | greift nicht: Websuche und Seitenabruf haben keinen Hook (seit v12 geprüft: `bash`, `write_file`, `edit`, `search_replace`, `read_file`, `grep` und weitere Shell-Werkzeuge). Suchanfragen sieht der Hook nicht; geprüft wird nur der Auftrag vorab (G5). | `.vibe/hooks.toml` |
 
 ## Abnahme-Probe mit der Vorlage (zwei Anbieter parallel)
 
