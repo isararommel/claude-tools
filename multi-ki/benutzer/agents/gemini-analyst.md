@@ -31,6 +31,9 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    Der Normen-Hook prüft die Prompt-Datei vor dem Start und sperrt, wenn er `$RUN` nicht auflösen kann.
    Wichtig: `command(x*)` deckt den Befehl ohne Argumente NICHT ab, deshalb stehen beide Formen in der Liste. Die Liste nie kürzen. `--settings` ERSETZT die Allow-Liste aus `~/.gemini/antigravity-cli/settings.json` (geprüft 15.11.2026 im agy-Protokoll), deshalb stehen die Lesebefehle hier noch einmal; `find` bewusst nicht (`-delete`/`-exec`).
 
+   **Recherche-Aufträge** (Prompt nach `docs/recherche-auftrag.md`): wie Analyse; die Google-Suche von agy braucht keine
+   zusätzliche Freigabe (gemessen 17.11.). Meldet agy, dass die Suche nicht lief, ist das Ergebnis „gescheitert“.
+
    **Analyse (Standard, nur lesen):** In den Prompt „Ändere keine Dateien.“ schreiben.
    ```
    agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \
