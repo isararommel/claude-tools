@@ -57,8 +57,10 @@ vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `
 `$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
 **Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
 Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
-✅ **v9** (Branch `normen-v9`, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
-nach Merge Sitzungen informieren (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
+✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
+fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
+**Nächstes (je mit Rückfrage):** Selbsttest-Wiederholung bei „unklar“ (siehe offene Fragen), Worktree-Option (später),
+Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`, Rückmeldungen aus den Projekten sichten.
 ✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
 nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
 Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
