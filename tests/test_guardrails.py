@@ -87,9 +87,10 @@ with tempfile.TemporaryDirectory() as t:
 
     # v8 (G10-Befund): Teams schreiben auch per Bash nur Pfade aus .normen-auftrag
     for befehl in ["echo x > src.py", "printf x >> README.md", "sed -i '' s/a/b/ Makefile", "tee neu.txt < /dev/null",
-                   "cp /tmp/x neu.py", 'echo x > "$GIBT_ES_NICHT_V8/a.py"']:
+                   "cp /tmp/x neu.py"]:
         check(f"v8 Team ohne Auftrag sperrt: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
-    for befehl in ["make test 2>&1 | tail -3", "git status --short", "python3 normen/normen.py pruefen --diff > /tmp/normen-v8.txt",
+    for befehl in ["make test 2>&1 | tail -3", "git status --short", 'python3 normen/normen.py pruefen --diff > "$TMPDIR/normen-v8.txt"',
+                   'echo x > "$GIBT_ES_NICHT_V8/a.py"',  # nicht bestimmbar: Hook lässt durch, pruefen --diff prüft danach
                    "ls -la > /dev/null"]:
         check(f"v8 Team ohne Auftrag ja: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
     sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "mistral-team", "--dateien", "src.py", cwd=repo)
@@ -97,6 +98,13 @@ with tempfile.TemporaryDirectory() as t:
     check("v8 Team mit Auftrag: andere Datei nein", hook(repo, "mistral-team", "vibe", "echo x > andere.py") == "nein")
     sh(sys.executable, "normen/normen.py", "auftrag", "--ende", cwd=repo)
     check("v8 Claude unberührt", hook(repo, "claude", "claude", "echo x > src.py") == "ja")
+    # Advisor-Abnahme v8: loeschbar bleibt frei, außerhalb nur Lauf-Ordner/Temp/Geräte, nicht bestimmbar → pruefen danach
+    for befehl in ["rm -rf build", "rm -rf .pytest_cache", "rm -rf __pycache__", "make test > /dev/null 2>&1",
+                   'echo x > "$TMPDIR/normen-v8.txt"', "echo x > /tmp/vibe-runs/x/notiz.txt",
+                   'd=$(mktemp -d /tmp/g9-XXXX) && git clone -q . "$d/r"']:
+        check(f"v8 Team ja: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "ja")
+    for befehl in ["echo x > ~/normen-v8-probe.txt", "echo x > ~/normen-v8-anderes-projekt/a.txt", "cp a.txt ~/.vibe/x.toml"]:
+        check(f"v8 Team außerhalb nein: {befehl}", hook(repo, "mistral-team", "vibe", befehl) == "nein")
 
     # Betriebsbefehle des Orchestrators: müssen nach jedem Paket „ja“ bleiben (Hook ist fail-closed)
     for befehl in ['bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh . --test "make test"',

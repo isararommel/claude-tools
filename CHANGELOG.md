@@ -11,11 +11,16 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ### Neu
 - **Teams schreiben auch per Bash nur Auftragspfade:** Bash-Schreibziele (Umleitung, `tee`, `sed -i`, `cp`, …) im Projekt sind für
-  Rollen mit Auftragspflicht nur erlaubt, wenn sie in `.normen-auftrag` stehen; ohne Auftrag gesperrt, nicht bestimmbares Ziel
-  gesperrt (bisher galt das nur für Datei-Werkzeuge – gefunden beim Messen von G10).
+  Rollen mit Auftragspflicht nur erlaubt, wenn sie in `.normen-auftrag` stehen; ohne Auftrag gesperrt,
+  sowie außerhalb des Projekts nur Lauf-Ordner, Temp-Wurzeln aus `loeschbar` und `/dev/*`; relative `loeschbar`-Pfade (`build`,
+  `.pytest_cache` …) bleiben frei. Nicht bestimmbare Ziele (`$(mktemp …)`) lässt der Hook durch – `pruefen --diff` prüft nach dem
+  Lauf (bisher galt das alles nur für Datei-Werkzeuge – gefunden beim Messen von G10). Wiederholung von 75 echten Vibe-Befehlen:
+  keine zusätzliche Sperre.
 - **Lese-Modus und Lauf-Protokoll (G10):** reine Lese-Aufträge an Vibe mit `--agent ask` (Schreiben und nicht-lesende Befehle
   abgelehnt, auch bei Sub-Agenten; gemessen mit Vibe 3.1.2); Schnittstelle wartet auf die eigene PID statt `pgrep`, meldet nie
-  „gescheitert“ bei laufendem Prozess, leere Statusdatei = sauber; `RUN` im selben Befehl wie `vibe`/`agy`.
+  „gescheitert“ bei laufendem Prozess, leere Statusdatei = sauber; `RUN` im selben Befehl wie `vibe`/`agy`. Nicht nachgewiesen:
+  Normen-Hook bei lesenden Befehlen im Lese-Modus (in Projekten mit Sperrpfaden nur nach Rückfrage). Wirksam erst, wenn die
+  Agent-Definitionen nach `~/.claude/agents/` kopiert sind.
 - **Spikes:** `docs/plaene/sandbox-spike.md` (G7, Entscheidung: vibe/agy ausnehmen, Sandbox nicht aktiviert) und
   `docs/plaene/worktree-spike.md` (G11, Worktree je Team-Lauf als Option, nur innerhalb des Projekts).
 - **Asserts in Tests (G9):** `pruefen --diff`/`--staged` vergleicht entfernte und neue Assert-Zeilen (`assert`, `assertX(`,

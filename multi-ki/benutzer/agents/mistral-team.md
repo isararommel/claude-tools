@@ -31,7 +31,8 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
    - **Lese-Modus:** Sagt Claude „nur lesen“ (Analyse ohne ändernde Befehle), statt `--smart-approve` den eingebauten Agenten
      `--agent ask` und `--max-turns 12` verwenden: Schreiben und nicht-lesende Shell-Befehle werden abgelehnt, auch bei Sub-Agenten
      (gemessen 16.11., Vibe 3.1.2); lesende Befehle wie `ls`, `cat`, `grep` laufen. Vibe versucht Abgelehntes erneut, deshalb die
-     niedrige Rundenzahl. Braucht ein Review Befehle (z. B. den Hook-Prüfbefehl), bleibt es bei `--smart-approve` mit „Ändere keine
+     niedrige Rundenzahl. Nicht nachgewiesen: ob der Normen-Hook im Lese-Modus lesende Befehle auf Sperrpfade sperrt – in Projekten
+     mit `[pfade].gesperrt` den Lese-Modus nur nach Rückfrage bei Claude verwenden. Braucht ein Review Befehle (z. B. den Hook-Prüfbefehl), bleibt es bei `--smart-approve` mit „Ändere keine
      Dateien.“ – ohne offenen Auftrag sperrt der Normen-Hook Schreiben der Teams (Datei-Werkzeuge und seit v8 auch Bash).
    - Verlangt Claude längere Laufzeit: `--time-limit` bis 1800 und den Befehl mit `run_in_background` starten; auf die Benachrichtigung warten, nicht pollen.
    - NIE `--auto-approve`/`--yolo`, NIE `--agent flash-scout|code-worker|code-reviewer` (Sub-Agenten, schlagen als Hauptagent fehl).

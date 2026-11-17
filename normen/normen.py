@@ -648,13 +648,18 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             globs = _auftrag_globs()
             for ziel in _schreibziele(cmd, cwd):
                 if ziel is None:
-                    gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: Bash-Schreibziel nicht bestimmbar – Rolle "
-                                            f"{rolle} schreibt nur Pfade aus .normen-auftrag"))
-                    break
+                    continue  # nicht bestimmbar (z. B. $(mktemp …)): bleibt pruefen --diff nach dem Lauf überlassen
+                echt = Path(os.path.realpath(ziel))
+                loeschbar = _loeschbar(cfg)
                 try:
-                    rel = Path(os.path.realpath(ziel)).relative_to(ROOT).as_posix()
-                except ValueError:
-                    continue  # außerhalb des Projekts: eigene Prüfungen (Lauf-Ordner, außerhalb-schreiben)
+                    rel = echt.relative_to(ROOT).as_posix()
+                except ValueError:  # außerhalb: nur Lauf-Ordner, Temp-Wurzeln aus loeschbar, Geräte (/dev/null) – wie Edit/Write
+                    if not (str(echt).startswith("/dev/") or any(echt == o or o in echt.parents for o in _lauf_ordner(cfg))
+                            or any(p in echt.parents for p, relativ in loeschbar if not relativ) or _rolle_frei(rinfo, echt)):
+                        pruefe("ausserhalb-schreiben", f"N06-NUR-ERLAUBTE-PFADE: Bash schreibt außerhalb des Projekts: {echt}")
+                    continue
+                if any(echt == p or p in echt.parents for p, relativ in loeschbar if relativ):
+                    continue  # relative [pfade].loeschbar im Projekt (build, .pytest_cache …): N01-Ausnahme
                 if globs is None:
                     gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: kein .normen-auftrag – Rolle {rolle} darf nichts schreiben ({rel})"))
                     break
@@ -1839,7 +1844,7 @@ def pruefen(cfg, diff: bool, basis: str | None, staged: bool) -> tuple[int, int,
                     if _ASSERT_RX.search(z.strip()):
                         neu[z.strip()] += 1
         # nur als Kommentar (# … / // …) – erklärender Text in Doku/CHANGELOG ist keine Begründung
-        begr_rx = re.compile(r"(#|//)\s*" + re.escape(f"{marker} N02-TESTS-SIND-TABU"))
+        begr_rx = re.compile(r"^\s*(#|//)\s*" + re.escape(f"{marker} N02-TESTS-SIND-TABU"))
         begruendet = sum(1 for zeilen in neu_z.values() for z in zeilen if begr_rx.search(z))
         ersatzlos = max(0, sum(weg.values()) - sum(neu.values()))
         rest = ersatzlos - begruendet
