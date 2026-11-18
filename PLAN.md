@@ -43,7 +43,7 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   Live-Selbsttest 5/5 Wege gesperrt; erster Vibe-Lauf in 5 frischen Ordnern 5/5 gesperrt (Ausreißer nicht nachstellbar, nicht gelöst – künftig Beleg-Log). vibe/edit mit 3 Runden 1 von 3 „unklar“ → 5 Runden, danach 3/3.
   Gegenprobe über `normen.py selbsttest` im Wegwerf-Repo sperrt der S06-Hook (fremdes Skript) → direkt mit claude/vibe.
   mistral-team-Lauf endete am Zeitlimit (code-worker noch aktiv), Code war fertig; zwei Korrekturen von Claude.
-  Offen: Kopie `multi-ki/benutzer/agents/mistral-team.md` → `~/.claude/agents/` (Rückfrage an die Inhaberin).
+  Kopie `mistral-team.md` nach `~/.claude/agents/` erledigt 18.11. (Freigabe; `gemini-analyst.md` war schon gleich).
 
 - ✅ 18.11. **Paket A agy-Freigaben** (PR #19): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
   Präfixform; `-p` ohne `--mode` lief im Auto-Modus → `"agentMode":""`; `read_file` braucht aufgelösten Pfad → `realpath`.
@@ -72,8 +72,8 @@ Offen:
 5. Rückmelde-Issues zu agy-Freigaben (v7, v11) mit Verweis auf den PR schließen (Entscheidung 18.11.).
 6. Hook-Prüfung, dass `agy -p` nie ohne `--mode` und ohne `"agentMode":""` startet: nicht in v14 aufgenommen (Umfang),
    Kandidat für die nächste Normen-Version.
-7. Nach dem v14-Merge Rückmelde-Issues kommentieren: Selbsttest-Beleg und `--dateien` schließen (PR #25); „1 von 5 ungesperrt“
-   und Zeitlimit 540 s nur kommentieren (Beleg-Log bzw. 1200 s), offen lassen.
+7. ✅ 18.11. Rückmelde-Issues zu v14: `--dateien` geschlossen; „erster vibe-Lauf ungesperrt“ und Zeitlimit 540 s
+   kommentiert und offen (warten auf Beleg-Log bzw. weitere 1200-s-Läufe).
 8. **Unfertige Stände gelangen in Projekte** (Befund 18.11. aus einer Projektsitzung): Ein Projekt hatte „v14“ aus dem
    Arbeitsbaum von claude-tools eingespielt, während v14 noch auf dem Branch entstand – gleiche Versionsnummer, älteres
    `normen.py`; `aktualisieren` ersetzt die Datei zwar, aber weder es noch das Prüftor melden den Unterschied. Vorschlag:
