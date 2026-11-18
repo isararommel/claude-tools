@@ -105,7 +105,8 @@ Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `git workt
 ### G. Projekte auf v12/v13 bringen *(Frage 2, läuft)*
 
 18.11.: vier laufende Projektsitzungen gefragt (Normen-Version, Prüfbefehl aus `.vibe/hooks.toml` → „gültig: 9“, Selbsttest).
-Antworten: **ausstehend**. Lokal gesehen: drei Projekte auf v12 mit `edit`-Hook, **ein Projekt noch auf v9 ohne `edit`-Hook**
+Antworten: 1 von 4 – Projekt 1: v12, „gültig: 9“, Selbsttest claude/vibe gesperrt, nichts geändert. Übrige **ausstehend**.
+Neue Rückmeldung aus dieser Antwort: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`). Lokal gesehen: drei Projekte auf v12 mit `edit`-Hook, **ein Projekt noch auf v9 ohne `edit`-Hook**
 (Vibe kann dort ohne Auftrag Dateien ändern) – wenn keine Sitzung antwortet, Aktualisieren mit Rückfrage an die Inhaberin.
 Antworten den Projektordnern zuordnen; Projekte ohne Sitzung benennen. Nach v13-Merge erneut informieren.
 
