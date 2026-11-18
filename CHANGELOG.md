@@ -15,6 +15,10 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
   liest nur per `read_file` (Projekt + Lauf-Ordner); Diffs legt Claude als Datei in den Lauf-Ordner.
 - **Auch keine Test-/Buildbefehle** (`make test`, `swift …`, `normen.py pruefen`): Im Umsetzungsaufruf kann Gemini das
   Makefile ändern, `make test` führt dann Beliebiges aus (gemessen). Die Liste ist damit projektunabhängig.
+- **Prüfreihenfolge für Claude:** erst Diff lesen, dann Tests ausführen (Ablauf Schritt 6, Regel 3 in
+  `multi-ki-ablauf.md` und `projekt/CLAUDE-abschnitt.md`): Ein Team-Lauf kann Makefile oder Testcode ändern, `make test`
+  liefe sonst ungeprüft mit Claudes Rechten. Gemini bekommt keine Testbefehle; einen agy-Hook gibt es dafür nicht
+  (Entscheidung der Inhaberin 18.11.). In Projekten Regel 3 im CLAUDE-Abschnitt von Hand angleichen.
 - Prompt-Satz: „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal …“; ebenso der Pflichtblock von
   `normen.py auftrag` für gemini-analyst (nannte noch `cat`, `grep`, `git diff/log/show` – jeder solche Aufruf hätte den
   Lauf beendet). Kommt mit der nächsten Normen-Version in die Projekte.
