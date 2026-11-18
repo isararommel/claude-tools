@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (Paket A gemergt, PR #19; nächstes Paket: B, offen: A2 – Entscheidungen der Inhaberin)*
+*Stand: 18.11.2026 (Paket A gemergt, PR #19; nächstes Paket: B, offen: A2 Punkte 4–6, Antwort aura-tools)*
 
 ## Verweise
 
@@ -46,20 +46,15 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
-### A2. agy-Freigaben: Nacharbeiten *(wartet auf die Inhaberin)*
+### A2. agy-Freigaben: Nacharbeiten
 
-Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Offen:
-0. **Sperrpfade:** `.geminiignore`/`.antigravityignore` sperren in agy nichts (Spike-Befund 7). Prüfen, ob `deny`-Regeln
-   `read_file(<aufgelöster sperrpfad>)` greifen; `cat`/`grep` auf Sperrpfade lassen sich per Präfixregel nicht sperren.
-   Bis dahin: keine Aufträge an `gemini-analyst` in Projekten mit Sperrpfaden ohne Rücksprache.
-1. **Kopie nach `~/.claude/agents/gemini-analyst.md`** (Rückfrage): Bis dahin läuft jeder echte Nur-Lesen-Auftrag im
-   **Auto-Modus** (ungelistete Befehle werden ausgeführt), und `cat`/`wc`/`tail` sind wegen der `*`-Regeln gesperrt.
-   **Regel bis zur Kopie: keine Nur-Lesen-Aufträge an `gemini-analyst`**; Analysen nur über den Umsetzungsaufruf
-   (`--mode accept-edits`) oder an `mistral-team`.
-2. Globale `~/.gemini/antigravity-cli/settings.json` (nur die Inhaberin): `deny` mit `*` und `Edit`/`Write`/`MultiEdit`
-   greifen nicht; Präfixform wäre `command(rm)`, `command(mv)`, `command(cp)`. Zusätzlich `"agentMode": ""` erwägen.
-3. Entscheidung: `git log/diff/show --output=<pfad>` schreibt trotz Präfixregel (auch außerhalb); `cat`/`grep` lesen auch
-   außerhalb des Projekts. Hinnehmen (Prompt + `git status` danach) oder git-Befehle aus ALLOW nehmen?
+Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Entscheidungen der Inhaberin 18.11.:
+- ✅ Kopie nach `~/.claude/agents/gemini-analyst.md`: erledigt 18.11. (vorher identisch mit der alten Repo-Fassung).
+- Sperrpfade (`.geminiignore` sperrt in agy nichts): **nichts sperren** – `gemini-analyst` bleibt in allen Projekten nutzbar.
+- Globale `~/.gemini/antigravity-cli/settings.json` (`deny` mit `*` und `Edit`/`Write`/`MultiEdit` wirkungslos,
+  `"agentMode": ""`) sowie `git … --output`/Lesen außerhalb: an die Sitzung **aura-tools** gemeldet (18.11.); deren
+  Antwort abwarten, hier nichts ändern.
+Offen:
 4. Projekte: `docs/multi-ki-ablauf.md` angleichen, projekteigene `command(x*)`-Einträge umstellen (mit Paket G).
 5. Rückmelde-Issues zu agy-Freigaben (v7, v11) mit Verweis auf den PR schließen (Entscheidung 18.11.).
 6. Kandidat für B: Hook-Prüfung, dass `agy -p` nie ohne `--mode` und ohne `"agentMode":""` startet.
