@@ -2195,7 +2195,7 @@ def auftrag_zeilen(cfg: dict, rolle: str, dateien: list[str]) -> list[str]:
         z.append("- Diese Pfade nicht lesen und nicht öffnen: " + ", ".join(f"`{s}`" for s in gesperrt))
     if cfg["rollen"][rolle].get("abnahme_durch_claude"):
         z.append("- Abnahme: Testbefehl und Normenprüfung führt Claude selbst aus. Führe keine Test-, Build- oder Prüfbefehle aus; "
-                 "nur die freigegebenen Lesebefehle (ls, cat, grep, git status/diff/log/show).")
+                 "Dateien nur mit dem Lesewerkzeug lesen, nicht im Terminal; Shell nur ls, pwd, git status.")
     else:
         z.append(f"- Abnahme: `{pj['projekt']['testbefehl']}` grün und `python3 normen/normen.py pruefen --diff` ohne Fehler – "
                  "beide Befehle mit Ergebnis in den Bericht.")

@@ -21,11 +21,11 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
 
 ## Ablauf
 
-1. **Die Prompt-Datei legt Claude an, nicht du.** Claude schreibt sie mit dem Write-Werkzeug nach `${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>/prompt.md` (erste Zeile: „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“, dann „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal. Erlaubte Shell-Befehle, einzeln und ohne Pipes: ls, pwd, git status, git branch --show-current und der Testbefehl.“ und „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“ – jeder verweigerte Schritt beendet den Lauf –, dann der Auftrag mit exakten Pfaden und den Pflichtsätzen; braucht der Auftrag einen Diff oder git-Verlauf, legt Claude ihn als Datei in den Lauf-Ordner, z. B. `git diff main > "$RUN/diff.patch"`) und nennt dir den Pfad. Du setzt `RUN` auf diesen Ordner und prüfst nur `test -s "$RUN/prompt.md"`. Schreibe die Datei nie selbst per `cat`/Heredoc und ändere sie nicht: Der Normen-Hook prüft Befehlszeilen und sperrt Auftragstexte, weil die Pflichtsätze Wörter wie `rm` oder `git restore` enthalten. Nennt Claude keinen Pfad oder fehlt die Datei, melde das an Claude und hör auf.
+1. **Die Prompt-Datei legt Claude an, nicht du.** Claude schreibt sie mit dem Write-Werkzeug nach `${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>/prompt.md` (erste Zeile: „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“, dann „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal. Erlaubte Shell-Befehle, einzeln und ohne Pipes: ls, pwd, git status, git branch --show-current.“ und „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“ – jeder verweigerte Schritt beendet den Lauf –, dann der Auftrag mit exakten Pfaden und den Pflichtsätzen; braucht der Auftrag einen Diff oder git-Verlauf, legt Claude ihn als Datei in den Lauf-Ordner, z. B. `git diff main > "$RUN/diff.patch"`) und nennt dir den Pfad. Du setzt `RUN` auf diesen Ordner und prüfst nur `test -s "$RUN/prompt.md"`. Schreibe die Datei nie selbst per `cat`/Heredoc und ändere sie nicht: Der Normen-Hook prüft Befehlszeilen und sperrt Auftragstexte, weil die Pflichtsätze Wörter wie `rm` oder `git restore` enthalten. Nennt Claude keinen Pfad oder fehlt die Datei, melde das an Claude und hör auf.
 
 2. agy im Projektordner starten (Bash-Timeout 600000; bei langen Aufträgen mit `run_in_background` und auf die Benachrichtigung warten). Freigaben (`R` = aufgelöster Lauf-Ordner, siehe unten):
    ```
-   R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git status)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(pwd)","read_file('"$R"')"]}}'
+   R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(git status)","command(git branch --show-current)","command(ls)","command(pwd)","read_file('"$R"')"]}}'
    ```
    `RUN`, `R` und `ALLOW` **im selben Befehl** wie `agy` zuweisen, `RUN` mit wörtlichem Pfad (`RUN=<lauf-ordner>; R=$(realpath "$RUN"); ALLOW='…'; agy …`):
    Der Normen-Hook prüft die Prompt-Datei vor dem Start und sperrt, wenn er `$RUN` nicht auflösen kann.
@@ -36,7 +36,9 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    - `read_file` braucht den aufgelösten Pfad (`/private/var/…` statt `/var/…`), deshalb `R=$(realpath "$RUN")`.
    - Dateien liest Gemini nur mit `read_file`: das ist auf Projekt und Lauf-Ordner begrenzt. Befehlsregeln haben keine
      Pfadgrenze – `cat`, `head`, `tail`, `wc`, `grep` würden auch `~/.ssh` oder `.env` lesen, und die Inhalte gingen an Google
-     (N03). `git log/diff/show` schreiben mit `--output` Dateien. Deshalb stehen sie nicht in der Liste.
+     (N03). `git log/diff/show` schreiben mit `--output` Dateien. Test- und Buildbefehle (`make test` …) fehlen bewusst:
+     Im Umsetzungsaufruf kann Gemini das Makefile oder einen Test ändern und damit beliebige Befehle ausführen (gemessen);
+     Tests führt Claude selbst aus. Deshalb stehen sie alle nicht in der Liste.
    - Die Liste nicht erweitern, schon gar nicht um Befehle, die Inhalte ausgeben, Programme starten oder Dateien schreiben
      (`cat`, `grep`, `find`, `rg`, `tree`, `git log/diff/show`). `--settings` ersetzt die Allow-Liste aus `~/.gemini/antigravity-cli/settings.json`.
 

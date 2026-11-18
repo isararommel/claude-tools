@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (Paket A gemergt, PR #19; nächstes Paket: B, offen: A2 Punkte 4–6, Antwort der Server-Werkzeug-Sitzung)*
+*Stand: 18.11.2026 (Paket A gemergt, PR #19, enge Liste PR #23; nächstes Paket: B, offen: A2 Punkte 4–6, neu: H)*
 
 ## Verweise
 
@@ -55,7 +55,8 @@ Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Ents
   `"agentMode": ""`): an die Sitzung des privaten Server-Werkzeug-Projekts gemeldet; sie hat es der Inhaberin vorgelegt
   und ändert selbst nichts. Hier nichts ändern.
 - `git … --output`/Lesen außerhalb: Die Inhaberin hat es an diese Sitzung übergeben; deren Empfehlung ist umgesetzt
-  (enge Liste: keine `cat`/`grep`/`git log|diff|show` mehr, nur `read_file`; CHANGELOG „enge Liste“).
+  (enge Liste: keine `cat`/`grep`/`git log|diff|show` und keine Test-/Buildbefehle mehr, nur `read_file`;
+  CHANGELOG „enge Liste“). Der geänderte Satz in `normen.py auftrag` kommt mit v14 (Paket B) in die Projekte.
   Die Kopie der neuen Fassung nach `~/.claude/agents/` braucht eine eigene Rückfrage.
 Offen:
 4. Projekte: `docs/multi-ki-ablauf.md` angleichen, projekteigene `command(x*)`-Einträge umstellen (mit Paket G).
@@ -110,6 +111,17 @@ auf **v13** gebracht (direktes `normen.py aktualisieren` dort sperrt der S06-Hoo
 PR im Projekt am 18.11. gemergt (durch die Inhaberin); dort noch die
 `.vorlage`-Dateien (`docs/multi-ki-ablauf.md`, `.geminiignore`) zusammenführen. Nach dem v13-Merge alle Sitzungen informiert.
 Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → in Paket B prüfen (in A nicht bearbeitet) (`multi-ki/benutzer/agents/mistral-team.md`).
+
+### H. Entschlacken und Archiv *(Wunsch der Inhaberin 18.11.)*
+
+PLAN.md und ähnliche Dateien regelmäßig entschlacken: Erledigtes wandert in passende Dateien unter `./archiv/`; ebenso
+alle anderen alten, nicht mehr benötigten Daten (z. B. erledigte Spikes und Entwürfe in `docs/plaene/`). Schritte:
+1. In claude-tools selbst: `archiv/` anlegen (z. B. `archiv/plan-2026-11.md`, `archiv/plaene/`), Erledigt-Abschnitt und
+   abgeschlossene Pakete aus PLAN.md dorthin, erledigte Pläne per `git mv`; Verweise (PLAN-Tabelle, CHANGELOG) anpassen.
+2. Für alle Projekte: Regel in die PLAN-Vorlage (`multi-ki/projekt/PLAN.md`) und ggf. als Ergänzung zu S08 – das wäre eine
+   Normänderung (Advisor S07 Punkt 5, Freigabe der Inhaberin). Vorschlag: „Am Paketende Erledigtes nach `archiv/`
+   verschieben, PLAN.md enthält nur Offenes und die letzten Schritte“.
+3. Klären: wann „regelmäßig“ (je Paketende? ab N Zeilen?) und ob `archiv/` von `.geminiignore`/Tests ausgenommen wird.
 
 ## Entscheidungen der Inhaberin (18.11.)
 

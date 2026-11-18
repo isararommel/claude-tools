@@ -64,9 +64,9 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 Die Agent-Definitionen enthalten Befehle, die zum Projekt passen müssen:
 
 - **Testbefehl:** je Projekt, z. B. `make test`, `swift test`, `npm test`, `pytest`, `cargo test`. Den Befehl im Auftrag an Claude/Vibe nennen.
-- **agy-Freigabeliste (`ALLOW`):** enthält im Beispiel `swift build`/`swift test`. Für das eigene Projekt die Build- und Testbefehle ersetzen oder ergänzen. Form: `command(npm test)` gilt als Präfix und deckt `npm test` mit beliebigen Argumenten ab; **kein `*`** – `command(npm test*)` und `command(npm test *)` greifen in agy 1.5.11 nicht (`docs/plaene/agy-freigaben-spike.md`).
+- **agy-Freigabeliste (`ALLOW`):** ist projektunabhängig und enthält bewusst keine Test- oder Buildbefehle (Abschnitt 7). Form, falls sie je geändert wird: `command(x)` gilt als Präfix und deckt `x` mit beliebigen Argumenten ab; **kein `*`** – `command(x*)` und `command(x *)` greifen in agy 1.5.11 nicht (`docs/plaene/agy-freigaben-spike.md`).
 
-Am einfachsten: In jedem Auftrag nennt Claude den Testbefehl ausdrücklich. Die Freigabeliste in `gemini-analyst.md` kann um die Befehle mehrerer Sprachen ergänzt werden.
+Am einfachsten: In jedem Auftrag nennt Claude den Testbefehl ausdrücklich.
 
 ## 4. Der Ablauf einer Aufgabe
 
@@ -240,7 +240,7 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 # Claude hat $RUN/prompt.md vorher mit dem Write-Werkzeug angelegt; erste Zeile:
 # „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“
 # Außerdem: „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal. Erlaubte Shell-Befehle, einzeln und ohne
-# Pipes: ls, pwd, git status, git branch --show-current und der Testbefehl.“
+# Pipes: ls, pwd, git status, git branch --show-current.“
 # und: „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“
 # Diffs/git-Verlauf legt Claude vorher als Datei in den Lauf-Ordner: git diff main > "$RUN/diff.patch"
 # (Jeder verweigerte Schritt beendet den Lauf. Einmal beim gleichzeitigen Start zweier agy-Läufe beobachtet:
@@ -248,7 +248,7 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 RUN="${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
 # im selben Befehl wie agy; R = aufgelöster Pfad (/private/var/…), sonst greift read_file nicht
-R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git status)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(pwd)","read_file('"$R"')"]}}'
+R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(git status)","command(git branch --show-current)","command(ls)","command(pwd)","read_file('"$R"')"]}}'
 
 # Analyse (nur lesen; im Prompt: „Ändere keine Dateien.“)
 agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \
@@ -260,10 +260,11 @@ agy --model gemini-3.8-flash-high --mode accept-edits --print-timeout 540s \
 ```
 
 - **Immer `--model gemini-3.8-flash-high`.** Ohne `--model` kann agy Claude- oder GPT-Modelle nutzen, und die Last landet beim falschen Anbieter.
-- `ALLOW` an das Projekt anpassen (siehe Abschnitt 3): nur Test- und Buildbefehle ergänzen. Nie
-  `--dangerously-skip-permissions`. Keine Befehle aufnehmen, die Dateiinhalte ausgeben, Programme starten oder Dateien
-  schreiben (`cat`, `head`, `tail`, `wc`, `grep`, `find`, `rg`, `tree`, `git log/diff/show`): Befehlsregeln haben keine
-  Pfadgrenze, `cat ~/.ssh/…` oder `.env` gingen an Google (N03). Lesen nur per `read_file` (Projekt + Lauf-Ordner).
+- `ALLOW` ist projektunabhängig und wird nicht erweitert. Nie `--dangerously-skip-permissions`. Keine Befehle aufnehmen, die
+  Dateiinhalte ausgeben, Programme starten oder Dateien schreiben (`cat`, `head`, `tail`, `wc`, `grep`, `find`, `rg`, `tree`,
+  `git log/diff/show`): Befehlsregeln haben keine Pfadgrenze, `cat ~/.ssh/…` oder `.env` gingen an Google (N03). Auch keine
+  Test-/Buildbefehle: Im Umsetzungsaufruf kann Gemini das Makefile ändern und `make test` startet dann Beliebiges
+  (gemessen 18.11.2026); Tests führt Claude aus. Lesen nur per `read_file` (Projekt + Lauf-Ordner).
 - agy-Suchwerkzeuge (`grep_search`, `list_dir`, `find_by_name`) stehen Gemini headless nicht zur Verfügung (gemessen
   18.11.2026). Für große Analysen nennt Claude die Dateien im Prompt oder legt eine Liste bzw. einen Auszug in den Lauf-Ordner.
 - **`"agentMode":""` nie weglassen:** Ohne `--mode` startet `agy -p` sonst im Auto-Modus und führt auch nicht freigegebene
