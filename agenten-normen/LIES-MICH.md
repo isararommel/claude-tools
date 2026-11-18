@@ -9,7 +9,7 @@ Die Muss-Normen werden deshalb **technisch** durchgesetzt (Hooks, Auftragsdatei,
 
 ## Aufbau (im Projekt)
 ```text
-normen/normen.toml      Regelwerk: Muss N01–N10, Soll S01–S04 – Text für Prompts, Begründung, Quellen, Prüfmuster   (gemeinsam)
+normen/normen.toml      Regelwerk: Muss N01–N11, Soll S01–S08 – Text für Prompts, Begründung, Quellen, Prüfmuster   (gemeinsam)
 normen/rollen.toml      Rollen und Fähigkeiten (ja / fragen / nein) + was jede Rolle verantwortet                      (gemeinsam)
 normen/normen.py        ein Werkzeug für alles: pruefen · hook · stop · auftrag · kurz · sync                           (gemeinsam)
 normen/projekt.toml     Testbefehl, gesperrte Pfade, Geheimnis-Muster, Forschungsdaten, MCP, Rollen-Abweichungen        (Projekt)

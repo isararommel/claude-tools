@@ -4,139 +4,114 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 16.11.2026 (nach v6)*
+*Stand: 18.11.2026 (v13 auf Branch `arbeitsregel-clear`, PR wartet auf Freigabe)*
 
 ## Verweise
 
 | Datei | Wofür |
 |---|---|
 | [KONZEPT.md](KONZEPT.md) | Ziel und Aufbau von claude-tools |
-| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v5) |
+| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v13; Einzelheiten aller früheren Pakete stehen dort) |
 | [agenten-normen/](agenten-normen/LIES-MICH.md) | Quelle der Normen, Hooks, normen.py |
 | [multi-ki/multi-ki-ablauf.md](multi-ki/multi-ki-ablauf.md) | Ablauf mit mistral-team / gemini-analyst |
 | [NEUES-REPOSITORY.md](NEUES-REPOSITORY.md) | Neues Projekt einrichten |
-| [docs/plaene/normen-v6-plan.md](docs/plaene/normen-v6-plan.md) | Freigegebener Plan v6: Entscheidungen, wörtliche Texte, Spezifikation, Tests |
+| [docs/plaene/](docs/plaene/) | Entwürfe und Spikes (v6-Plan, v7-Entwurf, Sandbox-, Worktree-, Recherche-Spike) |
 
 ## Arbeitsweise (kurz)
 
+- **Pakete so schneiden, dass danach `/clear` möglich ist (S08, seit v13):** Befunde sofort hier festhalten, am Paketende
+  committen und „/clear möglich“ melden. Ausnahme: stark zusammenhängende Pakete – dann zusammen erledigen, Grund nennen.
 - Öffentliches Repository: keine Namen, Server, privaten Projekte oder Pfade; Inhaberin nur als `{inhaberin}`.
 - Eigener Branch je Aufgabe, PR, Merge über `python3 normen/normen.py merge <PR>`; Testbefehl `make test`.
 - Normen nur in der Quelle (`agenten-normen/`, `multi-ki/`) ändern, `meta.version` erhöhen, CHANGELOG ergänzen, dann
-  `bash einrichten.sh . --test "make test"` (spielt die Kopie in dieses Repository ein).
-- Projekte holen Änderungen mit `python3 normen/normen.py aktualisieren`; der Multi-KI-Teil braucht `multi-ki/einrichten.sh` oder Handarbeit.
+  `bash einrichten.sh . --test "make test"` (spielt die Kopie ein). `tests/test_v4.py` prüft die Versionsnummer (mit anheben).
+- Projekte holen Änderungen mit `python3 normen/normen.py aktualisieren`; der Multi-KI-Teil braucht `multi-ki/einrichten.sh` oder
+  Handarbeit (CLAUDE-Abschnitt wird nicht ersetzt: PLAN-, Fable-Zeile und Regel 8 von Hand; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
+- Bekannte Grenzen: `disallowedTools: advisor` wirkt nicht (Probe 16.11., Sperre nur per Anweisung); `~/.vibe/config.toml`
+  braucht vollständige Modelleinträge (Server-Liste lieferte nur GLM-5.3 Flash); N03 sperrt `*.secret` auch in Temp (entschieden).
+- Rückmeldungen der Projekte: offene Issues im privaten Rückmelde-Repository (`[rueckmeldung].repo` der Projekte) und lokale
+  Kopien unter `<projekt>/.normen/rueckmeldungen/`. Kommentieren/Schließen nur nach Rückfrage.
+- Nach jedem Normen-Release die anderen Claude-Code-Sitzungen per `ListAgents`/`SendMessage` informieren.
 - Bekannter Hook-Fehlalarm: Liegt der Arbeitsordner einer *anderen* Projektsitzung hier, sperrt deren Hook Befehle mit `>`.
 
 ## Erledigt (letzte Schritte)
 
-- ✅ 16.11. v7 G1–G6 auf Branch `normen-v7` (Einzelheiten: CHANGELOG „v7 – in Arbeit“): Selbsttest, pre-commit nicht umgehen,
-  Bash-Schreibziele, Inline-Code und fremde Skripte (Advisor- und Gemini-Review eingearbeitet), Datenschutz vor vibe/agy,
-  MCP-Freigaben. G4-A/G4-B/G5 von mistral-team (Large 4), G1–G3/G6 und alle Review-Korrekturen von Opus. Trockenlauf G5 über 71 alte
-  Aufträge: 70 ja, 1 agy-Auftrag mit Geheimnis-Pfad gesperrt (gewollt). Selbsttest nach jedem Paket bestanden.
+- ✅ 18.11. **v13** (Branch `arbeitsregel-clear`): S08-CLEAR-FAEHIG + Zeile in der PLAN-Vorlage; `make test` grün,
+  `pruefen --diff` 0 Fehler. Rückmeldungen gesichtet (siehe Pakete A–C), vier Projektsitzungen nach Stand v12 gefragt (Paket G).
+- ✅ 17.11. v12 (PR #14): Vibe-Hooks für `edit`/`grep`, Recherche-Vorlagen. v11 (PR #13), v10 (PR #11), v9 (PR #8), v8 (PR #6),
+  v7 (PR #3), G7 Sandbox-Spike (Weg 2: vibe/agy ausnehmen, Sandbox nicht aktiv). Einzelheiten: CHANGELOG.
 
-- ✅ 16.11. Agent-Definitionen (mit „Advisor nie aufrufen“, neu Explore.md) nach `~/.claude/agents/` übernommen; globale
-  CLAUDE.md um Fable ergänzt. Probe `disallowedTools: advisor` (Claude Code 2.1.325): **wirkt nicht** – der Testagent listet
-  `advisor` weiterhin (Selbstauskunft); Sperre bleibt Anweisung.
-- ✅ 16.11. Vibe-Modelle repariert: `~/.vibe/config.toml` mit vollständigen Einträgen (Server-Liste lieferte nur noch
-  GLM-5.3 Flash); Large 4, GLM-5.3, GLM-5.3 Flash getestet. CLAUDE.md dieses Repositorys um PLAN/Fable/Regel 8 ergänzt.
-- ✅ 16.11. Normen v6 (S06 Code Mode mit AST-Prüfung im Hook, S07 Fable als Advisor, `nur_rollen`, Rollen fable/skript,
-  PLAN.md-Vorlage, Agent-Definitionen „Advisor nie aufrufen“) – PR #2. `normen.py` schrieb Claude selbst (Vibe wich auf
-  Mistral Medium 3.5 aus und änderte nichts).
-- ✅ 16.11. Normen v5 (Vibe-Hooks wirksam, N10/N06 korrigiert) – PR #1
-- ✅ 15.11. Erste Fassung: Normen v4, Multi-KI-Ablauf, Anleitung für neue Repositories
+## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
-## Nächste Aufgaben (in dieser Reihenfolge)
+### 0. v13 mergen *(wartet auf Freigabe der Inhaberin)*
 
-### 1. Guardrail-Ausbau (Normen v7) *(Entscheidungen 16.11. getroffen, Branch `normen-v7`)*
+Branch `arbeitsregel-clear` → PR #16 → `python3 normen/normen.py merge 16`. Danach Sitzungen informieren (`aktualisieren`, neue
+Norm S08) und den Merge hier abhaken.
 
-Entwurf: `docs/plaene/guardrails-v7-entwurf.md` – Lücken L1–L10, Bewertung von 22 externen Repos, Ideen a–h, Pakete G1–G11,
-Normtext-Diffs; Entscheidungen der Inhaberin in Abschnitt 8. Paketplan steht (Advisor-Konsultation 1 erledigt).
-✅ **v7 gemergt** (PR #3, 16.11.); fünf Claude-Code-Sitzungen per SendMessage zum Aktualisieren aufgefordert
-(`aktualisieren`, `selbsttest`, Projektwerte `[mcp]`/`forschungsdaten` mit der Inhaberin).
-✅ **G7 Sandbox-Spike gemessen** (`docs/plaene/sandbox-spike.md`, nur `-p`-Modus): Sandbox sperrt Schreiben/Netz wirksam;
-vibe und agy liefen darin mit einer Freigabe-Kombination (Mindestmenge offen); `excludedCommands` nahm im `-p`-Modus nichts aus;
-`$TMPDIR` ist in der Sandbox umgeleitet (Lauf-Ordner bräuchten einen festen Pfad); `einrichten.sh` scheitert an `.git/config`.
-**Entscheidung der Inhaberin (16.11.): Weg 2 – vibe/agy ausnehmen (fürs Erste).** Sandbox **nicht aktiviert**; vor dem
-Einschalten interaktiv prüfen: `excludedCommands` für vibe/agy, Rückfragen (auch aus Hintergrund-Sub-Agenten), fester Lauf-Ordner.
-✅ **v9 gemergt** (PR #8, 17.11.): N01 `git worktree remove --force` destruktiv, N10 `git worktree add` nur Orchestrator;
-fünf Sitzungen informiert (Selbsttest: bei „unklar“ einmal wiederholen, nur „NICHT GESPERRT“ melden).
-✅ **v11 gemergt** (PR #13, 17.11., „ja, so machen“): Container-`rm` je Teilbefehl keine Datei-Löschung; Skriptpfade mit
-eindeutigen Zuweisungen aus vorangehenden Teilbefehlen; mehrfach zugewiesene Variablen und Befehlsersetzung nie auflösen;
-Shell-Schlüsselwörter (`do`, `then` …) vor Befehlen geprüft; N03 für `*.secret` in Temp bleibt (Entscheidung). Vier Sitzungen
-informiert.
+### A. agy-Freigaben klären *(Frage 1, freigegeben 18.11.)*
 
-**Nächstes Paket: v13 – Selbsttest auch für das Bearbeiten-Werkzeug** *(freigegeben 17.11.)*: Köder zusätzlich über `edit`
-bzw. `write_file` (Vibe) und Edit/Write (Claude), mit Attrappen-Tests wie bei G1; nach Merge Sitzungen informieren.
+Ziel: gemini-analyst kann headless (`--mode accept-edits`, `--settings "$ALLOW"`) zuverlässig lesen **und** neue Dateien anlegen.
+Befunde bisher: (1) Recherche-Abnahme 17.11.: Anlegen neuer Dateien scheiterte zweimal („a tool required the command
+permission“). (2) Rückmeldung (Normen v7): trotz `command(cat *)`, `command(wc *)`, `read_file(<lauf-ordner>)` gesperrt –
+`cat <relativer pfad>` auf eine gitignorte Datei, `wc -l <tmp>/*.md` (Glob außerhalb des Projekts), `read_file` auf Datei
+im freigegebenen Ordner (evtl. `/var` vs. `/private/var`). Beleg: `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript_full.jsonl`.
+(3) Rückmeldung (v11): Meldung „no output produced … auto-denied“, die Zieldatei war aber vollständig geschrieben.
+Schritte: 1. Regel-Syntax an agy 1.5.11 nachsehen (`agy --help`, mitgelieferte Doku/Schema; nicht raten, S04).
+2. Wegwerf-Repo unter `$TMPDIR`, Mini-Aufträge je Fall (relative Datei, gitignorte Datei, Datei im Lauf-Ordner mit `/var`-
+und `/private/var`-Pfad, neue Datei anlegen); je Lauf im Transkript die verweigerte Freigabe mit genauem Ziel ablesen.
+3. Mindest-ALLOW bestimmen (nur lesende Befehle + Schreiben im Auftrag), nie `--dangerously-skip-permissions`.
+4. `multi-ki/benutzer/agents/gemini-analyst.md` und `multi-ki/multi-ki-ablauf.md`: ALLOW anpassen; bei „auto-denied“ erst
+`git status` und Zieldatei prüfen, Lauf nicht als gescheitert werten. 5. Bericht `docs/plaene/agy-freigaben-spike.md`.
+Abnahme: Mini-Auftrag (eine Datei lesen, eine neue schreiben) läuft ohne Verweigerung; `make test`; Kopie nach
+`~/.claude/agents/` nur mit Rückfrage.
 
-### 1b. v12 – Vibe-Hooks für `edit`/`grep` – ✅ gemergt (PR #14, 17.11., freigegeben), Agent-Definitionen kopiert, Sitzungen informiert
+### B. v14 – Selbsttest-Köder auch für Bearbeiten-Werkzeuge *(freigegeben 17.11.)*
 
-Beim Prüfen der Recherche gefunden: Vibe 3.1.2 nennt das Bearbeiten-Werkzeug `edit`, der Hook kannte nur `search_replace` – Teams
-konnten ohne Auftrag Dateien ändern (live gemessen). Behoben in der Hook-Vorlage (`edit`, `grep`, weitere Shell-Werkzeuge), dazu
-der gesperrte Ordner selbst; `einrichten.sh`/`aktualisieren` ersetzen reine Normen-`hooks.toml`. Nachgewiesen: erlaubte Edits
-gehen durch, verbotene (auch durch Sub-Agenten) werden gesperrt. Offen: Freigabe der Inhaberin für v12 (Einstellungsdatei in allen
-Projekten) – erteilt; Selbsttest mit Köder auch für `edit` → v13; nach dem Update in den Projekten „gültig: 9“ prüfen.
+Köder zusätzlich über `edit`/`write_file` (Vibe) und Edit/Write (Claude), mit Attrappen-Tests wie bei G1
+(`tests/test_selbsttest.py`). Dazu aus einer Rückmeldung: bei „NICHT GESPERRT“ den Beleg (stdout/stderr, Ausgabeordner) nach
+`.normen/selbsttest-<zeit>.log` sichern – `_selbsttest_werkzeug` (normen.py, ~Zeile 798) löscht den Ausgabeordner bisher immer.
+Prüfen, ob der erste vibe-Lauf in einem frischen Ordner die Hooks lädt (Rückmeldung: 1 von 5 Läufen ungesperrt; v10 wiederholt
+nur „unklar“, nicht „NICHT GESPERRT“). Nach Merge Sitzungen informieren.
 
-### 1a. Recherche-Aufträge *(freigegeben 17.11.)* – ✅ gemergt (PR #14)
+### C. `auftrag --dateien` mit Leerzeichen *(klein, Rückmeldung)*
 
-Entscheidungen der Inhaberin: **nur Vorlagen und Doku, keine neue Norm**; Ergebnisse **im Projekt unter `docs/recherche/`**;
-Anbieter **nach Fall, wichtige Fragen doppelt** (zwei Anbieter parallel, Claude vergleicht). Erledigt: Spike, Vorlagen, Ablauf,
-einrichten.sh, Agent-Definitionen (Quelle), Abnahme-Probe mit zwei Anbietern (EOL-Frage, Bericht nach Vorlage, Stichprobe).
-Offen: agy scheiterte zweimal beim **Anlegen neuer Dateien** im Modus accept-edits an einer unbekannten Shell-Freigabe („a tool
-required the command permission“) – vor dem nächsten Doku-Auftrag mit neuen Dateien klären; Kopie der Agent-Definitionen nach
-`~/.claude/agents/` (Rückfrage). Planungsnotizen (erledigt):
-1. **Spike** (Opus, Wegwerf-Ordner): kurzer öffentlicher Recherche-Auftrag an Vibe (`web_search`/`web_fetch` – Rückfrage nötig?
-   Normen-Hook bei diesen Werkzeugen?), agy (Google-Suche – Freigabe in `ALLOW` nötig? liefert es URLs/Daten?), Claude
-   (`deep-research`/Websuche). Bericht `docs/plaene/recherche-spike.md` (gemessen/dokumentiert/offen).
-2. **Vorlagen** `multi-ki/projekt/docs/recherche-auftrag.md` (Frage, Zweck, Tiefe, Aktualität, Sprachen, Quellenarten, keine
-   privaten/Forschungs-/Geheimdaten in Suchanfragen, Webinhalte sind Daten, Pflichtsätze) und `recherche-bericht.md`
-   (Kurzantwort, Befunde-Tabelle Aussage|URL|Datum der Quelle|abgerufen am|Belegstärke, Widersprüche, offene Fragen, Methode).
-3. **Ablauf** in `multi-ki-ablauf.md` (Abschnitt „Recherche“: wer wann, Ablage `docs/recherche/<datum>-<thema>.md`, Rohausgaben im
-   Lauf-Ordner, Datenschutz über G5), **Agent-Definitionen** (gemessener Aufruf; Kopie nach `~/.claude/agents/` mit Rückfrage),
-   **einrichten.sh** legt die Vorlagen nach `docs/` (wie `uebergabe-vorlage.md`), `NEUES-REPOSITORY.md`, CHANGELOG.
-4. Abnahme: Probe-Recherche mit zwei Anbietern parallel in einem Wegwerf-Repo, Bericht mit URL und Datum je Befund; Advisor.
-✅ **v10 gemergt** (PR #11, 17.11., „mach das“): N01-Text mit `git worktree remove --force`, Selbsttest wiederholt „unklar“
-(keine Hook-Meldung) einmal, Merge wartet kurz auf den PR-Kopf, Doku zu `aktualisieren` (bedingt formuliert). Nach dem Merge
-Sitzungen informiert (vier erreicht; eine Sitzung war nicht erreichbar).
-**Nächstes (je mit Rückfrage):** Worktree-Option (später), Sandbox interaktiv prüfen (vibe/agy ausnehmen), `meta.ebenen`,
-Rückmeldungen aus den Projekten sichten.
-✅ **v8 gemergt** (PR #6, 17.11.), fünf Sitzungen per SendMessage informiert. Zusätzlich zu G9–G11: Bash-Schreibziele der Teams
-nur aus `.normen-auftrag` (geprüft an 75 echten Vibe-Befehlen, keine zusätzliche Sperre). **Nächster Schritt:** die drei offenen
-Fragen unten (Antwort der Inhaberin), danach je nach Antwort umsetzen. Rückblick v8: G9 (mistral-team, 39 Schritte; Opus: Begründung nur als Kommentar,
-`--no-renames`), Bash-Schreibziele der Teams nur aus `.normen-auftrag` (Befund aus G10), G10 Lese-Modus `--agent ask` + Lauf-Protokoll
-(gemessen: echter Lese-Auftrag in 2 Schritten), G11 Worktree-Spike (Empfehlung: nur innerhalb unter `.worktrees/`), G5-Fix
-verschachtelte Zuweisungen. Nächster Schritt: Advisor-Abnahme, PR, `normen.py merge`, Sitzungen informieren (Hinweis auf
-`# normen-ausnahme: N02-…`), dann die offenen Fragen unten. Planungsnotizen zu G9–G11 (erledigt):
-- **G9** → mistral-team (nur `agenten-normen/projekt/normen/normen.py`). Spezifikation für die Prompt-Datei:
-  in `pruefen` bei `--diff`/`--staged` alle Testdateien des Diffs (Globs `[pfade].tests`) gemeinsam auswerten; entfernte und neue
-  Zeilen aus `git diff -U0` (bei `--staged` mit `--cached`), gelöschte Testdateien mitzählen. Assert-Zeile = Regex
-  `\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCTAssert\w*\(|pytest\.raises`. Vergleich als Multimenge der Zeilen ohne
-  führenden/abschließenden Leerraum: `entfernt − neu` (Zeilen, die nur verschoben wurden, heben sich auf). Anzahl ersatzlos
-  entfernt = max(0, Σentfernt − Σneu) minus Anzahl neuer Zeilen im ganzen Diff mit `normen-ausnahme: N02-TESTS-SIND-TABU`;
-  > 0 → `fehler` je Testdatei „Assert entfernt: …“ (mit der alten Zeile). Übrige geänderte → `hinweis` „Assert geändert: -alt“
-  (höchstens 3 je Datei). Messung über die Historie: 21 Commits, 0 Fehler, 4 Hinweise. Danach Advisor, Einspielen, Selbsttest.
-- **G10** → Opus, im Wegwerf-Repo messen (wie G7): `vibe --agent ask` mit echter Aufrufform (Prompt-Datei, Zeitlimit) –
-  werden Schreiben und Shell abgelehnt oder hängt headless? hält das auch, wenn der Teamleiter an Sub-Agenten delegiert?
-  `active_model` Large 4? Normen-Hook (Köder) aktiv? „Lese-Auftrag“ so definieren, dass ein Review wie am 16.11. (Hook-Prüfbefehl,
-  `fall.json` in `$RUN`) möglich bleibt. Lauf-Protokoll in `multi-ki/benutzer/agents/mistral-team.md` (Quelle) und
-  `multi-ki-ablauf.md`: auf die eigene PID warten statt `pgrep -f vibe-rs`; leere Statusdatei = „sauber“; nie „gescheitert“,
-  solange die eigene PID lebt. Neue Aufrufform in G5-Tests/„Betrieb ja“. Kopie nach `~/.claude/agents` nur nach Rückfrage.
-- **G11** → Opus, Worktree-Spike im Wegwerf-Klon: untracked `.normen-auftrag`/`.normen/` fehlen im Worktree; welches `normen.py`
-  und welches ROOT nutzt der Hook dort; Worktree innerhalb vs. außerhalb des Projekts (G4-B „außerhalb“, `git status`, `pruefen`);
-  Hook-Stufen für `git worktree add/remove/prune`, `git branch -D`; getrackte Sperrpfade vorhanden, untracked `.env` fehlt;
-  läuft der Testbefehl. Bericht `docs/plaene/worktree-spike.md` (gemessen/dokumentiert/offen).
-- Reihenfolge: G9-Auftrag starten; währenddessen G10/G11 nur messen (keine Dateien im Projekt ändern, sonst N06-Fehler im
-  Vibe-`pruefen`); nach G9 Dateien von G10/G11 einspielen; Advisor-Abnahme; PR; `normen.py merge`; Sitzungen informieren.
-`meta.ebenen` aus Entwurf Abschnitt 6 (zurückgestellt). Rückmeldungen aus den Projekten (`normen.py melden --art zu-streng`) sichten.
+`cmd_auftrag` (normen.py ~Zeile 2219) trennt jedes Argument an Leerraum – Pfade mit Leerzeichen sind unmöglich. Vorschlag:
+nie trennen (jedes Argument ein Pfad); vorher prüfen, ob Agent-Definitionen/Doku `--dateien "a b"` verwenden, und diese
+anpassen (N08: kein Fallback). Test in `tests/` ergänzen. Kann mit B in eine Version.
 
-### 2. Nach v6 in den Projekten *(Rückfrage je Projekt)*
+### D. Sandbox simulieren *(Frage 4, freigegeben 18.11.)*
 
-`normen.py aktualisieren` + `multi-ki/einrichten.sh` je Projekt (CLAUDE-Abschnitt wird nicht ersetzt: PLAN-Zeile, Fable-Zeile und
-Regel 8 von Hand übernehmen; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
+Gemeint sind die offenen Punkte aus dem Sandbox-Spike (`docs/plaene/sandbox-spike.md`), nicht Rückfragen allgemein: greift
+`excludedCommands` für vibe/agy interaktiv, kommen Sandbox-Rückfragen auch aus Hintergrund-Sub-Agenten an, fester Lauf-Ordner
+statt umgeleitetem `$TMPDIR`. Der Spike lief nur mit `claude -p`; ein weiterer `-p`-Lauf belegt interaktives Verhalten nicht.
+Messweg festlegen: interaktive Claude-Sitzung in einem Wegwerf-Repo mit Sandbox in `.claude/settings.local.json` (nur dort),
+gesteuert über ein Pseudo-Terminal (tmux ist nicht installiert → `script`/Python `pty`, keine neuen Pakete ohne Freigabe).
+Fälle: Bash-Befehl im Projekt, Schreiben außerhalb, vibe/agy-Aufruf, Hintergrund-Sub-Agent mit Bash. Bericht ergänzen.
+Sandbox im echten Projekt einschalten = Einstellungsänderung → nur mit Freigabe. Nebenbei: Die Inhaberin bekommt viele
+Rückfragen; der Skill `fewer-permission-prompts` kann häufige lesende Befehle aus den Transkripten in eine Allowlist übernehmen
+(Vorschlag zeigen, nicht ohne Freigabe eintragen).
+
+### E. `meta.ebenen` *(Frage 5, eingeplant)*
+
+Entwurf in `docs/plaene/guardrails-v7-entwurf.md` Abschnitt 6: `[meta].ebenen` (Hooks / Sandbox / nachgelagert / Restgefahr)
+in `normen.toml`, Ausgabe in `kurz.md`. Text an den Stand nach Paket D anpassen (Sandbox weiter „geplant“?). Normänderung:
+Advisor vorher (S07 Punkt 5), Freigabe der Inhaberin.
+
+### F. Worktree je Team-Lauf *(Frage 5, eingeplant, nach A–E)*
+
+Grundlage `docs/plaene/worktree-spike.md` (nur innerhalb unter `.worktrees/`). Vorbedingungen aus den offenen Fragen: echter
+Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `git worktree remove` löscht git-ignorierte Dateien.
+
+### G. Projekte auf v12/v13 bringen *(Frage 2, läuft)*
+
+18.11.: vier laufende Projektsitzungen gefragt (Normen-Version, Prüfbefehl aus `.vibe/hooks.toml` → „gültig: 9“, Selbsttest).
+Antworten: 1 von 4 – Projekt 1: v12, „gültig: 9“, Selbsttest claude/vibe gesperrt, nichts geändert. Übrige **ausstehend**.
+Neue Rückmeldung aus dieser Antwort: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`). Lokal gesehen: drei Projekte auf v12 mit `edit`-Hook, **ein Projekt noch auf v9 ohne `edit`-Hook**
+(Vibe kann dort ohne Auftrag Dateien ändern) – wenn keine Sitzung antwortet, Aktualisieren mit Rückfrage an die Inhaberin.
+Antworten den Projektordnern zuordnen; Projekte ohne Sitzung benennen. Nach v13-Merge erneut informieren.
 
 ## Offene Fragen an die Inhaberin
 
-- Advisor-Abrechnung: entschieden – Fable läuft; bei „Advisor unavailable“ gilt S07.
-- v7: entschieden am 16.11. (Entwurf Abschnitt 8).
-- v8, entschieden am 17.11.: (1) Agent-Definitionen kopieren – ja, erledigt (alle drei gleich der Quelle). (2) N01-Muster
-  `git worktree remove --force` / Teams kein `git worktree add` – ja, umgesetzt in v9. (3) Worktree je Team-Lauf – später
-  (vorher echter Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `remove` löscht git-ignorierte Dateien).
-- Selbsttest schwankt bei Vibe: entschieden 17.11. („mach das“), umgesetzt in v10 (einmalige Wiederholung bei „unklar“).
+- v13 (S08) mergen?
+- Rückmelde-Issues: erledigte schließen/kommentieren, sobald die Pakete A–C umgesetzt sind?
+- Projekt auf v9 ohne antwortende Sitzung: selbst aktualisieren?
