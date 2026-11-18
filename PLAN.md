@@ -25,7 +25,10 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 - Eigener Branch je Aufgabe, PR, Merge über `python3 normen/normen.py merge <PR>`; Testbefehl `make test`.
 - Normen nur in der Quelle (`agenten-normen/`, `multi-ki/`) ändern, `meta.version` erhöhen, CHANGELOG ergänzen, dann
   `bash einrichten.sh . --test "make test"` (spielt die Kopie ein). `tests/test_v4.py` prüft die Versionsnummer (mit anheben).
-- Projekte holen Änderungen mit `python3 normen/normen.py aktualisieren`; der Multi-KI-Teil braucht `multi-ki/einrichten.sh` oder Handarbeit.
+- Projekte holen Änderungen mit `python3 normen/normen.py aktualisieren`; der Multi-KI-Teil braucht `multi-ki/einrichten.sh` oder
+  Handarbeit (CLAUDE-Abschnitt wird nicht ersetzt: PLAN-, Fable-Zeile und Regel 8 von Hand; `docs/multi-ki-ablauf.md` kommt als `.vorlage`).
+- Bekannte Grenzen: `disallowedTools: advisor` wirkt nicht (Probe 16.11., Sperre nur per Anweisung); `~/.vibe/config.toml`
+  braucht vollständige Modelleinträge (Server-Liste lieferte nur GLM-5.3 Flash); N03 sperrt `*.secret` auch in Temp (entschieden).
 - Rückmeldungen der Projekte: offene Issues im privaten Rückmelde-Repository (`[rueckmeldung].repo` der Projekte) und lokale
   Kopien unter `<projekt>/.normen/rueckmeldungen/`. Kommentieren/Schließen nur nach Rückfrage.
 - Nach jedem Normen-Release die anderen Claude-Code-Sitzungen per `ListAgents`/`SendMessage` informieren.
@@ -42,7 +45,7 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ### 0. v13 mergen *(wartet auf Freigabe der Inhaberin)*
 
-Branch `arbeitsregel-clear` → PR → `python3 normen/normen.py merge <PR>`. Danach Sitzungen informieren (`aktualisieren`, neue
+Branch `arbeitsregel-clear` → PR #16 → `python3 normen/normen.py merge 16`. Danach Sitzungen informieren (`aktualisieren`, neue
 Norm S08) und den Merge hier abhaken.
 
 ### A. agy-Freigaben klären *(Frage 1, freigegeben 18.11.)*
