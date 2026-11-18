@@ -12,7 +12,7 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 13
+version = 14
 stand = "2026-11-18"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",

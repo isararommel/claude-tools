@@ -34,7 +34,9 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
      niedrige Rundenzahl. Nicht nachgewiesen: ob der Normen-Hook im Lese-Modus lesende Befehle auf Sperrpfade sperrt – in Projekten
      mit `[pfade].gesperrt` den Lese-Modus nur nach Rückfrage bei Claude verwenden. Braucht ein Review Befehle (z. B. den Hook-Prüfbefehl), bleibt es bei `--smart-approve` mit „Ändere keine
      Dateien.“ – ohne offenen Auftrag sperrt der Normen-Hook Schreiben der Teams (Datei-Werkzeuge und seit v8 auch Bash).
-   - Verlangt Claude längere Laufzeit: `--time-limit` bis 1800 und den Befehl mit `run_in_background` starten; auf die Benachrichtigung warten, nicht pollen.
+   - `--time-limit 540` im Vordergrund nur für kurze Läufe (Scout, Review, Testlauf) – die Grenze kommt vom 600-s-Limit des
+     Bash-Werkzeugs. **Umsetzungsläufe** (Code oder Tests schreiben) und alles, wofür Claude längere Laufzeit verlangt:
+     `--time-limit 1200` (bis 1800) und den Befehl mit `run_in_background` starten; auf die Benachrichtigung warten, nicht pollen.
    - NIE `--auto-approve`/`--yolo`, NIE `--agent flash-scout|code-worker|code-reviewer` (Sub-Agenten, schlagen als Hauptagent fehl).
    - **Recherche-Aufträge** (Prompt nach `docs/recherche-auftrag.md`): immer `--smart-approve`, **nicht** `--agent ask` – im
      Lese-Modus ist `web_search` gesperrt und Vibe antwortet aus dem Gedächtnis (gemessen 17.11.). Meldet `antwort.txt`, dass

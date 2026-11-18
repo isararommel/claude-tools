@@ -187,8 +187,16 @@ with tempfile.TemporaryDirectory() as t:
     r = sh(sys.executable, "normen/normen.py", "stop", cwd=repo, eingabe="{}")
     check("stop blockt nicht bei laufendem Auftrag", '"block"' not in r.stdout and "Team-Auftrag läuft" in r.stdout, r.stdout)
     sh("git", "checkout", "-q", "--", "app.py", cwd=repo)
-    r = sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "mistral-team", "--dateien", "app.py anderes.py", cwd=repo)
-    check("auftrag trennt Leerraum", "`app.py`, `anderes.py`" in r.stdout and "Leerraum" in r.stderr, r.stdout + r.stderr)
+    # v14 (Paket C): jedes Argument ist genau ein Pfad, auch mit Leerzeichen – nie trennen
+    r = sh(sys.executable, "normen/normen.py", "auftrag", "--rolle", "mistral-team", "--dateien", "mein ordner/a b.py",
+           "app.py", cwd=repo)
+    check("auftrag: Pfad mit Leerzeichen bleibt ganz", "`mein ordner/a b.py`, `app.py`" in r.stdout and not r.stderr,
+          r.stdout + r.stderr)
+    for ziel, soll in (("mein ordner/a b.py", "ja"), ("mein", "nein"), ("b.py", "nein")):
+        r = sh(sys.executable, "normen/normen.py", "hook", "--rolle", "mistral-team", "--werkzeug", "vibe", cwd=repo,
+               eingabe=json.dumps({"tool_name": "write_file", "tool_input": {"file_path": ziel}, "cwd": str(repo)}))
+        ist = "nein" if r.stdout.strip() and json.loads(r.stdout.splitlines()[0])["decision"] == "deny" else "ja"
+        check(f"auftrag mit Leerzeichen: write_file {ziel} → {soll}", ist == soll, r.stdout)
     # Gemini
     r = sh(sys.executable, "normen/normen.py", "hook", "--rolle", "gemini-analyst", "--werkzeug", "gemini", cwd=repo,
            eingabe=json.dumps({"tool_name": "run_shell_command", "tool_input": {"command": "git push -f"}, "cwd": str(repo)}))
