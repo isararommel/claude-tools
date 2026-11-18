@@ -23,13 +23,18 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
 
 1. **Die Prompt-Datei legt Claude an, nicht du.** Claude schreibt sie mit dem Write-Werkzeug nach `${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>/prompt.md` (erste Zeile: „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“, dann der Auftrag mit exakten Pfaden und den Pflichtsätzen) und nennt dir den Pfad. Du setzt `RUN` auf diesen Ordner und prüfst nur `test -s "$RUN/prompt.md"`. Schreibe die Datei nie selbst per `cat`/Heredoc und ändere sie nicht: Der Normen-Hook prüft Befehlszeilen und sperrt Auftragstexte, weil die Pflichtsätze Wörter wie `rm` oder `git restore` enthalten. Nennt Claude keinen Pfad oder fehlt die Datei, melde das an Claude und hör auf.
 
-2. agy im Projektordner starten (Bash-Timeout 600000; bei langen Aufträgen mit `run_in_background` und auf die Benachrichtigung warten). Freigabeliste für Shell-Befehle:
+2. agy im Projektordner starten (Bash-Timeout 600000; bei langen Aufträgen mit `run_in_background` und auf die Benachrichtigung warten). Freigaben (`R` = aufgelöster Lauf-Ordner, siehe unten):
    ```
-   ALLOW='{"permissions":{"allow":["command(make test)","command(make test*)","command(git log)","command(git log*)","command(git diff)","command(git diff*)","command(git status)","command(git status*)","command(git show*)","command(swift build)","command(swift build*)","command(swift test)","command(swift test*)","command(python3 normen/normen.py pruefen)","command(python3 normen/normen.py pruefen*)","command(ls)","command(ls *)","command(cat *)","command(head *)","command(tail *)","command(wc *)","command(grep *)","command(rg *)","command(pwd)","command(tree)","command(tree *)"]}}'
+   R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git log)","command(git diff)","command(git status)","command(git show)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(cat)","command(head)","command(tail)","command(wc)","command(grep)","command(pwd)","read_file('"$R"')"]}}'
    ```
-   `RUN` und `ALLOW` **im selben Befehl** wie `agy` zuweisen, `RUN` mit wörtlichem Pfad (`RUN=<lauf-ordner>; ALLOW='…'; agy …`):
+   `RUN`, `R` und `ALLOW` **im selben Befehl** wie `agy` zuweisen, `RUN` mit wörtlichem Pfad (`RUN=<lauf-ordner>; R=$(realpath "$RUN"); ALLOW='…'; agy …`):
    Der Normen-Hook prüft die Prompt-Datei vor dem Start und sperrt, wenn er `$RUN` nicht auflösen kann.
-   Wichtig: `command(x*)` deckt den Befehl ohne Argumente NICHT ab, deshalb stehen beide Formen in der Liste. Die Liste nie kürzen. `--settings` ERSETZT die Allow-Liste aus `~/.gemini/antigravity-cli/settings.json` (geprüft 15.11.2026 im agy-Protokoll), deshalb stehen die Lesebefehle hier noch einmal; `find` bewusst nicht (`-delete`/`-exec`).
+   Regeln der Liste (gemessen mit agy 1.5.11, `docs/plaene/agy-freigaben-spike.md`):
+   - `command(x)` gilt als Präfix für `x` mit beliebigen Argumenten. **Kein `*`**: `command(x *)` und `command(x*)` greifen nicht.
+     Verkettungen (`;`, `&&`), Umleitungen (`>`) und Pipes in einen nicht freigegebenen Befehl werden verweigert.
+   - `"agentMode":""` ist Pflicht: Ohne `--mode` läuft `agy -p` sonst im Auto-Modus und führt auch nicht freigegebene Befehle aus.
+   - `read_file` braucht den aufgelösten Pfad (`/private/var/…` statt `/var/…`), deshalb `R=$(realpath "$RUN")`.
+   - Die Liste nie kürzen und nicht um Befehle erweitern, die Programme starten oder Dateien schreiben (`find`, `rg` wegen `--pre`, `tree` wegen `-o`). `--settings` ersetzt die Allow-Liste aus `~/.gemini/antigravity-cli/settings.json`.
 
    **Recherche-Aufträge** (Prompt nach `docs/recherche-auftrag.md`): wie Analyse; die Google-Suche von agy braucht keine
    zusätzliche Freigabe (gemessen 17.11.). Meldet agy, dass die Suche nicht lief, ist das Ergebnis „gescheitert“.
@@ -47,7 +52,7 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    ```
    NIE `--dangerously-skip-permissions` und keine Änderung an Einstellungsdateien. Braucht agy einen Befehl außerhalb der Liste, melde das an Claude.
 
-3. Ergebnis lesen: `cat "$RUN/antwort.txt"` (lange Ausgaben in Teilen). „jetski: no output produced … command permission“ heißt: agy wollte einen nicht freigegebenen Befehl ausführen. Einmal mit dem Zusatz „Nutze keine Shell-Befehle außer den freigegebenen (git log/diff/status/show, Testbefehl, python3 normen/normen.py pruefen)“ wiederholen. Scheitert auch das, nicht weiter probieren, sondern an Claude melden.
+3. Ergebnis lesen: `cat "$RUN/antwort.txt"` (lange Ausgaben in Teilen). „jetski: no output produced … permission … auto-denied“ heißt: agy wollte etwas Nicht-Freigegebenes tun, und der Lauf endete dort. Die Meldung betrifft den **letzten** verweigerten Schritt, nicht unbedingt das Schreiben: bei Umsetzung erst `git status --short` und die Zieldateien prüfen – sind sie vollständig, ist der Lauf erfolgreich (mit Hinweis an Claude). Sonst einmal wiederholen; den Prompt ändert Claude (Zusatz „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: …“). Scheitert auch das, nicht weiter probieren, sondern an Claude melden.
 
 4. Kurz prüfen (erlaubt): Bei Umsetzung `git status --short`, dass nur erlaubte Dateien geändert wurden.
 
@@ -60,9 +65,9 @@ Nur wenn Claude ausdrücklich Bilder verlangt. agy hat das Werkzeug `generate_im
    - „Rufe das Werkzeug generate_image N-mal auf (N = von Claude vorgegeben, 3–5). Übergib den folgenden Bild-Prompt WÖRTLICH und unverändert als Prompt-Parameter, ohne Ergänzungen, Übersetzung oder Stilwörter. ImageName jeweils `<name>_k1` bis `<name>_kN`. AspectRatio: <von Claude vorgegeben>.“
    - „Stelle keine Rückfragen. Ändere und lösche keine Dateien.“ und die Grundregel der Nutzerin (siehe oben).
    - Danach der Bild-Prompt von Claude, wörtlich.
-3. Aufruf (Bash-Timeout 600000). Seit agy 1.5.9 braucht `generate_image` eine Lesefreigabe (`read_file`), sonst bricht agy mit „required the "read_file" permission“ ab. Freigegeben werden nur der Lauf-Ordner und der Bildordner, mit absoluten Pfaden, nie `read_file(*)` oder `read_file(/)`:
+3. Aufruf (Bash-Timeout 600000). Seit agy 1.5.9 braucht `generate_image` eine Lesefreigabe (`read_file`), sonst bricht agy mit „required the "read_file" permission“ ab. Freigegeben werden nur der Lauf-Ordner und der Bildordner, mit absoluten, aufgelösten Pfaden, nie `read_file(*)` oder `read_file(/)`:
    ```
-   BILD_ALLOW='{"permissions":{"allow":["read_file('"$RUN"')","read_file('"$HOME"'/.gemini/antigravity-cli/brain)"]}}'
+   R=$(realpath "$RUN"); BILD_ALLOW='{"agentMode":"","permissions":{"allow":["read_file('"$R"')","read_file('"$HOME"'/.gemini/antigravity-cli/brain)"]}}'
    agy --model gemini-3.8-flash-high --mode accept-edits --print-timeout 540s \
        --settings "$BILD_ALLOW" -p "$(cat "$RUN/prompt.md")" < /dev/null > "$RUN/antwort.txt" 2>&1
    ```

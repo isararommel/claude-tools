@@ -41,7 +41,7 @@ bash ~/Documents/Projekte/claude-tools/multi-ki/einrichten.sh <projekt> \
 - `--sperre`: Pfade mit Geheimnissen, personenbezogenen Daten oder Forschungsdaten – landen in CLAUDE.md, AGENTS.md und `.geminiignore`.
 - `--benutzer-agents`: nur auf einem neuen Rechner (schreibt nach `~/.claude/agents/`, aber nur wenn dort nichts liegt).
 - Danach: `git diff` lesen, committen. Die agy-Freigabeliste (`ALLOW`) in `~/.claude/agents/gemini-analyst.md` muss den
-  Testbefehl des Projekts enthalten (beide Formen, z. B. `command(make test)` und `command(make test*)`) – Änderung in `~/.claude`
+  Testbefehl des Projekts enthalten (Präfixform ohne `*`, z. B. `command(make test)`) – Änderung in `~/.claude`
   nur mit Zustimmung der Inhaberin.
 
 ## Stand der Agent-Dateien

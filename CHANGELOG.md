@@ -4,6 +4,25 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## agy-Freigaben (Multi-KI, kein neuer Normtext) – 2026-11-18
+
+**Aktualisieren nötig:** ja – `multi-ki/benutzer/agents/gemini-analyst.md` nach `~/.claude/agents/` kopieren (Rückfrage);
+`docs/multi-ki-ablauf.md` in den Projekten von Hand angleichen (`multi-ki/einrichten.sh` legt eine `.vorlage` daneben).
+Projekteigene Ergänzungen der agy-Freigabeliste auf die Form ohne `*` umstellen.
+
+### Geändert
+- **agy-Freigabeliste in Präfixform** (`command(git diff)` statt `command(git diff*)`): In agy 1.5.11 greifen Regeln mit
+  `*` nicht – weder in `allow` noch in `deny`. Das erklärt die gesperrten `cat`/`wc`/`tail`-Aufrufe aus den Rückmeldungen.
+  `rg` und `tree` gestrichen (`--pre` startet Programme, `-o` schreibt), `git branch --show-current` aufgenommen.
+- **`"agentMode":""` in jedem `--settings`:** Ohne `--mode` startete `agy -p` im Auto-Modus und führte auch nicht
+  freigegebene Befehle aus (N07). Betraf den Nur-Lesen-Aufruf von `gemini-analyst`.
+- **Lauf-Ordner als aufgelöster Pfad** (`R=$(realpath "$RUN")`, `read_file('"$R"')`): agy vergleicht `/private/var/…`, eine
+  Regel mit `/var/…` greift nie. Jetzt auch im Analyse-Aufruf, damit Nebendateien im Lauf-Ordner lesbar sind.
+- „auto-denied“ betrifft den letzten verweigerten Schritt: erst `git status` und Zieldateien prüfen.
+- Bericht und Messungen: `docs/plaene/agy-freigaben-spike.md`.
+
+---
+
 ## v13 – 2026-11-18
 
 **Aktualisieren nötig:** ja – `normen.py aktualisieren` (nur neuer Normtext, keine Hook-Änderung).
