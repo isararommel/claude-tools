@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (v13 auf Branch `arbeitsregel-clear`, PR wartet auf Freigabe)*
+*Stand: 18.11.2026 (v13 gemergt, PR #16; nächstes Paket: A)*
 
 ## Verweise
 
@@ -36,17 +36,12 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
-- ✅ 18.11. **v13** (Branch `arbeitsregel-clear`): S08-CLEAR-FAEHIG + Zeile in der PLAN-Vorlage; `make test` grün,
+- ✅ 18.11. **v13** gemergt (PR #16): S08-CLEAR-FAEHIG + Zeile in der PLAN-Vorlage; `make test` grün,
   `pruefen --diff` 0 Fehler. Rückmeldungen gesichtet (siehe Pakete A–C), vier Projektsitzungen nach Stand v12 gefragt (Paket G).
 - ✅ 17.11. v12 (PR #14): Vibe-Hooks für `edit`/`grep`, Recherche-Vorlagen. v11 (PR #13), v10 (PR #11), v9 (PR #8), v8 (PR #6),
   v7 (PR #3), G7 Sandbox-Spike (Weg 2: vibe/agy ausnehmen, Sandbox nicht aktiv). Einzelheiten: CHANGELOG.
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
-
-### 0. v13 mergen *(wartet auf Freigabe der Inhaberin)*
-
-Branch `arbeitsregel-clear` → PR #16 → `python3 normen/normen.py merge 16`. Danach Sitzungen informieren (`aktualisieren`, neue
-Norm S08) und den Merge hier abhaken.
 
 ### A. agy-Freigaben klären *(Frage 1, freigegeben 18.11.)*
 
@@ -102,16 +97,20 @@ Advisor vorher (S07 Punkt 5), Freigabe der Inhaberin.
 Grundlage `docs/plaene/worktree-spike.md` (nur innerhalb unter `.worktrees/`). Vorbedingungen aus den offenen Fragen: echter
 Vibe-Lauf im Worktree, getrackte Sperrpfade/sparse-checkout, normales `git worktree remove` löscht git-ignorierte Dateien.
 
-### G. Projekte auf v12/v13 bringen *(Frage 2, läuft)*
+### G. Projekte auf v13 bringen *(Frage 2, läuft)*
 
-18.11.: vier laufende Projektsitzungen gefragt (Normen-Version, Prüfbefehl aus `.vibe/hooks.toml` → „gültig: 9“, Selbsttest).
-Antworten: 1 von 4 – Projekt 1: v12, „gültig: 9“, Selbsttest claude/vibe gesperrt, nichts geändert. Übrige **ausstehend**.
-Neue Rückmeldung aus dieser Antwort: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`). Lokal gesehen: drei Projekte auf v12 mit `edit`-Hook, **ein Projekt noch auf v9 ohne `edit`-Hook**
-(Vibe kann dort ohne Auftrag Dateien ändern) – wenn keine Sitzung antwortet, Aktualisieren mit Rückfrage an die Inhaberin.
-Antworten den Projektordnern zuordnen; Projekte ohne Sitzung benennen. Nach v13-Merge erneut informieren.
+18.11.: vier Projektsitzungen gefragt (Version, Prüfbefehl aus `.vibe/hooks.toml` → „gültig: 9“, Selbsttest). Antworten 3 von 4:
+alle v12, „gültig: 9“, Selbsttest claude/vibe gesperrt; die vierte Sitzung arbeitet nicht in einem Normen-Projekt (oder antwortet
+später). Auffällig in einem Projekt: der **Kopfkommentar** von `.vibe/hooks.toml` nennt noch „gültig: 8“ (eigene Hooks →
+`einrichten.sh` legt nur `.vorlage` daneben; Kommentar dort von Hand angleichen).
+Das Projekt auf v9 (ohne Sitzung) mit Freigabe vom 18.11. per `bash <claude-tools>/einrichten.sh <projekt> --test "make test"`
+auf **v13** gebracht (direktes `normen.py aktualisieren` dort sperrt der S06-Hook als fremdes Skript): „gültig: 9“, Tests grün,
+PR im Projekt offen – Merge durch die Inhaberin (`! python3 normen/normen.py merge <PR>` im Projekt); dort noch die
+`.vorlage`-Dateien (`docs/multi-ki-ablauf.md`, `.geminiignore`) zusammenführen. Nach dem v13-Merge alle Sitzungen informiert.
+Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`).
 
-## Offene Fragen an die Inhaberin
+## Entscheidungen der Inhaberin (18.11.)
 
-- v13 (S08) mergen?
-- Rückmelde-Issues: erledigte schließen/kommentieren, sobald die Pakete A–C umgesetzt sind?
-- Projekt auf v9 ohne antwortende Sitzung: selbst aktualisieren?
+- v13 (S08) mergen: ja – gemergt (PR #16).
+- Rückmelde-Issues: schließen, sobald das jeweilige Paket sie erledigt (kurzer Kommentar mit Version/PR).
+- Projekt auf v9 selbst aktualisieren: ja – erledigt bis auf den Merge (siehe G).
