@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (Paket A erledigt auf Branch `agy-freigaben`; nächstes Paket: B, offen: A2)*
+*Stand: 18.11.2026 (Paket A gemergt, PR #19; nächstes Paket: B, offen: A2 – Entscheidungen der Inhaberin)*
 
 ## Verweise
 
@@ -36,7 +36,7 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
-- ✅ 18.11. **Paket A agy-Freigaben** (Branch `agy-freigaben`): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
+- ✅ 18.11. **Paket A agy-Freigaben** (PR #19): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
   Präfixform; `-p` ohne `--mode` lief im Auto-Modus → `"agentMode":""`; `read_file` braucht aufgelösten Pfad → `realpath`.
   Abnahme 3/3 Umsetzung + Nur-Lesen ok. Einzelheiten: `docs/plaene/agy-freigaben-spike.md`, CHANGELOG.
 - ✅ 18.11. **v13** gemergt (PR #16): S08-CLEAR-FAEHIG + Zeile in der PLAN-Vorlage; `make test` grün,
@@ -48,7 +48,7 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ### A2. agy-Freigaben: Nacharbeiten *(wartet auf die Inhaberin)*
 
-Paket A ist erledigt (Branch `agy-freigaben`, Bericht `docs/plaene/agy-freigaben-spike.md`). Offen:
+Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Offen:
 0. **Sperrpfade:** `.geminiignore`/`.antigravityignore` sperren in agy nichts (Spike-Befund 7). Prüfen, ob `deny`-Regeln
    `read_file(<aufgelöster sperrpfad>)` greifen; `cat`/`grep` auf Sperrpfade lassen sich per Präfixregel nicht sperren.
    Bis dahin: keine Aufträge an `gemini-analyst` in Projekten mit Sperrpfaden ohne Rücksprache.
