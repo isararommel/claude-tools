@@ -77,7 +77,7 @@ Ziel: `gemini-analyst` soll headless (`agy -p`) zuverlässig lesen und neue Date
     einem Netzausfall zusammen; die Ursache ist offen. Netzaussetzer zeigen sich als „stream was interrupted“ und
     verlängern den Lauf bis zum Zeitlimit.
 
-## Folgerungen für die Agent-Definition
+## Folgerungen für die Agent-Definition (erste Fassung, PR #19 – überholt durch den Nachtrag unten)
 
 - ALLOW nur noch in Präfixform (`command(git diff)` statt `command(git diff)` + `command(git diff*)`).
 - `"agentMode": ""` in jedes `--settings`, damit kein Aufruf im Auto-Modus landet.
@@ -85,9 +85,29 @@ Ziel: `gemini-analyst` soll headless (`agy -p`) zuverlässig lesen und neue Date
   Nebendateien im Lauf-Ordner lesbar sind.
 - `rg` (`--pre <programm>` startet Programme) und `tree` (`-o` schreibt) gestrichen; `command(git branch --show-current)`
   aufgenommen (in alten Transkripten verweigert), nicht `command(git branch)` (deckt `-D`).
-- Offen für die Inhaberin: `git log/diff/show --output` (Befund 9) und Lesen außerhalb per `cat` (Befund 8).
+- Befund 8 und 9 waren hier noch offen; erledigt durch den Nachtrag (enge Liste).
 
-## Abnahme (18.11.2026)
+## Nachtrag: enge Liste (18.11.2026, nach Rückmeldung der Server-Werkzeug-Sitzung)
+
+Wegen Befund 8 (Befehle ohne Pfadgrenze, Inhalte gingen an Google – N03) und Befund 9 (`--output`) sind `cat`, `head`,
+`tail`, `wc`, `grep` und `git log/diff/show` aus der Liste gestrichen. Gemini liest nur noch per `read_file` (Projekt +
+Lauf-Ordner); Diffs legt Claude als Datei in den Lauf-Ordner. Es bleiben `ls`, `pwd`, `git status`,
+`git branch --show-current`.
+**Test-/Buildbefehle ebenfalls gestrichen:** Im Umsetzungsaufruf änderte Gemini auf Anweisung das `Makefile`, danach
+führte `make test` (erlaubt per `command(make test)`) einen beliebigen Befehl aus und schrieb eine Datei außerhalb des
+Projekts (gemessen). Tests führt ohnehin Claude aus; der Pflichtblock von `normen.py auftrag` sagt Gemini das schon.
+Die agy-Werkzeuge `grep_search`, `list_dir`, `find_by_name` (stehen in der init-Liste des Streams) wurden in einem
+Messlauf nicht genutzt – Gemini meldete sie als „nicht deklariert“ – und kommen in 140 vorhandenen Transkripten nie vor
+(genutzt: `read_file`, `run_command`, `write_file`, `edit_file`, `search_web`, Sub-Agenten-Werkzeuge). Suchen im Projekt
+geht danach nur über `ls` und gezieltes `read_file`.
+Abnahme der engen Liste (Befehl wörtlich aus der Agent-Definition, `RUN` in `/var`-Form): Umsetzung – Diff-Datei im
+Lauf-Ordner und Projektdatei per `read_file`, `ls`, neue Datei angelegt, Inhalt korrekt; Nur lesen – `read_file`,
+`git status` ok, `cat a.txt` verweigert.
+**Freie Analyse-Aufträge** (nur Standard-Kopfsätze, Normenblock, wörtlicher Nur-Lesen-Befehl, im echten Projekt, ohne
+Schrittvorgabe): Abgleich zweier Dateien, PLAN-Auswertung, Review einer Diff-Datei im Lauf-Ordner – **3 von 3**
+vollständige Antworten, keine Verweigerung.
+
+## Abnahme der ersten Fassung (breite Liste, PR #19, 18.11.2026)
 
 Befehl wörtlich aus `multi-ki/benutzer/agents/gemini-analyst.md`, `RUN` in der echten Form `${TMPDIR}agy-runs/…`
 (`/var/…`), Mini-Auftrag: Nebendatei im Lauf-Ordner lesen, `wc -l` im Projekt, neue Datei anlegen.
