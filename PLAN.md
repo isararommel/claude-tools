@@ -74,6 +74,11 @@ Offen:
    Kandidat für die nächste Normen-Version.
 7. Nach dem v14-Merge Rückmelde-Issues kommentieren: Selbsttest-Beleg und `--dateien` schließen (PR #25); „1 von 5 ungesperrt“
    und Zeitlimit 540 s nur kommentieren (Beleg-Log bzw. 1200 s), offen lassen.
+8. **Unfertige Stände gelangen in Projekte** (Befund 18.11. aus einer Projektsitzung): Ein Projekt hatte „v14“ aus dem
+   Arbeitsbaum von claude-tools eingespielt, während v14 noch auf dem Branch entstand – gleiche Versionsnummer, älteres
+   `normen.py`; `aktualisieren` ersetzt die Datei zwar, aber weder es noch das Prüftor melden den Unterschied. Vorschlag:
+   `einrichten.sh`/`aktualisieren` spielen nur von sauberem `main` ein (sonst Abbruch mit Hinweis) und `herkunft.toml`
+   speichert den Commit der Quelle; `aktualisieren` meldet „gleiche Version, anderer Stand“. Kandidat für die nächste Version.
 
 ### D. Sandbox simulieren *(Frage 4, freigegeben 18.11.)*
 
