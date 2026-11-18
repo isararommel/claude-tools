@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (Paket A gemergt, PR #19, enge Liste PR #23; nächstes Paket: B, offen: A2 Punkte 4–6, neu: H)*
+*Stand: 18.11.2026 (v14 = Pakete B+C, PR #25; nächstes Paket: D, offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -36,6 +36,15 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 18.11. **v14 = Pakete B + C** (PR #25): Datei-Köder im Hook, Selbsttest je Weg (claude bash/write,
+  vibe bash/write_file/edit, `--weg`), Beleg-Log `.normen/selbsttest-*.log`, `auftrag --dateien` trennt nicht mehr,
+  mistral-team Umsetzungsläufe 1200 s im Hintergrund. Befunde: `Edit(./pfad)` greift in `claude -p` nicht, `Edit(//abs)`
+  schon (Gegenprobe ohne Hook); ohne Hook schreiben vibe `write_file`/`edit` mit `--smart-approve` wirklich (Gegenprobe);
+  Live-Selbsttest 5/5 Wege gesperrt; erster Vibe-Lauf in 5 frischen Ordnern 5/5 gesperrt (Ausreißer nicht nachstellbar, nicht gelöst – künftig Beleg-Log). vibe/edit mit 3 Runden 1 von 3 „unklar“ → 5 Runden, danach 3/3.
+  Gegenprobe über `normen.py selbsttest` im Wegwerf-Repo sperrt der S06-Hook (fremdes Skript) → direkt mit claude/vibe.
+  mistral-team-Lauf endete am Zeitlimit (code-worker noch aktiv), Code war fertig; zwei Korrekturen von Claude.
+  Nach Merge: Sitzungen informieren; Kopie `multi-ki/benutzer/agents/mistral-team.md` → `~/.claude/agents/` (Rückfrage).
+
 - ✅ 18.11. **Paket A agy-Freigaben** (PR #19): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
   Präfixform; `-p` ohne `--mode` lief im Auto-Modus → `"agentMode":""`; `read_file` braucht aufgelösten Pfad → `realpath`.
   Abnahme 3/3 Umsetzung + Nur-Lesen ok. Einzelheiten: `docs/plaene/agy-freigaben-spike.md`, CHANGELOG.
@@ -61,21 +70,10 @@ Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Ents
 Offen:
 4. Projekte: `docs/multi-ki-ablauf.md` angleichen, projekteigene `command(x*)`-Einträge umstellen (mit Paket G).
 5. Rückmelde-Issues zu agy-Freigaben (v7, v11) mit Verweis auf den PR schließen (Entscheidung 18.11.).
-6. Kandidat für B: Hook-Prüfung, dass `agy -p` nie ohne `--mode` und ohne `"agentMode":""` startet.
-
-### B. v14 – Selbsttest-Köder auch für Bearbeiten-Werkzeuge *(freigegeben 17.11.)*
-
-Köder zusätzlich über `edit`/`write_file` (Vibe) und Edit/Write (Claude), mit Attrappen-Tests wie bei G1
-(`tests/test_selbsttest.py`). Dazu aus einer Rückmeldung: bei „NICHT GESPERRT“ den Beleg (stdout/stderr, Ausgabeordner) nach
-`.normen/selbsttest-<zeit>.log` sichern – `_selbsttest_werkzeug` (normen.py, ~Zeile 798) löscht den Ausgabeordner bisher immer.
-Prüfen, ob der erste vibe-Lauf in einem frischen Ordner die Hooks lädt (Rückmeldung: 1 von 5 Läufen ungesperrt; v10 wiederholt
-nur „unklar“, nicht „NICHT GESPERRT“). Nach Merge Sitzungen informieren.
-
-### C. `auftrag --dateien` mit Leerzeichen *(klein, Rückmeldung)*
-
-`cmd_auftrag` (normen.py ~Zeile 2219) trennt jedes Argument an Leerraum – Pfade mit Leerzeichen sind unmöglich. Vorschlag:
-nie trennen (jedes Argument ein Pfad); vorher prüfen, ob Agent-Definitionen/Doku `--dateien "a b"` verwenden, und diese
-anpassen (N08: kein Fallback). Test in `tests/` ergänzen. Kann mit B in eine Version.
+6. Hook-Prüfung, dass `agy -p` nie ohne `--mode` und ohne `"agentMode":""` startet: nicht in v14 aufgenommen (Umfang),
+   Kandidat für die nächste Normen-Version.
+7. Nach dem v14-Merge Rückmelde-Issues kommentieren: Selbsttest-Beleg und `--dateien` schließen (PR #25); „1 von 5 ungesperrt“
+   und Zeitlimit 540 s nur kommentieren (Beleg-Log bzw. 1200 s), offen lassen.
 
 ### D. Sandbox simulieren *(Frage 4, freigegeben 18.11.)*
 
@@ -110,7 +108,7 @@ Das Projekt auf v9 (ohne Sitzung) mit Freigabe vom 18.11. per `bash <claude-tool
 auf **v13** gebracht (direktes `normen.py aktualisieren` dort sperrt der S06-Hook als fremdes Skript): „gültig: 9“, Tests grün,
 PR im Projekt am 18.11. gemergt (durch die Inhaberin); dort noch die
 `.vorlage`-Dateien (`docs/multi-ki-ablauf.md`, `.geminiignore`) zusammenführen. Nach dem v13-Merge alle Sitzungen informiert.
-Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → in Paket B prüfen (in A nicht bearbeitet) (`multi-ki/benutzer/agents/mistral-team.md`).
+Rückmeldung mistral-team-Zeitlimit 540 s: in v14 geändert (Umsetzungsläufe 1200 s im Hintergrund), Wirkung offen – der einzige 1200-s-Lauf (v14) endete ebenfalls am Zeitlimit; Issue offen lassen.
 
 ### H. Entschlacken und Archiv *(Wunsch der Inhaberin 18.11.)*
 

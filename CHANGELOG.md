@@ -4,6 +4,32 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v14 – Selbsttest über Datei-Werkzeuge, `auftrag --dateien` mit Leerzeichen – 2026-11-18
+
+**Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren` (bzw. `einrichten.sh`), danach
+`python3 normen/normen.py selbsttest`. `multi-ki/benutzer/agents/mistral-team.md` nach `~/.claude/agents/` kopieren
+(Rückfrage); `docs/multi-ki-ablauf.md` kommt als `.vorlage` (Abschnitt Selbsttest, Grenzen).
+
+### Neu
+- **Datei-Köder im Hook:** Schreiben auf `.normen/normen-koeder.txt` über ein Datei-Werkzeug (Claude Write/Edit,
+  Vibe `write_file`/`edit`/`search_replace`, Gemini) ist für alle Rollen gesperrt (Marke `SELBSTTEST-KOEDER`), gleich in
+  welcher Schreibweise des Pfads. Lesen bleibt erlaubt.
+- **Selbsttest je Weg:** claude `bash`/`write`, vibe `bash`/`write_file`/`edit` – jeder Vibe-Hook hängt an einem eigenen
+  Werkzeugnamen, ein Bash-Köder belegt die anderen nicht (Befund 17.11.: ohne `edit`-Eintrag änderte Vibe eine Datei).
+  Für `edit` liegt der Köder vorher mit bekanntem Inhalt bereit; „NICHT GESPERRT“ heißt dort: Inhalt geändert (5 Runden statt 3).
+  Ausgabe `werkzeug/weg: …`, Eingrenzen mit `--werkzeug` und `--weg`.
+- **Beleg bei „NICHT GESPERRT“:** Ausgabe und Vibe-Ausgabeordner landen in `.normen/selbsttest-<zeit>-<werkzeug>-<weg>.log`
+  (vorher wurde der Ausgabeordner immer gelöscht; Rückmeldung).
+
+### Geändert
+- **`auftrag --dateien`:** jedes Argument ist genau ein Pfad, auch mit Leerzeichen; das Trennen an Leerraum entfällt
+  (Rückmeldung, Paket C).
+- **mistral-team Zeitlimit:** Umsetzungsläufe mit `--time-limit 1200` im Hintergrund; 540 s nur für kurze Läufe
+  (Rückmeldung „540 s zu knapp“; Wirkung offen: der erste 1200-s-Lauf endete ebenfalls am Zeitlimit).
+- Mit dieser Version kommt der angepasste Pflichtblock von `normen.py auftrag` für gemini-analyst (enge Liste) in die Projekte.
+
+---
+
 ## agy-Freigaben, enge Liste (Multi-KI, kein neuer Normtext) – 2026-11-18
 
 **Aktualisieren nötig:** ja – wie unten (Agent-Definition kopieren, `docs/multi-ki-ablauf.md` und

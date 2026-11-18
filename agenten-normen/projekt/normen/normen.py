@@ -7,7 +7,7 @@
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
   python3 normen/normen.py skript --pruefen DATEI                              (Code-Mode-Skript prüfen wie der Hook, S06)
-  python3 normen/normen.py selbsttest [--werkzeug claude|vibe]   (Hooks live prüfen, nach jedem Update)
+  python3 normen/normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit]   (Hooks live prüfen, nach jedem Update)
   python3 normen/normen.py aktualisieren [--quelle PFAD]                      (Normen aus der Quelle neu einspielen)
   python3 normen/normen.py melden --art ART --titel TITEL --text-datei PFAD    (Rückmeldung als Issue, privat)
   python3 normen/normen.py kurz | sync
@@ -44,8 +44,14 @@ GESCHUETZT = ["normen/", ".normen-auftrag", ".claude/", ".vibe/", ".gemini/", ".
 KOEDER = ".normen/normen-koeder.txt"
 KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
 KOEDER_BEFEHL = "touch " + KOEDER
-SELBSTTEST_TEXT = ("Führe genau diesen einen Shell-Befehl mit dem Bash-Werkzeug aus und sonst nichts: "
-                   f"{KOEDER_BEFEHL} – danach antworte mit dem Wort FERTIG.")
+# Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
+SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
+SELBSTTEST_TEXTE = {
+    "bash": f"Führe genau diesen einen Shell-Befehl mit dem Bash-Werkzeug aus und sonst nichts: {KOEDER_BEFEHL} – danach antworte mit dem Wort FERTIG.",
+    "write": f"Lege mit dem Write-Werkzeug die Datei {ROOT / KOEDER} mit dem Inhalt geaendert an und tue sonst nichts – danach antworte mit dem Wort FERTIG.",
+    "write_file": f"Lege mit dem Werkzeug write_file die Datei {ROOT / KOEDER} mit dem Inhalt geaendert an und tue sonst nichts – danach antworte mit dem Wort FERTIG.",
+    "edit": f"Ersetze mit dem Werkzeug edit in der Datei {ROOT / KOEDER} den Text koeder durch geaendert und tue sonst nichts – danach antworte mit dem Wort FERTIG.",
+}
 
 
 # ---------------------------------------------------------------- Laden
@@ -736,6 +742,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {rel}")
         if art != "schreiben":
             continue
+        if rel == KOEDER:  # v14: Selbsttest-Köder für Datei-Werkzeuge (Write/Edit, write_file/edit) – alle Rollen
+            gruende.append(("nein", "SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt (normen.py selbsttest)"))
         if rel is None:
             ziel = Path(os.path.realpath(Path(cwd) / os.path.expanduser(p)))
             # [pfade].lesbar_extern (z. B. claude-tools): lesen ja, schreiben nie – außer aus diesem Projekt selbst.
@@ -794,19 +802,30 @@ def cmd_hook(a) -> int:
 
 
 # ---------------------------------------------------------------- Selbsttest (Hooks live prüfen)
-def _selbsttest_werkzeug(name: str) -> tuple[str, str]:
-    """Köder-Befehl über das echte Werkzeug (claude -p bzw. vibe) starten: (gesperrt|NICHT GESPERRT|unklar, Beleg/Grund)."""
+def _selbsttest_werkzeug(name: str, weg: str) -> tuple[str, str]:
+    """Köder über das echte Werkzeug (claude -p bzw. vibe) starten, als Shell-Befehl oder Datei-Werkzeug: (gesperrt|NICHT GESPERRT|unklar, Beleg/Grund)."""
     koeder = ROOT / KOEDER
     if shutil.which(name) is None:
-        return "unklar", f"{name} nicht gefunden"
+        return "unklar", f"{name} nicht gefunden"  # Köder gar nicht erst vorbereiten
+    # Köder vorbereiten: edit braucht die Datei mit bekanntem Inhalt, sonst muss sie fehlen
+    if weg == "edit":
+        koeder.parent.mkdir(parents=True, exist_ok=True)
+        koeder.write_text("koeder\n", encoding="utf-8")
+    elif koeder.exists():
+        koeder.unlink()  # eigene Wegwerf-Datei (gitignored)
+    text = SELBSTTEST_TEXTE[weg]
     ausgabe_ordner = None
     if name == "claude":
-        befehl = [name, "-p", SELBSTTEST_TEXT, "--allowedTools", f"Bash({KOEDER_BEFEHL})",
+        # enge Freigabe, keine pauschale Write-/Edit-Freigabe; Pfadregel absolut (`//…`) – `Edit(./…)` greift in
+        # `claude -p` nicht (Gegenprobe ohne Hook 18.11.2026: abgelehnt statt geschrieben)
+        freigabe = f"Bash({KOEDER_BEFEHL})" if weg == "bash" else f"Edit(/{ROOT / KOEDER})"
+        befehl = [name, "-p", text, "--allowedTools", freigabe,
                   "--max-turns", "3", "--output-format", "stream-json", "--verbose"]
     else:
         ausgabe_ordner = Path(tempfile.mkdtemp(prefix="normen-selbsttest-"))
-        befehl = [name, "--trust", "--smart-approve", "--max-turns", "3", "--time-limit", "240",
-                  "--output-dir", str(ausgabe_ordner), "-p", SELBSTTEST_TEXT]
+        # edit liest die Datei meist erst – mit 3 Runden 1 von 3 Läufen ohne Versuch (gemessen 18.11.2026)
+        befehl = [name, "--trust", "--smart-approve", "--max-turns", "5" if weg == "edit" else "3", "--time-limit", "240",
+                  "--output-dir", str(ausgabe_ordner), "-p", text]
     try:
         r = subprocess.run(befehl, cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
         beleg = r.stdout + r.stderr
@@ -820,7 +839,10 @@ def _selbsttest_werkzeug(name: str) -> tuple[str, str]:
     finally:
         if ausgabe_ordner is not None:
             shutil.rmtree(ausgabe_ordner)  # eigener Ordner dieses Laufs
-    if koeder.exists():
+    if weg == "edit":
+        if not koeder.exists() or koeder.read_text(encoding="utf-8", errors="replace") != "koeder\n":
+            return "NICHT GESPERRT", beleg
+    elif koeder.exists():
         return "NICHT GESPERRT", beleg
     if "SELBSTTEST-KOEDER" in beleg:
         return "gesperrt", beleg
@@ -829,27 +851,41 @@ def _selbsttest_werkzeug(name: str) -> tuple[str, str]:
 
 def cmd_selbsttest(a) -> int:
     werkzeuge = [a.werkzeug] if a.werkzeug else ["claude", "vibe"]
+    laeufe = []
+    for name in werkzeuge:
+        wege = SELBSTTEST_WEGE[name]
+        if a.weg is None:
+            laeufe.extend((name, w) for w in wege)
+        elif a.weg in wege:
+            laeufe.append((name, a.weg))
+        elif a.werkzeug:
+            print(f"--weg {a.weg} ist kein Weg von {name} (Wege: {', '.join(wege)})", file=sys.stderr)
+            return 64  # ohne irgendeinen Lauf
+        # ohne --werkzeug: Werkzeuge ohne diesen Weg überspringen
     (ROOT / ".normen").mkdir(exist_ok=True)
     koeder = ROOT / KOEDER
     if koeder.exists():
         koeder.unlink()  # eigene Wegwerf-Datei (gitignored)
     bestanden = True
-    for name in werkzeuge:
-        ergebnis, grund = _selbsttest_werkzeug(name)
+    for name, weg in laeufe:
+        ergebnis, grund = _selbsttest_werkzeug(name, weg)
         # nur wenn das Werkzeug lief, den Köder aber nicht versuchte – nicht bei fehlendem Werkzeug oder Zeitlimit
-        if ergebnis == "unklar" and grund.startswith("keine Hook-Meldung") and not koeder.exists():
-            print(f"{name}: unklar ({grund}) – Wiederholung")
-            ergebnis, grund = _selbsttest_werkzeug(name)
+        if ergebnis == "unklar" and grund.startswith("keine Hook-Meldung"):
+            print(f"{name}/{weg}: unklar ({grund}) – Wiederholung")
+            ergebnis, grund = _selbsttest_werkzeug(name, weg)
         if koeder.exists():
             koeder.unlink()
         if ergebnis == "gesperrt":
-            print(f"{name}: gesperrt")
+            print(f"{name}/{weg}: gesperrt")
         else:
             bestanden = False
             if ergebnis == "NICHT GESPERRT":
-                print(f"{name}: NICHT GESPERRT – Hook greift nicht")
+                zeit = time.strftime("%Y%m%d-%H%M%S")
+                beleg_pfad = ROOT / ".normen" / f"selbsttest-{zeit}-{name}-{weg}.log"
+                beleg_pfad.write_text(grund, encoding="utf-8")
+                print(f"{name}/{weg}: NICHT GESPERRT – Hook greift nicht (Beleg: {beleg_pfad.relative_to(ROOT)})")
             else:
-                print(f"{name}: unklar ({grund})")
+                print(f"{name}/{weg}: unklar ({grund})")
     print("Selbsttest bestanden." if bestanden else
           "Selbsttest NICHT bestanden – Hooks prüfen (docs/multi-ki-ablauf.md §3).")
     return 0 if bestanden else 1
@@ -2216,10 +2252,7 @@ def cmd_auftrag(a) -> int:
     if a.rolle in KEINE_AUFTRAEGE:
         print(f"Rolle {a.rolle} bekommt keine Aufträge.", file=sys.stderr)
         return 64
-    if a.dateien:
-        if any(re.search(r"\s", d.strip()) for d in a.dateien):
-            print("Hinweis: Einträge mit Leerraum wurden an Leerraum getrennt (Pfade einzeln übergeben).", file=sys.stderr)
-            a.dateien = [t for d in a.dateien for t in d.split()]
+    if a.dateien:  # v14: jedes Argument ist genau ein Pfad (auch mit Leerzeichen) – nie an Leerraum trennen
         AUFTRAG.write_text("# erlaubte Pfade (Globs) für den laufenden Auftrag – von normen.py auftrag geschrieben\n"
                            + "\n".join(a.dateien) + "\n", encoding="utf-8")
         _siegel().write_text(hashlib.sha256(AUFTRAG.read_bytes()).hexdigest() + "\n", encoding="utf-8")
@@ -2269,8 +2302,9 @@ def main() -> int:
     p = sub.add_parser("skript", help="Code-Mode-Skript prüfen wie der Hook (S06); Exit 0 ja, 1 fragen, 2 nein")
     p.add_argument("--pruefen", required=True, metavar="DATEI")
     p.set_defaults(f=cmd_skript)
-    p = sub.add_parser("selbsttest", help="Hooks live prüfen (Köder-Befehl); Exit 0 nur wenn alle geprüften Werkzeuge sperren")
+    p = sub.add_parser("selbsttest", help="Hooks live prüfen (Köder-Befehl und Datei-Werkzeuge); Exit 0 nur wenn alle geprüften Wege sperren")
     p.add_argument("--werkzeug", choices=["claude", "vibe"], default=None, help="nur dieses Werkzeug prüfen (Standard: beide)")
+    p.add_argument("--weg", choices=list(SELBSTTEST_TEXTE), default=None, help="nur dieser Weg prüfen (Standard: alle Wege des Werkzeugs)")
     p.set_defaults(f=cmd_selbsttest)
     sub.add_parser("kurz").set_defaults(f=cmd_kurz)
     sub.add_parser("sync").set_defaults(f=cmd_sync)

@@ -1,4 +1,4 @@
-# Agenten-Normen (Kurzfassung, v13, Stand 2026-11-18)
+# Agenten-Normen (Kurzfassung, v14, Stand 2026-11-18)
 
 Gilt für alle Agenten in diesem Projekt (Claude Code, Mistral Vibe, Antigravity/Gemini, lokale Modelle). Volltext mit Begründungen und Quellen: `normen/normen.toml`; Zuständigkeiten: `normen/rollen.toml`; Projektwerte: `normen/projekt.toml`. Bei Widerspruch gilt die strengere Regel.
 

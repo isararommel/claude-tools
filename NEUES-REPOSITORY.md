@@ -110,7 +110,7 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 Vor dem ersten Commit folgende Punkte ausführen und prüfen:
 
 - [ ] **Testbefehl:** Eigener Testbefehl läuft erfolgreich durch (`make test`).
-- [ ] **Selbsttest:** `python3 normen/normen.py selbsttest` meldet „gesperrt“ für `claude` und `vibe` (beweist aktive Hooks).
+- [ ] **Selbsttest:** `python3 normen/normen.py selbsttest` meldet „gesperrt“ für alle Wege von `claude` und `vibe` (beweist aktive Hooks).
 - [ ] **Normen-Prüfung:** `python3 normen/normen.py pruefen --diff` meldet keine Fehler.
 - [ ] **Auftrags-Simulation:**
   ```bash
