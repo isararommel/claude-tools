@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (v14 = Pakete B+C, PR #25; nächstes Paket: D, offen: A2 Punkte 4–6, G, H)*
+*Stand: 18.11.2026 (v14 = Pakete B+C gemergt (PR #25), Sitzungen informiert; nächstes Paket: D, offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -36,14 +36,14 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
-- ✅ 18.11. **v14 = Pakete B + C** (PR #25): Datei-Köder im Hook, Selbsttest je Weg (claude bash/write,
+- ✅ 18.11. **v14 = Pakete B + C** (PR #25, gemergt; 5 Sitzungen informiert): Datei-Köder im Hook, Selbsttest je Weg (claude bash/write,
   vibe bash/write_file/edit, `--weg`), Beleg-Log `.normen/selbsttest-*.log`, `auftrag --dateien` trennt nicht mehr,
   mistral-team Umsetzungsläufe 1200 s im Hintergrund. Befunde: `Edit(./pfad)` greift in `claude -p` nicht, `Edit(//abs)`
   schon (Gegenprobe ohne Hook); ohne Hook schreiben vibe `write_file`/`edit` mit `--smart-approve` wirklich (Gegenprobe);
   Live-Selbsttest 5/5 Wege gesperrt; erster Vibe-Lauf in 5 frischen Ordnern 5/5 gesperrt (Ausreißer nicht nachstellbar, nicht gelöst – künftig Beleg-Log). vibe/edit mit 3 Runden 1 von 3 „unklar“ → 5 Runden, danach 3/3.
   Gegenprobe über `normen.py selbsttest` im Wegwerf-Repo sperrt der S06-Hook (fremdes Skript) → direkt mit claude/vibe.
   mistral-team-Lauf endete am Zeitlimit (code-worker noch aktiv), Code war fertig; zwei Korrekturen von Claude.
-  Nach Merge: Sitzungen informieren; Kopie `multi-ki/benutzer/agents/mistral-team.md` → `~/.claude/agents/` (Rückfrage).
+  Offen: Kopie `multi-ki/benutzer/agents/mistral-team.md` → `~/.claude/agents/` (Rückfrage an die Inhaberin).
 
 - ✅ 18.11. **Paket A agy-Freigaben** (PR #19): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
   Präfixform; `-p` ohne `--mode` lief im Auto-Modus → `"agentMode":""`; `read_file` braucht aufgelösten Pfad → `realpath`.
