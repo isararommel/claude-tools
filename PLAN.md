@@ -105,7 +105,7 @@ später). Auffällig in einem Projekt: der **Kopfkommentar** von `.vibe/hooks.to
 `einrichten.sh` legt nur `.vorlage` daneben; Kommentar dort von Hand angleichen).
 Das Projekt auf v9 (ohne Sitzung) mit Freigabe vom 18.11. per `bash <claude-tools>/einrichten.sh <projekt> --test "make test"`
 auf **v13** gebracht (direktes `normen.py aktualisieren` dort sperrt der S06-Hook als fremdes Skript): „gültig: 9“, Tests grün,
-PR im Projekt offen – Merge durch die Inhaberin (`! python3 normen/normen.py merge <PR>` im Projekt); dort noch die
+PR im Projekt am 18.11. gemergt (durch die Inhaberin); dort noch die
 `.vorlage`-Dateien (`docs/multi-ki-ablauf.md`, `.geminiignore`) zusammenführen. Nach dem v13-Merge alle Sitzungen informiert.
 Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`).
 
@@ -113,4 +113,4 @@ Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit p
 
 - v13 (S08) mergen: ja – gemergt (PR #16).
 - Rückmelde-Issues: schließen, sobald das jeweilige Paket sie erledigt (kurzer Kommentar mit Version/PR).
-- Projekt auf v9 selbst aktualisieren: ja – erledigt bis auf den Merge (siehe G).
+- Projekt auf v9 selbst aktualisieren: ja – erledigt und gemergt (siehe G).
