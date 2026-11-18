@@ -18,7 +18,12 @@ Projekteigene Ergänzungen der agy-Freigabeliste auf die Form ohne `*` umstellen
   freigegebene Befehle aus (N07). Betraf den Nur-Lesen-Aufruf von `gemini-analyst`.
 - **Lauf-Ordner als aufgelöster Pfad** (`R=$(realpath "$RUN")`, `read_file('"$R"')`): agy vergleicht `/private/var/…`, eine
   Regel mit `/var/…` greift nie. Jetzt auch im Analyse-Aufruf, damit Nebendateien im Lauf-Ordner lesbar sind.
-- „auto-denied“ betrifft den letzten verweigerten Schritt: erst `git status` und Zieldateien prüfen.
+- „auto-denied“ betrifft den letzten verweigerten Schritt: erst `git status` und Zieldateien prüfen; die Schnittstelle
+  wiederholt nicht selbst, sondern meldet an Claude.
+- Prompt-Pflichtsätze für agy (Agent-Definition, `docs/recherche-auftrag.md`): erlaubte Befehle nennen, „Lies keine
+  anderen als die genannten Dateien …“ – jeder verweigerte Schritt beendet den Lauf.
+- **Bekannte Lücke:** `.geminiignore`/`.antigravityignore` sperren in agy nichts; Sperrpfade schützt gegenüber agy nur die
+  Hook-Prüfung der Prompt-Datei (PLAN A2).
 - Bericht und Messungen: `docs/plaene/agy-freigaben-spike.md`.
 
 ---

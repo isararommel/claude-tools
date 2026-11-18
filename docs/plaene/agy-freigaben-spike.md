@@ -60,18 +60,22 @@ Ziel: `gemini-analyst` soll headless (`agy -p`) zuverlässig lesen und neue Date
 6. `--settings` ersetzt `permissions.allow` und, wenn angegeben, `permissions.deny`; ohne `deny` bleibt die globale Liste.
    Globale Einträge `Edit`, `Write`, `MultiEdit` sind für agy ungültig (Log: `invalid grant string`), `command(rm *)`
    usw. greifen nach Befund 1 nicht. Die globale Datei liegt außerhalb des Projekts – Änderung nur durch die Inhaberin.
-7. Nicht gefundene Schranke: gitignorte Dateien sind weder für `cat` noch für `read_file` gesperrt.
+7. **Ignore-Dateien sperren nichts.** In `.gitignore`, `.geminiignore` oder `.antigravityignore` gelistete Dateien liest
+   agy per `read_file` und per `cat` (je gemessen). Die Sperrpfade der Projekte schützt gegenüber agy nur die
+   Hook-Prüfung der Prompt-Datei vor dem Start; während des Laufs kann Gemini sie lesen.
 8. **Befehlsregeln kennen keine Pfadgrenze.** `command(cat)` liest jede Datei, auch außerhalb des Projekts (Abnahme:
    Gemini las per `cat` die Prompts anderer Lauf-Ordner). `read_file` ist dagegen auf Workspace und freigegebene Ordner
-   begrenzt. Gleiches gilt für `head`, `tail`, `grep`, `wc`. Schutz vor dem Lesen von Geheimnissen außerhalb
-   des Projekts geben nur der Prompt und die eingebaute „system protection boundary“ (sperrt z. B. `~/.gemini/…`).
+   begrenzt und zusätzlich durch die eingebaute „system protection boundary“ (z. B. `~/.gemini/…`). Diese Grenze gilt
+   **nicht** für Befehle: `wc -l ~/.gemini/antigravity-cli/settings.json` lief mit `command(wc)` durch. Gleiches ist für
+   `head`, `tail`, `grep` anzunehmen (nicht einzeln gemessen).
 9. `git log/diff/show --output=<pfad>` schreibt trotz reiner Präfixregel eine Datei, auch außerhalb des Projekts
    (gemessen mit `command(git log)`).
 10. Ein ungelisteter Befehl oder ein Lesen außerhalb beendet den Lauf mit leerer Antwort. Gemini neigt dazu, sich in
     Nachbarordnern umzusehen; der Satz „Lies keine anderen Dateien und sieh dich nicht in anderen Ordnern um“ im
     Prompt hat das in der Abnahme verhindert.
-11. Nicht gleichzeitig starten: Drei parallel gestartete agy-Läufe – einer scheiterte sofort mit „model … is not
-    recognized“. Netzaussetzer zeigen sich als „stream was interrupted“ und verlängern den Lauf bis zum Zeitlimit.
+11. Von drei gleichzeitig gestarteten agy-Läufen scheiterte einer sofort mit „model … is not recognized“. Das fiel mit
+    einem Netzausfall zusammen; die Ursache ist offen. Netzaussetzer zeigen sich als „stream was interrupted“ und
+    verlängern den Lauf bis zum Zeitlimit.
 
 ## Folgerungen für die Agent-Definition
 
@@ -96,3 +100,4 @@ Befehl wörtlich aus `multi-ki/benutzer/agents/gemini-analyst.md`, `RUN` in der 
 - **Nur lesen (ohne `--mode`):** `read_file` im Lauf-Ordner, `git log --oneline -n 1`, `grep -n …` ok; `lsof -h`
   verweigert (kein Auto-Modus mehr). Schreiben im Nur-Lesen-Aufruf: verweigert (Einzelmessung oben).
 - `make test` grün, `normen.py pruefen --diff` 0 Fehler.
+- **Nicht geprüft:** der Bildmodus (`BILD_ALLOW` mit `realpath` und `agentMode`) – geändert, aber kein Bildlauf.

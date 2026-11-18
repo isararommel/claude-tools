@@ -241,8 +241,8 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 # „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“
 # Außerdem: „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: <Liste aus ALLOW>.“
 # und: „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“
-# (Jeder verweigerte Schritt beendet den Lauf. Zwei agy-Läufe nicht im selben Augenblick starten –
-#  einmal beobachtet: „model … is not recognized“; parallel zu mistral-team ist unbedenklich.)
+# (Jeder verweigerte Schritt beendet den Lauf. Einmal beim gleichzeitigen Start zweier agy-Läufe beobachtet:
+#  „model … is not recognized“ – fiel mit einem Netzausfall zusammen, Ursache offen.)
 RUN="${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
 # im selben Befehl wie agy; R = aufgelöster Pfad (/private/var/…), sonst greift read_file nicht
@@ -265,8 +265,12 @@ agy --model gemini-3.8-flash-high --mode accept-edits --print-timeout 540s \
 - Bekannte Lücke: Präfixregeln decken alle Optionen ab, auch `git log/diff/show --output=<pfad>` (schreibt eine Datei, auch
   außerhalb des Projekts). Nach jedem Lauf `git status --short` prüfen.
 - Meldung „jetski: no output produced … permission … auto-denied“: agy wollte etwas Nicht-Freigegebenes tun, der Lauf endete
-  dort. Sie betrifft den **letzten** verweigerten Schritt – bei Umsetzung erst `git status` und die Zieldateien prüfen,
-  dann einmal mit dem Zusatz „Nutze nur diese Shell-Befehle …“ wiederholen.
+  dort. Sie betrifft den **letzten** verweigerten Schritt – bei Umsetzung erst `git status` und die Zieldateien prüfen.
+  Das verweigerte Ziel steht nicht in `antwort.txt`, sondern im agy-Transkript
+  (`~/.gemini/antigravity-cli/brain/<gespräch>/.system_generated/logs/transcript_full.jsonl`, Feld `error`). Danach den
+  Prompt schärfen (Befehlsliste, „Lies keine anderen Dateien …“) und einmal neu delegieren.
+- **`.geminiignore` schützt nicht:** agy 1.5.11 liest dort (und in `.antigravityignore`) gelistete Dateien per `read_file`
+  und `cat` (gemessen 18.11.2026). Sperrpfade schützt gegenüber agy nur die Hook-Prüfung der Prompt-Datei.
 
 ## 8. Vorlagen der Agent-Definitionen
 

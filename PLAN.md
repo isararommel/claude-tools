@@ -49,8 +49,13 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 ### A2. agy-Freigaben: Nacharbeiten *(wartet auf die Inhaberin)*
 
 Paket A ist erledigt (Branch `agy-freigaben`, Bericht `docs/plaene/agy-freigaben-spike.md`). Offen:
+0. **Sperrpfade:** `.geminiignore`/`.antigravityignore` sperren in agy nichts (Spike-Befund 7). Prüfen, ob `deny`-Regeln
+   `read_file(<aufgelöster sperrpfad>)` greifen; `cat`/`grep` auf Sperrpfade lassen sich per Präfixregel nicht sperren.
+   Bis dahin: keine Aufträge an `gemini-analyst` in Projekten mit Sperrpfaden ohne Rücksprache.
 1. **Kopie nach `~/.claude/agents/gemini-analyst.md`** (Rückfrage): Bis dahin läuft jeder echte Nur-Lesen-Auftrag im
    **Auto-Modus** (ungelistete Befehle werden ausgeführt), und `cat`/`wc`/`tail` sind wegen der `*`-Regeln gesperrt.
+   **Regel bis zur Kopie: keine Nur-Lesen-Aufträge an `gemini-analyst`**; Analysen nur über den Umsetzungsaufruf
+   (`--mode accept-edits`) oder an `mistral-team`.
 2. Globale `~/.gemini/antigravity-cli/settings.json` (nur die Inhaberin): `deny` mit `*` und `Edit`/`Write`/`MultiEdit`
    greifen nicht; Präfixform wäre `command(rm)`, `command(mv)`, `command(cp)`. Zusätzlich `"agentMode": ""` erwägen.
 3. Entscheidung: `git log/diff/show --output=<pfad>` schreibt trotz Präfixregel (auch außerhalb); `cat`/`grep` lesen auch

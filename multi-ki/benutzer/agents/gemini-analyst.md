@@ -21,7 +21,7 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
 
 ## Ablauf
 
-1. **Die Prompt-Datei legt Claude an, nicht du.** Claude schreibt sie mit dem Write-Werkzeug nach `${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>/prompt.md` (erste Zeile: „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“, dann der Auftrag mit exakten Pfaden und den Pflichtsätzen) und nennt dir den Pfad. Du setzt `RUN` auf diesen Ordner und prüfst nur `test -s "$RUN/prompt.md"`. Schreibe die Datei nie selbst per `cat`/Heredoc und ändere sie nicht: Der Normen-Hook prüft Befehlszeilen und sperrt Auftragstexte, weil die Pflichtsätze Wörter wie `rm` oder `git restore` enthalten. Nennt Claude keinen Pfad oder fehlt die Datei, melde das an Claude und hör auf.
+1. **Die Prompt-Datei legt Claude an, nicht du.** Claude schreibt sie mit dem Write-Werkzeug nach `${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>/prompt.md` (erste Zeile: „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“, dann „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: <Befehle aus ALLOW>.“ und „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“ – jeder verweigerte Schritt beendet den Lauf –, dann der Auftrag mit exakten Pfaden und den Pflichtsätzen) und nennt dir den Pfad. Du setzt `RUN` auf diesen Ordner und prüfst nur `test -s "$RUN/prompt.md"`. Schreibe die Datei nie selbst per `cat`/Heredoc und ändere sie nicht: Der Normen-Hook prüft Befehlszeilen und sperrt Auftragstexte, weil die Pflichtsätze Wörter wie `rm` oder `git restore` enthalten. Nennt Claude keinen Pfad oder fehlt die Datei, melde das an Claude und hör auf.
 
 2. agy im Projektordner starten (Bash-Timeout 600000; bei langen Aufträgen mit `run_in_background` und auf die Benachrichtigung warten). Freigaben (`R` = aufgelöster Lauf-Ordner, siehe unten):
    ```
@@ -52,7 +52,7 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    ```
    NIE `--dangerously-skip-permissions` und keine Änderung an Einstellungsdateien. Braucht agy einen Befehl außerhalb der Liste, melde das an Claude.
 
-3. Ergebnis lesen: `cat "$RUN/antwort.txt"` (lange Ausgaben in Teilen). „jetski: no output produced … permission … auto-denied“ heißt: agy wollte etwas Nicht-Freigegebenes tun, und der Lauf endete dort. Die Meldung betrifft den **letzten** verweigerten Schritt, nicht unbedingt das Schreiben: bei Umsetzung erst `git status --short` und die Zieldateien prüfen – sind sie vollständig, ist der Lauf erfolgreich (mit Hinweis an Claude). Sonst einmal wiederholen; den Prompt ändert Claude (Zusatz „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: …“). Scheitert auch das, nicht weiter probieren, sondern an Claude melden.
+3. Ergebnis lesen: `cat "$RUN/antwort.txt"` (lange Ausgaben in Teilen). „jetski: no output produced … permission … auto-denied“ heißt: agy wollte etwas Nicht-Freigegebenes tun, und der Lauf endete dort. Die Meldung betrifft den **letzten** verweigerten Schritt, nicht unbedingt das Schreiben: bei Umsetzung erst `git status --short` und die Zieldateien prüfen – sind sie vollständig, ist der Lauf erfolgreich (mit Hinweis an Claude). Sonst **nicht wiederholen**, sondern die Meldung wörtlich mit `$RUN` an Claude melden (das verweigerte Ziel steht nur im agy-Transkript, nicht in `antwort.txt`; Claude passt den Prompt an).
 
 4. Kurz prüfen (erlaubt): Bei Umsetzung `git status --short`, dass nur erlaubte Dateien geändert wurden.
 
