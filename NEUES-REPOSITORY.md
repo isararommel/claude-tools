@@ -100,7 +100,7 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 ## Schritt 6: Agenten-Definitionen abgleichen
 
 1. Prüfen, ob `~/.claude/agents/mistral-team.md`, `~/.claude/agents/gemini-analyst.md` und `~/.claude/agents/Explore.md` vorhanden sind (alle mit der Regel „Den Advisor nie aufrufen“).
-2. Prüfen, ob die Freigabeliste (`ALLOW`) in `~/.claude/agents/gemini-analyst.md` den Test- und Buildbefehl des Projekts abdeckt (immer beide Formen, z. B. `command(make test)` und `command(make test*)`).
+2. Prüfen, ob die Freigabeliste (`ALLOW`) in `~/.claude/agents/gemini-analyst.md` den Test- und Buildbefehl des Projekts abdeckt (Präfixform ohne `*`, z. B. `command(make test)`; `command(make test*)` greift nicht).
 3. Bei Abweichungen die Inhaberin um Anpassung bitten (Änderungen an `~/.claude/` verantwortet die Inhaberin).
 
 ---

@@ -64,7 +64,7 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 Die Agent-Definitionen enthalten Befehle, die zum Projekt passen müssen:
 
 - **Testbefehl:** je Projekt, z. B. `make test`, `swift test`, `npm test`, `pytest`, `cargo test`. Den Befehl im Auftrag an Claude/Vibe nennen.
-- **agy-Freigabeliste (`ALLOW`):** enthält im Beispiel `swift build`/`swift test`. Für das eigene Projekt die Build- und Testbefehle ersetzen oder ergänzen. Wichtig: `command(x*)` deckt den Befehl **ohne** Argumente nicht ab, deshalb immer beide Formen eintragen (`command(npm test)` und `command(npm test*)`).
+- **agy-Freigabeliste (`ALLOW`):** enthält im Beispiel `swift build`/`swift test`. Für das eigene Projekt die Build- und Testbefehle ersetzen oder ergänzen. Form: `command(npm test)` gilt als Präfix und deckt `npm test` mit beliebigen Argumenten ab; **kein `*`** – `command(npm test*)` und `command(npm test *)` greifen in agy 1.5.11 nicht (`docs/plaene/agy-freigaben-spike.md`).
 
 Am einfachsten: In jedem Auftrag nennt Claude den Testbefehl ausdrücklich. Die Freigabeliste in `gemini-analyst.md` kann um die Befehle mehrerer Sprachen ergänzt werden.
 
@@ -239,9 +239,14 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 ```bash
 # Claude hat $RUN/prompt.md vorher mit dem Write-Werkzeug angelegt; erste Zeile:
 # „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“
+# Außerdem: „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: <Liste aus ALLOW>.“
+# und: „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“
+# (Jeder verweigerte Schritt beendet den Lauf. Einmal beim gleichzeitigen Start zweier agy-Läufe beobachtet:
+#  „model … is not recognized“ – fiel mit einem Netzausfall zusammen, Ursache offen.)
 RUN="${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
-ALLOW='{"permissions":{"allow":["command(git log)","command(git log*)","command(git diff)","command(git diff*)","command(git status)","command(git status*)","command(git show*)","command(swift build)","command(swift build*)","command(swift test)","command(swift test*)","command(python3 normen/normen.py pruefen)","command(python3 normen/normen.py pruefen*)","command(ls)","command(ls *)","command(cat *)","command(head *)","command(tail *)","command(wc *)","command(grep *)","command(rg *)","command(pwd)","command(tree)","command(tree *)"]}}'
+# im selben Befehl wie agy; R = aufgelöster Pfad (/private/var/…), sonst greift read_file nicht
+R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git log)","command(git diff)","command(git status)","command(git show)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(cat)","command(head)","command(tail)","command(wc)","command(grep)","command(pwd)","read_file('"$R"')"]}}'
 
 # Analyse (nur lesen; im Prompt: „Ändere keine Dateien.“)
 agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \
@@ -253,8 +258,19 @@ agy --model gemini-3.8-flash-high --mode accept-edits --print-timeout 540s \
 ```
 
 - **Immer `--model gemini-3.8-flash-high`.** Ohne `--model` kann agy Claude- oder GPT-Modelle nutzen, und die Last landet beim falschen Anbieter.
-- `ALLOW` an das Projekt anpassen (siehe Abschnitt 3). Nie kürzen, nie `--dangerously-skip-permissions`.
-- Meldung „jetski: no output produced … command permission“ bedeutet: agy wollte einen nicht freigegebenen Befehl ausführen. Einmal wiederholen mit dem Zusatz „Nutze keine Shell-Befehle außer …“.
+- `ALLOW` an das Projekt anpassen (siehe Abschnitt 3). Nie kürzen, nie `--dangerously-skip-permissions`, keine Befehle
+  aufnehmen, die Programme starten oder Dateien schreiben (`find`, `rg --pre`, `tree -o`).
+- **`"agentMode":""` nie weglassen:** Ohne `--mode` startet `agy -p` sonst im Auto-Modus und führt auch nicht freigegebene
+  Befehle aus (gemessen 18.11.2026).
+- Bekannte Lücke: Präfixregeln decken alle Optionen ab, auch `git log/diff/show --output=<pfad>` (schreibt eine Datei, auch
+  außerhalb des Projekts). Nach jedem Lauf `git status --short` prüfen.
+- Meldung „jetski: no output produced … permission … auto-denied“: agy wollte etwas Nicht-Freigegebenes tun, der Lauf endete
+  dort. Sie betrifft den **letzten** verweigerten Schritt – bei Umsetzung erst `git status` und die Zieldateien prüfen.
+  Das verweigerte Ziel steht nicht in `antwort.txt`, sondern im agy-Transkript
+  (`~/.gemini/antigravity-cli/brain/<gespräch>/.system_generated/logs/transcript_full.jsonl`, Feld `error`). Danach den
+  Prompt schärfen (Befehlsliste, „Lies keine anderen Dateien …“) und einmal neu delegieren.
+- **`.geminiignore` schützt nicht:** agy 1.5.11 liest dort (und in `.antigravityignore`) gelistete Dateien per `read_file`
+  und `cat` (gemessen 18.11.2026). Sperrpfade schützt gegenüber agy nur die Hook-Prüfung der Prompt-Datei.
 
 ## 8. Vorlagen der Agent-Definitionen
 

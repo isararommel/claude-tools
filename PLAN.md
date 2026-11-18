@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (v13 gemergt, PR #16; nächstes Paket: A)*
+*Stand: 18.11.2026 (Paket A erledigt auf Branch `agy-freigaben`; nächstes Paket: B, offen: A2)*
 
 ## Verweise
 
@@ -36,6 +36,9 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 18.11. **Paket A agy-Freigaben** (Branch `agy-freigaben`): `*` in agy-Regeln greift nicht (1.5.11) → ALLOW in
+  Präfixform; `-p` ohne `--mode` lief im Auto-Modus → `"agentMode":""`; `read_file` braucht aufgelösten Pfad → `realpath`.
+  Abnahme 3/3 Umsetzung + Nur-Lesen ok. Einzelheiten: `docs/plaene/agy-freigaben-spike.md`, CHANGELOG.
 - ✅ 18.11. **v13** gemergt (PR #16): S08-CLEAR-FAEHIG + Zeile in der PLAN-Vorlage; `make test` grün,
   `pruefen --diff` 0 Fehler. Rückmeldungen gesichtet (siehe Pakete A–C), vier Projektsitzungen nach Stand v12 gefragt (Paket G).
 - ✅ 17.11. v12 (PR #14): Vibe-Hooks für `edit`/`grep`, Recherche-Vorlagen. v11 (PR #13), v10 (PR #11), v9 (PR #8), v8 (PR #6),
@@ -43,22 +46,23 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
-### A. agy-Freigaben klären *(Frage 1, freigegeben 18.11.)*
+### A2. agy-Freigaben: Nacharbeiten *(wartet auf die Inhaberin)*
 
-Ziel: gemini-analyst kann headless (`--mode accept-edits`, `--settings "$ALLOW"`) zuverlässig lesen **und** neue Dateien anlegen.
-Befunde bisher: (1) Recherche-Abnahme 17.11.: Anlegen neuer Dateien scheiterte zweimal („a tool required the command
-permission“). (2) Rückmeldung (Normen v7): trotz `command(cat *)`, `command(wc *)`, `read_file(<lauf-ordner>)` gesperrt –
-`cat <relativer pfad>` auf eine gitignorte Datei, `wc -l <tmp>/*.md` (Glob außerhalb des Projekts), `read_file` auf Datei
-im freigegebenen Ordner (evtl. `/var` vs. `/private/var`). Beleg: `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript_full.jsonl`.
-(3) Rückmeldung (v11): Meldung „no output produced … auto-denied“, die Zieldatei war aber vollständig geschrieben.
-Schritte: 1. Regel-Syntax an agy 1.5.11 nachsehen (`agy --help`, mitgelieferte Doku/Schema; nicht raten, S04).
-2. Wegwerf-Repo unter `$TMPDIR`, Mini-Aufträge je Fall (relative Datei, gitignorte Datei, Datei im Lauf-Ordner mit `/var`-
-und `/private/var`-Pfad, neue Datei anlegen); je Lauf im Transkript die verweigerte Freigabe mit genauem Ziel ablesen.
-3. Mindest-ALLOW bestimmen (nur lesende Befehle + Schreiben im Auftrag), nie `--dangerously-skip-permissions`.
-4. `multi-ki/benutzer/agents/gemini-analyst.md` und `multi-ki/multi-ki-ablauf.md`: ALLOW anpassen; bei „auto-denied“ erst
-`git status` und Zieldatei prüfen, Lauf nicht als gescheitert werten. 5. Bericht `docs/plaene/agy-freigaben-spike.md`.
-Abnahme: Mini-Auftrag (eine Datei lesen, eine neue schreiben) läuft ohne Verweigerung; `make test`; Kopie nach
-`~/.claude/agents/` nur mit Rückfrage.
+Paket A ist erledigt (Branch `agy-freigaben`, Bericht `docs/plaene/agy-freigaben-spike.md`). Offen:
+0. **Sperrpfade:** `.geminiignore`/`.antigravityignore` sperren in agy nichts (Spike-Befund 7). Prüfen, ob `deny`-Regeln
+   `read_file(<aufgelöster sperrpfad>)` greifen; `cat`/`grep` auf Sperrpfade lassen sich per Präfixregel nicht sperren.
+   Bis dahin: keine Aufträge an `gemini-analyst` in Projekten mit Sperrpfaden ohne Rücksprache.
+1. **Kopie nach `~/.claude/agents/gemini-analyst.md`** (Rückfrage): Bis dahin läuft jeder echte Nur-Lesen-Auftrag im
+   **Auto-Modus** (ungelistete Befehle werden ausgeführt), und `cat`/`wc`/`tail` sind wegen der `*`-Regeln gesperrt.
+   **Regel bis zur Kopie: keine Nur-Lesen-Aufträge an `gemini-analyst`**; Analysen nur über den Umsetzungsaufruf
+   (`--mode accept-edits`) oder an `mistral-team`.
+2. Globale `~/.gemini/antigravity-cli/settings.json` (nur die Inhaberin): `deny` mit `*` und `Edit`/`Write`/`MultiEdit`
+   greifen nicht; Präfixform wäre `command(rm)`, `command(mv)`, `command(cp)`. Zusätzlich `"agentMode": ""` erwägen.
+3. Entscheidung: `git log/diff/show --output=<pfad>` schreibt trotz Präfixregel (auch außerhalb); `cat`/`grep` lesen auch
+   außerhalb des Projekts. Hinnehmen (Prompt + `git status` danach) oder git-Befehle aus ALLOW nehmen?
+4. Projekte: `docs/multi-ki-ablauf.md` angleichen, projekteigene `command(x*)`-Einträge umstellen (mit Paket G).
+5. Rückmelde-Issues zu agy-Freigaben (v7, v11) mit Verweis auf den PR schließen (Entscheidung 18.11.).
+6. Kandidat für B: Hook-Prüfung, dass `agy -p` nie ohne `--mode` und ohne `"agentMode":""` startet.
 
 ### B. v14 – Selbsttest-Köder auch für Bearbeiten-Werkzeuge *(freigegeben 17.11.)*
 
@@ -107,7 +111,7 @@ Das Projekt auf v9 (ohne Sitzung) mit Freigabe vom 18.11. per `bash <claude-tool
 auf **v13** gebracht (direktes `normen.py aktualisieren` dort sperrt der S06-Hook als fremdes Skript): „gültig: 9“, Tests grün,
 PR im Projekt am 18.11. gemergt (durch die Inhaberin); dort noch die
 `.vorlage`-Dateien (`docs/multi-ki-ablauf.md`, `.geminiignore`) zusammenführen. Nach dem v13-Merge alle Sitzungen informiert.
-Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → bei Paket A/B mit prüfen (`multi-ki/benutzer/agents/mistral-team.md`).
+Neue Rückmeldung: mistral-team-Zeitlimit 540 s zu knapp → in Paket B prüfen (in A nicht bearbeitet) (`multi-ki/benutzer/agents/mistral-team.md`).
 
 ## Entscheidungen der Inhaberin (18.11.)
 
