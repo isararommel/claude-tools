@@ -55,8 +55,8 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 5. **Advisor (Fable):** `advisorModel` in den Nutzereinstellungen (`/advisor`), nicht im Projekt; getestet mit Claude Code 2.1.325.
    Der Advisor ist „experimental“; fällt er aus, arbeitet Claude ohne ihn weiter und nennt die ungeprüften Punkte im Bericht (S07).
 6. **Selbsttest nach jedem Update von Claude Code oder Vibe** (und nach Änderungen an `.claude/settings.json` bzw. `.vibe/hooks.toml`):
-   `python3 normen/normen.py selbsttest` im Projekt. Er bittet `claude -p` und `vibe` um einen harmlosen Köder (Datei
-   `.normen/normen-koeder.txt`), den nur der Normen-Hook sperrt – seit v14 über jeden Weg mit eigenem Hook: claude `bash` und
+   `python3 normen/normen.py selbsttest` im Projekt. Er bittet `claude -p` und `vibe` um einen harmlosen Köder, den nur der
+   Normen-Hook sperrt – seit v14 über jeden Weg mit eigenem Hook: claude `bash` und
    `write`, vibe `bash`, `write_file` und `edit`. Er meldet je Werkzeug und Weg (`vibe/edit: …`) „gesperrt“, „NICHT GESPERRT“ oder
    „unklar“. Nur „gesperrt“ ist in Ordnung – sonst greifen die Hooks nicht (bis 15.11.2026 hatte Vibe alle Normen-Hooks still
    verworfen, ohne dass es auffiel). Bei „NICHT GESPERRT“ liegt der Beleg (Ausgabe, Vibe-Ausgabeordner) unter

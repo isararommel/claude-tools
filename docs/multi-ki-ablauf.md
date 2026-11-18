@@ -55,9 +55,12 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 5. **Advisor (Fable):** `advisorModel` in den Nutzereinstellungen (`/advisor`), nicht im Projekt; getestet mit Claude Code 2.1.325.
    Der Advisor ist „experimental“; fällt er aus, arbeitet Claude ohne ihn weiter und nennt die ungeprüften Punkte im Bericht (S07).
 6. **Selbsttest nach jedem Update von Claude Code oder Vibe** (und nach Änderungen an `.claude/settings.json` bzw. `.vibe/hooks.toml`):
-   `python3 normen/normen.py selbsttest` im Projekt. Er bittet `claude -p` und `vibe` um einen harmlosen Köder-Befehl, den nur der
-   Normen-Hook sperrt, und meldet je Werkzeug „gesperrt“, „NICHT GESPERRT“ oder „unklar“. Nur „gesperrt“ ist in Ordnung – sonst
-   greifen die Hooks nicht (bis 15.11.2026 hatte Vibe alle Normen-Hooks still verworfen, ohne dass es auffiel). Kostet je Werkzeug einen kurzen Lauf.
+   `python3 normen/normen.py selbsttest` im Projekt. Er bittet `claude -p` und `vibe` um einen harmlosen Köder, den nur der
+   Normen-Hook sperrt – seit v14 über jeden Weg mit eigenem Hook: claude `bash` und
+   `write`, vibe `bash`, `write_file` und `edit`. Er meldet je Werkzeug und Weg (`vibe/edit: …`) „gesperrt“, „NICHT GESPERRT“ oder
+   „unklar“. Nur „gesperrt“ ist in Ordnung – sonst greifen die Hooks nicht (bis 15.11.2026 hatte Vibe alle Normen-Hooks still
+   verworfen, ohne dass es auffiel). Bei „NICHT GESPERRT“ liegt der Beleg (Ausgabe, Vibe-Ausgabeordner) unter
+   `.normen/selbsttest-<zeit>-<werkzeug>-<weg>.log`. Kostet je Weg einen kurzen Lauf (5 Läufe); `--werkzeug` und `--weg` grenzen ein.
 
 ### Projektspezifisch anpassen
 
@@ -202,7 +205,8 @@ Vorlagen: `docs/recherche-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs
 - Vibes `grep` über einen übergeordneten Ordner (`daten/`, `.`) durchsucht auch gesperrte Unterordner; gesperrt ist nur der
   Sperrpfad selbst. Nicht nachgewiesen: ob `run_typescript` am Hook vorbei direkt ins Dateisystem schreiben kann (Vibe verweigerte
   den Versuch selbst).
-- `normen.py selbsttest` prüft nur Bash (Köder-Befehl), nicht `edit`/`write_file`.
+- `normen.py selbsttest` prüft je Vibe-Werkzeug nur `bash`, `write_file` und `edit`, nicht die übrigen Hook-Einträge
+  (`search_replace`, `grep`, `read_file`, weitere Shell-Werkzeuge).
 - Eine Zuweisung, die der Hook nicht als solche erkennt (`declare W=…`, Zuweisung hinter `then`), kann ihn auf einen
   gleichnamigen Wert aus der Umgebung führen.
 

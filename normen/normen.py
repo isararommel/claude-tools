@@ -823,7 +823,8 @@ def _selbsttest_werkzeug(name: str, weg: str) -> tuple[str, str]:
                   "--max-turns", "3", "--output-format", "stream-json", "--verbose"]
     else:
         ausgabe_ordner = Path(tempfile.mkdtemp(prefix="normen-selbsttest-"))
-        befehl = [name, "--trust", "--smart-approve", "--max-turns", "3", "--time-limit", "240",
+        # edit liest die Datei meist erst – mit 3 Runden 1 von 3 Läufen ohne Versuch (gemessen 18.11.2026)
+        befehl = [name, "--trust", "--smart-approve", "--max-turns", "5" if weg == "edit" else "3", "--time-limit", "240",
                   "--output-dir", str(ausgabe_ordner), "-p", text]
     try:
         r = subprocess.run(befehl, cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)

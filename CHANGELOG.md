@@ -16,7 +16,7 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
   welcher Schreibweise des Pfads. Lesen bleibt erlaubt.
 - **Selbsttest je Weg:** claude `bash`/`write`, vibe `bash`/`write_file`/`edit` – jeder Vibe-Hook hängt an einem eigenen
   Werkzeugnamen, ein Bash-Köder belegt die anderen nicht (Befund 17.11.: ohne `edit`-Eintrag änderte Vibe eine Datei).
-  Für `edit` liegt der Köder vorher mit bekanntem Inhalt bereit; „NICHT GESPERRT“ heißt dort: Inhalt geändert.
+  Für `edit` liegt der Köder vorher mit bekanntem Inhalt bereit; „NICHT GESPERRT“ heißt dort: Inhalt geändert (5 Runden statt 3).
   Ausgabe `werkzeug/weg: …`, Eingrenzen mit `--werkzeug` und `--weg`.
 - **Beleg bei „NICHT GESPERRT“:** Ausgabe und Vibe-Ausgabeordner landen in `.normen/selbsttest-<zeit>-<werkzeug>-<weg>.log`
   (vorher wurde der Ausgabeordner immer gelöscht; Rückmeldung).
@@ -25,7 +25,7 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 - **`auftrag --dateien`:** jedes Argument ist genau ein Pfad, auch mit Leerzeichen; das Trennen an Leerraum entfällt
   (Rückmeldung, Paket C).
 - **mistral-team Zeitlimit:** Umsetzungsläufe mit `--time-limit 1200` im Hintergrund; 540 s nur für kurze Läufe
-  (Rückmeldung „540 s zu knapp“).
+  (Rückmeldung „540 s zu knapp“; Wirkung offen: der erste 1200-s-Lauf endete ebenfalls am Zeitlimit).
 - Mit dieser Version kommt der angepasste Pflichtblock von `normen.py auftrag` für gemini-analyst (enge Liste) in die Projekte.
 
 ---
