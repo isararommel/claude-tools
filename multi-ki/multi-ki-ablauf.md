@@ -239,14 +239,16 @@ vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
 ```bash
 # Claude hat $RUN/prompt.md vorher mit dem Write-Werkzeug angelegt; erste Zeile:
 # „Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.“
-# Außerdem: „Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: <Liste aus ALLOW>.“
+# Außerdem: „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal. Erlaubte Shell-Befehle, einzeln und ohne
+# Pipes: ls, pwd, git status, git branch --show-current und der Testbefehl.“
 # und: „Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.“
+# Diffs/git-Verlauf legt Claude vorher als Datei in den Lauf-Ordner: git diff main > "$RUN/diff.patch"
 # (Jeder verweigerte Schritt beendet den Lauf. Einmal beim gleichzeitigen Start zweier agy-Läufe beobachtet:
 #  „model … is not recognized“ – fiel mit einem Netzausfall zusammen, Ursache offen.)
 RUN="${TMPDIR:-/tmp}/agy-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
 # im selben Befehl wie agy; R = aufgelöster Pfad (/private/var/…), sonst greift read_file nicht
-R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git log)","command(git diff)","command(git status)","command(git show)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(cat)","command(head)","command(tail)","command(wc)","command(grep)","command(pwd)","read_file('"$R"')"]}}'
+R=$(realpath "$RUN"); ALLOW='{"agentMode":"","permissions":{"allow":["command(make test)","command(git status)","command(git branch --show-current)","command(swift build)","command(swift test)","command(python3 normen/normen.py pruefen)","command(ls)","command(pwd)","read_file('"$R"')"]}}'
 
 # Analyse (nur lesen; im Prompt: „Ändere keine Dateien.“)
 agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \
@@ -258,12 +260,16 @@ agy --model gemini-3.8-flash-high --mode accept-edits --print-timeout 540s \
 ```
 
 - **Immer `--model gemini-3.8-flash-high`.** Ohne `--model` kann agy Claude- oder GPT-Modelle nutzen, und die Last landet beim falschen Anbieter.
-- `ALLOW` an das Projekt anpassen (siehe Abschnitt 3). Nie kürzen, nie `--dangerously-skip-permissions`, keine Befehle
-  aufnehmen, die Programme starten oder Dateien schreiben (`find`, `rg --pre`, `tree -o`).
+- `ALLOW` an das Projekt anpassen (siehe Abschnitt 3): nur Test- und Buildbefehle ergänzen. Nie
+  `--dangerously-skip-permissions`. Keine Befehle aufnehmen, die Dateiinhalte ausgeben, Programme starten oder Dateien
+  schreiben (`cat`, `head`, `tail`, `wc`, `grep`, `find`, `rg`, `tree`, `git log/diff/show`): Befehlsregeln haben keine
+  Pfadgrenze, `cat ~/.ssh/…` oder `.env` gingen an Google (N03). Lesen nur per `read_file` (Projekt + Lauf-Ordner).
+- agy-Suchwerkzeuge (`grep_search`, `list_dir`, `find_by_name`) stehen Gemini headless nicht zur Verfügung (gemessen
+  18.11.2026). Für große Analysen nennt Claude die Dateien im Prompt oder legt eine Liste bzw. einen Auszug in den Lauf-Ordner.
 - **`"agentMode":""` nie weglassen:** Ohne `--mode` startet `agy -p` sonst im Auto-Modus und führt auch nicht freigegebene
   Befehle aus (gemessen 18.11.2026).
-- Bekannte Lücke: Präfixregeln decken alle Optionen ab, auch `git log/diff/show --output=<pfad>` (schreibt eine Datei, auch
-  außerhalb des Projekts). Nach jedem Lauf `git status --short` prüfen.
+- Präfixregeln decken alle Optionen eines Befehls ab. `ls` zeigt deshalb auch Dateinamen außerhalb des Projekts (keine
+  Inhalte). Nach jedem Lauf `git status --short` prüfen.
 - Meldung „jetski: no output produced … permission … auto-denied“: agy wollte etwas Nicht-Freigegebenes tun, der Lauf endete
   dort. Sie betrifft den **letzten** verweigerten Schritt – bei Umsetzung erst `git status` und die Zieldateien prüfen.
   Das verweigerte Ziel steht nicht in `antwort.txt`, sondern im agy-Transkript

@@ -52,8 +52,11 @@ Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Ents
 - ✅ Kopie nach `~/.claude/agents/gemini-analyst.md`: erledigt 18.11. (vorher identisch mit der alten Repo-Fassung).
 - Sperrpfade (`.geminiignore` sperrt in agy nichts): **nichts sperren** – `gemini-analyst` bleibt in allen Projekten nutzbar.
 - Globale `~/.gemini/antigravity-cli/settings.json` (`deny` mit `*` und `Edit`/`Write`/`MultiEdit` wirkungslos,
-  `"agentMode": ""`) sowie `git … --output`/Lesen außerhalb: an die Sitzung des privaten Server-Werkzeug-Projekts gemeldet (18.11.); deren
-  Antwort abwarten, hier nichts ändern.
+  `"agentMode": ""`): an die Sitzung des privaten Server-Werkzeug-Projekts gemeldet; sie hat es der Inhaberin vorgelegt
+  und ändert selbst nichts. Hier nichts ändern.
+- `git … --output`/Lesen außerhalb: Die Inhaberin hat es an diese Sitzung übergeben; deren Empfehlung ist umgesetzt
+  (enge Liste: keine `cat`/`grep`/`git log|diff|show` mehr, nur `read_file`; CHANGELOG „enge Liste“).
+  Die Kopie der neuen Fassung nach `~/.claude/agents/` braucht eine eigene Rückfrage.
 Offen:
 4. Projekte: `docs/multi-ki-ablauf.md` angleichen, projekteigene `command(x*)`-Einträge umstellen (mit Paket G).
 5. Rückmelde-Issues zu agy-Freigaben (v7, v11) mit Verweis auf den PR schließen (Entscheidung 18.11.).

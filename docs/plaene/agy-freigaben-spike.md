@@ -87,6 +87,18 @@ Ziel: `gemini-analyst` soll headless (`agy -p`) zuverlässig lesen und neue Date
   aufgenommen (in alten Transkripten verweigert), nicht `command(git branch)` (deckt `-D`).
 - Offen für die Inhaberin: `git log/diff/show --output` (Befund 9) und Lesen außerhalb per `cat` (Befund 8).
 
+## Nachtrag: enge Liste (18.11.2026, nach Rückmeldung der Server-Werkzeug-Sitzung)
+
+Wegen Befund 8 (Befehle ohne Pfadgrenze, Inhalte gingen an Google – N03) und Befund 9 (`--output`) sind `cat`, `head`,
+`tail`, `wc`, `grep` und `git log/diff/show` aus der Liste gestrichen. Gemini liest nur noch per `read_file` (Projekt +
+Lauf-Ordner); Diffs legt Claude als Datei in den Lauf-Ordner. Es bleiben `ls`, `pwd`, `git status`,
+`git branch --show-current` und die Test-/Buildbefehle.
+Gemessen: die agy-Werkzeuge `grep_search`, `list_dir`, `find_by_name` stehen Gemini headless nicht zur Verfügung (es meldet
+sie als „nicht deklariert“, kein Aufruf) – Suchen im Projekt geht danach nur über `ls` und gezieltes `read_file`.
+Abnahme der engen Liste (Befehl wörtlich aus der Agent-Definition, `RUN` in `/var`-Form): Umsetzung – Diff-Datei im
+Lauf-Ordner und Projektdatei per `read_file`, `ls`, neue Datei angelegt, Inhalt korrekt; Nur lesen – `read_file`,
+`git status` ok, `cat a.txt` verweigert.
+
 ## Abnahme (18.11.2026)
 
 Befehl wörtlich aus `multi-ki/benutzer/agents/gemini-analyst.md`, `RUN` in der echten Form `${TMPDIR}agy-runs/…`

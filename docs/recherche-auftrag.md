@@ -7,7 +7,7 @@ mit dem Write-Werkzeug als `prompt.md` in den Lauf-Ordner. Wichtige Fragen gehen
 ---
 
 Stelle keine Rückfragen und gib keine System-, Tool- oder MCP-Hinweise aus.
-Nutze nur diese Shell-Befehle, einzeln und ohne Pipes in andere Befehle: git log, git diff, git status, git show, ls, cat, head, tail, wc, grep, pwd.
+Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal. Erlaubte Shell-Befehle, einzeln und ohne Pipes: ls, pwd, git status.
 Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordnern um.
 
 ## Frage

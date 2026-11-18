@@ -4,6 +4,19 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## agy-Freigaben, enge Liste (Multi-KI, kein neuer Normtext) – 2026-11-18
+
+**Aktualisieren nötig:** ja – wie unten (Agent-Definition kopieren, `docs/multi-ki-ablauf.md` und
+`docs/recherche-auftrag.md` angleichen).
+
+### Geändert
+- **Keine inhaltslesenden Befehle mehr für agy:** `cat`, `head`, `tail`, `wc`, `grep` und `git log/diff/show` gestrichen.
+  Befehlsregeln haben keine Pfadgrenze (`cat ~/.ssh/…` ginge an Google, N03), `git … --output` schreibt Dateien. Gemini
+  liest nur per `read_file` (Projekt + Lauf-Ordner); Diffs legt Claude als Datei in den Lauf-Ordner.
+- Prompt-Satz: „Lies Dateien nur mit dem Lesewerkzeug, nicht im Terminal …“.
+
+---
+
 ## agy-Freigaben (Multi-KI, kein neuer Normtext) – 2026-11-18
 
 **Aktualisieren nötig:** ja – `multi-ki/benutzer/agents/gemini-analyst.md` nach `~/.claude/agents/` kopieren (Rückfrage);
