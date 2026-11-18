@@ -4,6 +4,17 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v13 – 2026-11-18
+
+**Aktualisieren nötig:** ja – `normen.py aktualisieren` (nur neuer Normtext, keine Hook-Änderung).
+
+### Neu
+- **S08-CLEAR-FAEHIG** (Soll, nur Hauptsitzung): Pakete so schneiden, dass danach `/clear` möglich ist – Befunde sofort in
+  `PLAN.md`, am Paketende committen, „/clear möglich“ melden; Ausnahme für stark zusammenhängende Pakete (Grund nennen).
+  PLAN-Vorlage (`multi-ki/projekt/PLAN.md`) um eine Zeile ergänzt.
+
+---
+
 ## v12 und Recherche-Aufträge – 2026-11-17
 
 **Aktualisieren nötig:** ja – `normen.py aktualisieren` (wird es für Claude abgelehnt, gibt die Inhaberin

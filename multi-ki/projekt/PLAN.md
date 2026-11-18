@@ -17,6 +17,8 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 ## Arbeitsweise (kurz)
 
 - Eigener Branch je Aufgabe, PR, Merge über `python3 normen/normen.py merge <PR>`; Testbefehl siehe `CLAUDE.md`.
+- Pakete so schneiden, dass danach `/clear` möglich ist (S08): Befunde sofort hier festhalten, am Paketende committen und
+  „/clear möglich“ melden. Ausnahme: stark zusammenhängende Pakete (Grund nennen).
 - Projektbesonderheiten (gesperrte Pfade, Server, Abläufe) hier in Stichworten.
 
 ## Erledigt (letzte Schritte)

@@ -12,8 +12,8 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 12
-stand = "2026-11-16"
+version = 13
+stand = "2026-11-18"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
   "Recherche 14.11.2026: Fehlermuster Claude Code / Mistral Vibe / Gemini CLI + Antigravity (ImpossibleBench, System Cards, GitHub-Issues, Vorfälle)",
@@ -376,5 +376,16 @@ titel = "Fable (Advisor) prüft, Opus entscheidet"
 prompt = "Der Advisor (Fable) überwacht: prüft Pläne, Schnittstellen und Abnahmen, arbeitet nicht selbst. Entscheidungen und Commits bleiben bei Opus, Freigaben gibt {inhaberin}. Pflicht-Konsultationen: (1) vor Festlegung von Plan/Schnittstellen eines Pakets, (2) vor heikler Kernlogik, (3) nach drei Fehlversuchen, bevor angehalten wird (S03), (4) vor „fertig“ bzw. vor `normen.py merge`, (5) vor jedem Normänderungs-Vorschlag. Rat ist Empfehlung: widerspricht ein Befund (Test, Diff, Datei) dem Rat, den Konflikt melden statt blind folgen. Zu Sitzungsbeginn melden, ob der Advisor aktiv ist. Nicht verfügbar (Limit, „Advisor unavailable“, nicht aktiv): ohne Fable weiterarbeiten, nicht erneut versuchen, kein Modellwechsel; im Abschlussbericht „ohne Fable-Prüfung: Punkt X“. Ausnahme Punkt 5: Normänderung zurückstellen, bis Fable verfügbar ist oder {inhaberin} entscheidet. Subagenten rufen den Advisor nie auf."
 begruendung = "Ein stärkeres Modell prüft an den Stellen, an denen Fehler am teuersten sind; Opus behält Verantwortung und Werkzeuge. Advisor-Aufrufe sind technisch nicht erzwingbar."
 quellen = ["code.claude.com/docs/en/advisor", "Vorgabe der Inhaberin 16.11.2026"]
+durchsetzung = ["review"]
+faehigkeiten = []
+
+[[norm]]
+id = "S08-CLEAR-FAEHIG"
+stufe = "soll"
+nur_rollen = ["claude"]
+titel = "Pakete so schneiden, dass danach /clear möglich ist"
+prompt = "Plane Arbeitsschritte und Pakete grundsätzlich so, dass nach jedem Abschluss der Kontext mit /clear geleert werden kann: Am Ende eines Pakets steht alles, was eine frische Sitzung braucht, in PLAN.md (Stand, Befunde, nächstes Paket mit Ziel, Branch, Schritten, Abnahme, offene Fragen) und ist committet. Messergebnisse und Befunde sofort dort oder in einer Plan-Datei festhalten, nicht nur im Kontext. Danach im Bericht „/clear möglich“ melden; auslösen kann es nur {inhaberin}. Ausnahme: Hängen Pakete stark zusammen (gemeinsamer Kontext, dessen Wiederaufbau mehr kostet als er spart), lohnt das Leeren nicht – dann zusammen erledigen und den Grund nennen."
+begruendung = "Kontext und Tokens sparen: Lange Sitzungen kosten bei jedem Schritt (auch beim Advisor, der alles mitliest); eine frische Sitzung mit gutem PLAN.md ist billiger."
+quellen = ["Vorgabe der Inhaberin 18.11.2026"]
 durchsetzung = ["review"]
 faehigkeiten = []
