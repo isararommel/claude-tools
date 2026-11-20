@@ -95,6 +95,9 @@ kein G9-Beleg, Doku, Grenzen im CHANGELOG; jetzt 82 Prüfungen grün. **PR #30**
 **Freigaben der Inhaberin 20.11.:** Lockerungen G9 (#61) und S06-Projektimporte (#71) ja, Pflichtsatz ja, Labels ja →
 `stufe:hoch|mittel|niedrig` angelegt, #72 → `stufe:hoch`, #61 → `stufe:mittel`. `/code-review ultra`: Claude fordert die
 Inhaberin auf, sie startet ihn.
+Ultra-Review der ganzen Codebasis (Wunsch 20.11., drei freie Läufe): Hilfs-PR **#31** (Entwurf, `review-alles` → `review-basis`;
+leere Basis ohne Vorgänger, `review-alles` = Baum von main mit Eltern main + Basis) – **nie mergen**; nach dem Review schließen,
+Branches nur nach Freigabe löschen. Danach Ultra-Review für PR #30, dritter Lauf in Reserve.
 Offen: Befunde von `/code-review ultra` einarbeiten, dann `normen.py merge 30`; nach dem Merge
 Issues kommentieren/schließen (#74 erst nach Abgleich mit der Sperrmeldung aus dem Projektlauf; #61 offen lassen wegen
 Stop-Hook), Labels `stufe:*` anlegen, Sitzungen informieren.
