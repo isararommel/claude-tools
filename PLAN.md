@@ -90,7 +90,10 @@ Stand 20.11. abends: v15 umgesetzt, eingespielt (`einrichten.sh . --test "make t
 Sitzung gesperrt, `selbsttest --sitzung` → bestanden; session_id der Hook-Eingabe = `CLAUDE_CODE_SESSION_ID`).
 mistral-team-Lauf für die Tests endete nach 1200 s am Zeitlimit (`outcome: deadline`, 36 Schritte, mistral-large-4-0-3) ohne
 Datei, nur Lesen → Tests von Claude geschrieben; Beleg für Rückmeldung #52 (Kommentar dort nach Rückfrage).
-Offen: Branch pushen, PR, Advisor vor „fertig“; Merge erst nach Freigabe (unten) und `/code-review ultra`; nach dem Merge
+Advisor vor „fertig“ geprüft: Befund Sperrpfad/Auftrag in Konfig-Schreibweise (Rückschritt durch `_echt`) behoben, `__init__`
+kein G9-Beleg, Doku, Grenzen im CHANGELOG; jetzt 82 Prüfungen grün. **PR #30** offen.
+Offen: Freigabe der Inhaberin (unten), `/code-review ultra`, **vor dem Merge** Labels `stufe:hoch|mittel|niedrig` im
+Rückmelde-Repository anlegen (sonst legt `melden --stufe` Issues ganz ohne Labels an), dann `normen.py merge 30`; nach dem Merge
 Issues kommentieren/schließen (#74 erst nach Abgleich mit der Sperrmeldung aus dem Projektlauf; #61 offen lassen wegen
 Stop-Hook), Labels `stufe:*` anlegen, Sitzungen informieren.
 Vor dem Merge gebündelt an die Inhaberin: Lockerungen G9 (#61) und S06-Projektimporte (#71), neuer Pflichtsatz,
