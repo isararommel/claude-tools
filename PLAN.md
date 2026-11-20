@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 20.11.2026 (Paket D gemessen; nächstes Paket: D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 20.11.2026 (Pilot-Review v15 gelaufen; nächstes Paket: V15b, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -93,9 +93,39 @@ kein G9-Beleg, Doku, Grenzen im CHANGELOG; jetzt 82 Prüfungen grün. **PR #30**
 `stufe:hoch|mittel|niedrig` angelegt, #72 → `stufe:hoch`, #61 → `stufe:mittel`.
 `/code-review ultra` verworfen (20.11.): ganze Codebasis zu groß (Limit), Kern-PR von der Inhaberin abgebrochen; Hilfs-PRs
 #31/#32 geschlossen, Hilfs-Branches gelöscht. Stattdessen eigenes Review-Verfahren (Paket R).
-Offen: v15 als **Pilot von Paket R** prüfen (Vorschlag), Befunde einarbeiten, dann `normen.py merge 30`; nach dem Merge
+✅ 20.11. **Pilot von Paket R** gelaufen: Bericht `docs/reviews/2026-11-20-paket-v15-hooks.md` (19 Befunde, Status je Befund,
+Verfahrensbefunde). Ergebnis: **nicht mergereif** – Nr. 1–8 bestätigte Lücken/Regression im `-m`-Code → Paket V15b.
+Offen: V15b umsetzen, Advisor vor „fertig“, dann `normen.py merge 30`; nach dem Merge
 Issues kommentieren/schließen (#74 und #71 erst nach Abgleich mit Sperrmeldung bzw. Befehl aus dem Projektlauf; #61 offen
 lassen wegen Stop-Hook), Sitzungen informieren.
+
+### V15b. Review-Befunde zu v15 einarbeiten *(nächstes Paket, Branch `paket-v15-hooks`)*
+
+Grundlage: `docs/reviews/2026-11-20-paket-v15-hooks.md` (Nummern dort). Advisor hat den Korrekturplan geprüft (20.11.); seine
+Auflagen sind hier eingearbeitet. Jede Korrektur in der Quelle mit neuem Test, der vorher rot ist; dann
+`bash einrichten.sh . --test "make test"`, `make test`, `pruefen --diff`. CHANGELOG-Abschnitt bleibt v15.
+Kernlogik → vor dem Bau kurz Advisor (S07 Punkt 2). Das Nachstell-Skript aus dem Pilot liegt nicht im Repo; die Fälle stehen im Bericht.
+1. **Gemeinsamer Modul-Auflöser** für `-m` und `-c`-Importe (Nr. 1, 4, 5, 6): Reihenfolge wie Python (`FileFinder`: Paket
+   `mod/__init__.py` vor `mod.py`, Namespace-Ordner zuletzt); bei `a.b` alle `__init__.py` auf dem Weg prüfen; Schatten eines
+   Positivlisten-Imports im Basisordner/PYTHONPATH außerhalb des Projekts → per AST prüfen. „Fragen“, wenn ein **Kandidat des
+   Moduls** (nicht irgendein Schreibziel!) im selben Befehl geschrieben wird oder unzerlegbar ist und außerhalb von Projekt/
+   `lesbar_extern` liegt; andere Importformen (`importlib.machinery.all_suffixes()` außer `.py`, zip/pyz im PYTHONPATH) → fragen.
+   Positivtests vorab: `python3 -m pytest -q > "$LOG"`, `| tee`, Umleitung im Lauf-Ordner → ja.
+2. Nr. 2: `_skript_geschrieben` mit `_echt(z)`; Test unter derselben Bedingung (Dateisystem ohne Groß-/Kleinschreibung) wie #74.
+3. Nr. 3 Regression: `$PWD`/`${PWD}`/`$HOME`/`~` in PYTHONPATH nur auflösen, wenn die Zuweisung Präfix des Python-Aufrufs ist
+   oder kein `cd` dazwischen liegt (Negativtest `cd lauf; export PYTHONPATH=$PWD/sub; cd projekt && python3 -m x`). Unbekannter
+   Basisordner (`cd "$(mktemp -d)"`) bleibt fragen → Grenze im CHANGELOG.
+4. Nr. 7/8: kleine Liste Code-Starter (`timeit`, `cProfile`, `profile`, `trace`, `pdb`, `runpy`) → fragen; `unittest`/`pytest`
+   mit Ziel außerhalb des Projekts: im CHANGELOG als **Grenze** (Verbotsliste nie vollständig), nicht „geschlossen“.
+5. Nr. 9 G9: Beleg nur, wenn der Stamm in einer Importzeile der gelöschten Testdatei steht (`import`/`from`/`@testable import`/
+   `require(`/`#include`); gelöschte Datei nicht unter `ausschliessen`, keine Daten-/Doku-Endung (.json .toml .yaml .yml .txt
+   .md .csv). Negativtests: `utils` nur im Kommentar, `data.json` mit `data` im Test. Grenze: mehrzeilige Importe → Fehler (sichere Richtung).
+6. Nr. 10: `.normen/sitzungsprobe.txt` in GESCHUETZT; `selbsttest --sitzung` mit `--werkzeug`/`--weg` → Fehler; CHANGELOG-Grenze
+   „Beleg gegen Versehen, nicht gegen Täuschung“.
+7. Nr. 11: CHANGELOG `melden --stufe` nach „Geändert“. Nr. 12 nachstellen, bei Bestätigung casefold im Text-Gate.
+8. Nr. 13–15, 19 als Grenzen bzw. plausibel im CHANGELOG/Bericht; Nr. 16, 18 zurückgestellt; Nr. 17 verworfen.
+9. Danach: Bericht-Status aktualisieren (behoben/Grenze), Advisor vor „fertig“, Kurzverweis im PR #30, `normen.py merge 30`.
+Danach Paket R mit den Verfahrensbefunden aus dem Bericht (Zweischritt bei Mistral, `--resume <id>`, absolute Pfade/Auszüge für agy).
 
 ### R. Eigenes Code-Review-Verfahren: Claude + Gemini + Mistral über Branches *(Wunsch der Inhaberin 20.11.)*
 
