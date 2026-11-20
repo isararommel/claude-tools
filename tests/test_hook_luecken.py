@@ -93,6 +93,19 @@ with tempfile.TemporaryDirectory() as t:
         print("A übersprungen (Dateisystem unterscheidet Schreibweise)")
     check("A: bash cat Daten/Geheim gesperrt", hook(repo, "mistral-team", "vibe", V("cat Daten/Geheim/a.txt")) == "nein")
     (repo / ".normen-auftrag").unlink()
+    # Konfiguration in anderer Schreibweise als die Platte (Advisor-Befund): Sperrpfad `Daten/Geheim/`, Auftrag `Modul.py`
+    if ohne_schreibweise:
+        repo_k, _ = neues_repo(t, "Konfig", "--sperre", "Daten/Geheim/")
+        (repo_k / "daten/geheim").mkdir(parents=True)
+        (repo_k / "modul.py").write_text("X = 1\n")
+        (repo_k / ".normen-auftrag").write_text("Modul.py\n")
+        for pfad in ("daten/geheim/a.txt", "Daten/Geheim/a.txt"):
+            check(f"A: Sperre Daten/Geheim/, read_file {pfad} gesperrt",
+                  hook(repo_k, "mistral-team", "vibe", {"tool_name": "read_file", "tool_input": {"path": f"{repo_k}/{pfad}"}}) == "nein")
+        check("A: Auftrag Modul.py, write_file modul.py ja",
+              hook(repo_k, "mistral-team", "vibe", {"tool_name": "write_file", "tool_input": {"path": f"{repo_k}/modul.py", "content": "x"}}) == "ja")
+        check("A: Auftrag Modul.py, bash echo > modul.py ja", hook(repo_k, "mistral-team", "vibe", V("echo x > modul.py")) == "ja")
+        (repo_k / ".normen-auftrag").unlink()
 
     # B. #71 python -m und Projekt-Importe
     lauf = Path(t) / "lauf"
@@ -148,19 +161,21 @@ with tempfile.TemporaryDirectory() as t:
         r, _ = neues_repo(t, name)
         (r / "src").mkdir()
         (r / "tests").mkdir()
-        (r / "src/island_profile.py").write_text("def hoehe():\n    return 1\n")
+        (r / "src/kartenrechner.py").write_text("def hoehe():\n    return 1\n")
         (r / "src/utils.py").write_text("X = 1\n")
-        (r / "tests/test_island.py").write_text("from src.island_profile import hoehe\n\n\ndef test_a():\n"
+        (r / "tests/test_island.py").write_text("from src.kartenrechner import hoehe\n\n\ndef test_a():\n"
                                                 "    assert hoehe() == 1\n    assert hoehe() > 0\n")
-        (r / "tests/test_andere.py").write_text("def test_b():\n    assert 1 == 1\n    assert 2 == 2\n")
+        (r / "src/__init__.py").write_text("")
+        (r / "tests/test_andere.py").write_text("# prüft nichts aus __init__\ndef test_b():\n    assert 1 == 1\n    assert 2 == 2\n")
         sh("git", "add", "-A", cwd=r)
         sh("git", "commit", "-q", "--no-verify", "-m", "basis", cwd=r)
         return r
 
     nr = 0
-    for fall, dateien, soll_ok in [("Test + Altcode", ["tests/test_island.py", "src/island_profile.py"], True),
+    for fall, dateien, soll_ok in [("Test + Altcode", ["tests/test_island.py", "src/kartenrechner.py"], True),
                                    ("nur Test", ["tests/test_island.py"], False),
-                                   ("Test + fremder Code", ["tests/test_andere.py", "src/utils.py"], False)]:
+                                   ("Test + fremder Code", ["tests/test_andere.py", "src/utils.py"], False),
+                                   ("Test + __init__", ["tests/test_andere.py", "src/__init__.py"], False)]:
         for eingang in ("--diff", "--staged", "--diff HEAD~1"):
             nr += 1
             r = g9_repo(f"g9-{nr}")
@@ -178,7 +193,7 @@ with tempfile.TemporaryDirectory() as t:
             if soll_ok:
                 check(f"{name} → Exit 0", p.returncode == 0, aus)
                 check(f"{name} → kein „Assert entfernt“", "Assert entfernt" not in aus, aus)
-                check(f"{name} → Hinweis nennt beide Dateien", "tests/test_island.py" in aus and "src/island_profile.py" in aus, aus)
+                check(f"{name} → Hinweis nennt beide Dateien", "tests/test_island.py" in aus and "src/kartenrechner.py" in aus, aus)
             else:
                 check(f"{name} → Exit ≠ 0", p.returncode != 0, aus)
                 check(f"{name} → „Assert entfernt“", "Assert entfernt" in aus, aus)

@@ -50,7 +50,7 @@ bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh <projekt> --
 - `normen.py pruefen` – ganzer Bestand (Audit). Altbefunde zeigen, was nachzuziehen ist; sie blockieren nichts.
 - `normen.py pruefen --diff [BASIS]` – nur neue/geänderte Zeilen; **das ist die Schranke** (Stop-Hook, Abnahme).
 - `normen.py pruefen --staged` – pre-commit. Umgehen nur durch die Inhaberin: `git commit --no-verify`.
-- `normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit]` – prüft nach jedem Update von Claude Code oder Vibe mit einem Köder durch das echte Werkzeug, ob die Normen-Hooks greifen (je Werkzeug und Weg: gesperrt / NICHT GESPERRT / unklar; bei „NICHT GESPERRT“ Beleg in `.normen/selbsttest-*.log`). Pflicht nach jedem Update.
+- `normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit]` – prüft nach jedem Update von Claude Code oder Vibe mit einem Köder durch das echte Werkzeug, ob die Normen-Hooks greifen (je Werkzeug und Weg: gesperrt / NICHT GESPERRT / unklar; bei „NICHT GESPERRT“ Beleg in `.normen/selbsttest-*.log`). Pflicht nach jedem Update. Prüft neu gestartete Läufe, nicht die laufende Sitzung; dafür `selbsttest --sitzung` nach `touch .normen/normen-koeder.txt` in der Sitzung (v15: verlangt den Hook-Beleg mit der eigenen Sitzungs-ID).
 - Begründete Ausnahme im Code: `normen-ausnahme: <ID> – Begründung` in derselben oder der Zeile davor. `<ID>` ist die volle ID
   (z. B. `N09-SICHERE-MUSTER`); die Kurzform `N09` wird nicht erkannt.
 

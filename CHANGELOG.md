@@ -15,7 +15,9 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   nicht, der Hook schon. Dadurch gingen `.Claude/settings.json`, `NORMEN/normen.toml`, `.ENV` und Sperrpfade in anderer
   Schreibweise (`Daten/Geheim/…`) an den Sperrlisten vorbei. Ein absoluter Pfad mit anderer Schreibweise des
   Projektordners wurde dagegen fälschlich als „außerhalb“ gesperrt. Pfade werden jetzt auf die Schreibweise auf der Platte
-  gebracht (`_echt`), Geheimnis-Muster und Sperrpfade im Text ohne Groß-/Kleinschreibung verglichen.
+  gebracht (`_echt`). Geheimnis-Muster und Sperrpfade werden ohne Groß-/Kleinschreibung verglichen, auch wenn die Schreibweise
+  in `projekt.toml` von der Platte abweicht. Auftragseinträge ohne Platzhalter (`Modul.py`) werden auf die Schreibweise
+  der Platte gebracht.
 - **`python -m MODUL` (Rückmeldung „Vibe umgeht S06 per python -m“):** Das Modul wird wie bei Python aufgelöst (Basisordner,
   dann PYTHONPATH aus Präfix, Zuweisung, `export` oder Umgebung; `mod.py`, `pkg/__main__.py`). Liegt es außerhalb des
   Projekts, wird es per AST geprüft wie `python3 <datei>.py`. Installierte Module (`pytest`, `venv`, `pip`) bleiben erlaubt.
@@ -29,7 +31,15 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   erreichen, sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen.“
 - **G9/N02 (Rückmeldung „N02 sperrt Löschen von Tests samt Altcode“):** Eine ganz gelöschte Testdatei ergibt einen Hinweis
   statt Fehlern, wenn derselbe Diff eine Nicht-Testdatei löscht, deren Dateistamm als ganzes Wort in der Testdatei vorkommt
-  (N08: Altcode samt Tests entfernen). Der Hinweis nennt beide Dateien. Offen: Der Stop-Hook wiederholt bekannte Befunde.
+  (N08: Altcode samt Tests entfernen). Der Hinweis nennt beide Dateien. `__init__` zählt nicht als Beleg.
+  Offen: Der Stop-Hook wiederholt bekannte Befunde.
+
+### Bekannte Grenzen
+- `python -m`: Geprüft wird nur, was im selben Befehl steht. Ein `cd` oder `export PYTHONPATH` aus einem früheren
+  Werkzeugaufruf sieht der Hook nicht. Starter-Module (`-m runpy`, `-m pdb <datei>`) führen weiteren Code aus, den der Hook
+  nicht auflöst.
+- G9: Jede gelöschte Nicht-Testdatei, deren Stamm in der Testdatei vorkommt, gilt als Beleg. Häufige Stämme (`utils`, `main`,
+  `README`) belegen nur schwach, deshalb gibt es einen Hinweis zum Review statt einer stillen Freigabe.
 - **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
   und die Meldung nennt die fehlenden Labels.
 

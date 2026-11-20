@@ -7,7 +7,7 @@
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
   python3 normen/normen.py skript --pruefen DATEI                              (Code-Mode-Skript prüfen wie der Hook, S06)
-  python3 normen/normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit]   (Hooks live prüfen, nach jedem Update)
+  python3 normen/normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit] | --sitzung   (Hooks live prüfen; --sitzung: diese Sitzung)
   python3 normen/normen.py aktualisieren [--quelle PFAD]                      (Normen aus der Quelle neu einspielen)
   python3 normen/normen.py melden --art ART --titel TITEL --text-datei PFAD    (Rückmeldung als Issue, privat)
   python3 normen/normen.py kurz | sync
@@ -659,7 +659,20 @@ def _befehl_trifft(m: dict, cmd: str, cfg, cwd: str, rinfo: dict) -> str | None:
 def _auftrag_globs() -> list[str] | None:
     if not AUFTRAG.exists():
         return None
-    return [z.strip() for z in AUFTRAG.read_text(encoding="utf-8").splitlines() if z.strip() and not z.startswith("#")]
+    globs = [z.strip() for z in AUFTRAG.read_text(encoding="utf-8").splitlines() if z.strip() and not z.startswith("#")]
+    return [_wie_platte(g) for g in globs]
+
+
+def _wie_platte(muster: str) -> str:
+    """Auftragseintrag ohne Platzhalter in der Schreibweise auf der Platte (v15, #74): `Modul.py` meint auf macOS `modul.py`,
+    und der Werkzeugpfad wird mit `_echt` ebenso angeglichen. Mit Platzhaltern oder außerhalb des Projekts unverändert."""
+    if re.search(r"[*?\[]", muster):
+        return muster
+    try:
+        rel = _echt(ROOT / muster).relative_to(ROOT).as_posix()
+    except ValueError:
+        return muster
+    return rel + ("/" if muster.endswith("/") else "")
 
 
 def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: int = 0) -> tuple[str, list[str]]:
@@ -767,7 +780,8 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if _geheim(name, pf):
             pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: {name}")
         # v12: auch der gesperrte Ordner selbst (`grep … daten/geheim/` → rel „daten/geheim“) – nicht nur Dateien darin
-        if rel is not None and any(rel.startswith(s) or rel == s.rstrip("/") for s in pf.get("gesperrt", []) if s):
+        if rel is not None and any(rel.casefold().startswith(s.casefold()) or rel.casefold() == s.rstrip("/").casefold()  # v15: wie Platte (#74)
+                                  for s in pf.get("gesperrt", []) if s):
             pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {rel}")
         if art != "schreiben":
             continue
@@ -2013,7 +2027,8 @@ def pruefen(cfg, diff: bool, basis: str | None, staged: bool) -> tuple[int, int,
         geloescht = [z[2:] for z in _git(*(["diff", "--name-status", "--no-renames"]
                                            + (["--cached"] if staged else [basis or "HEAD"]))).splitlines()
                      if z.startswith("D\t")]
-        alt = [p for p in geloescht if not any(passt(p, g) for g in tests)]
+        # `__init__` steht in fast jeder Python-Testdatei – kein Beleg (Grenze: auch andere häufige Stämme belegen schwach)
+        alt = [p for p in geloescht if not any(passt(p, g) for g in tests) and Path(p).stem != "__init__"]
         for rel in geloescht:
             if rel not in weg_z or not any(passt(rel, g) for g in tests):
                 continue
