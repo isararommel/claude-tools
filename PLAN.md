@@ -37,10 +37,10 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 ## Erledigt (letzte Schritte)
 
 - ✅ 20.11. **Paket D Sandbox interaktiv** (Bericht: `docs/plaene/sandbox-spike.md`, „Nachtrag Paket D“): pty-gesteuerte
-  Haiku-Sitzung mit Sandbox nur per `--settings`. `excludedCommands` greift interaktiv, aber nur aus Benutzer-/`--settings`-Ebene
-  (bei `allowUnsandboxedCommands:false` wird der Projekt-Eintrag still ignoriert), nur mit `"vibe *"` (nicht `"vibe"`) und nur
+  Haiku-Sitzung mit Sandbox nur per `--settings`. `excludedCommands` greift interaktiv, nur mit `"vibe *"` (nicht `"vibe"`) und nur
   für den **bloßen Befehl** (keine Zuweisung, Pipe, Umleitung, `< /dev/null`; `cd` auf den eigenen Arbeitsordner wird entfernt).
-  Rückfragen aus Hintergrund-Sub-Agenten kommen an; im Auto-Modus gibt es für ausgenommenes vibe keine Rückfrage.
+  Laut Programmtext (nicht gemessen) zählt es bei `allowUnsandboxedCommands:false` nur aus Benutzer-/verwalteter/`--settings`-Ebene.
+  Rückfragen aus Hintergrund-Sub-Agenten kommen an; im Auto-Modus je ein Lauf ohne Rückfrage (vibe lief, Netz gesperrt).
   `/tmp/claude-<uid>/` ist in und außerhalb der Sandbox derselbe beschreibbare Ordner. Einstellungen unverändert (Prüfsumme).
 - ✅ 18.11. **v14 = Pakete B + C** (PR #25, gemergt; 5 Sitzungen informiert): Datei-Köder im Hook, Selbsttest je Weg (claude bash/write,
   vibe bash/write_file/edit, `--weg`), Beleg-Log `.normen/selbsttest-*.log`, `auftrag --dateien` trennt nicht mehr,
@@ -90,11 +90,12 @@ Offen:
 
 Grundlage: Nachtrag Paket D im Sandbox-Bericht. Weg 2 ist machbar, verlangt aber: (1) Sandbox-Block mit
 `excludedCommands: ["vibe *", "agy *"]` in den **Benutzer-Einstellungen** (`~/.claude/settings.json`; Einstellungsänderung →
-Freigabe), (2) Aufrufform von `mistral-team`/`gemini-analyst` als bloßer Befehl (Pfade wörtlich, kein `RUN=`/`ALLOW=` davor,
+Freigabe; Projekt-Ebene laut Programmtext wirkungslos, ggf. mit einem Lauf belegen), (2) Aufrufform von `mistral-team`/`gemini-analyst` als bloßer Befehl (Pfade wörtlich, kein `RUN=`/`ALLOW=` davor,
 keine Umleitung; Ergebnis über `--output-dir` bzw. Werkzeug-Ausgabe; agy-Freigaben als wörtliches `--settings`-JSON) – dafür
 den Normen-Hook prüfen (findet er die Prompt-Datei ohne `RUN=`?), (3) fester Lauf-Ordner `/tmp/claude-<uid>/…` statt `${TMPDIR}`,
 (4) `einrichten.sh`/`aktualisieren` außerhalb der Sandbox. Vorher nachmessen: `--output-dir` allein, agy im Hintergrund.
-Abwägung: Im Auto-Modus fragt die Sandbox bei ausgenommenem vibe/agy nie nach; sie schützt dann nur die übrigen Bash-Befehle.
+Abwägung: Im Auto-Modus kam bei ausgenommenem vibe (ein Lauf) keine Rückfrage; die Sandbox schützt dort vermutlich nur die
+übrigen Bash-Befehle. Weitere Auto-Modus-Fälle (agy, Schreiben außerhalb) noch messen.
 Nebenbei offen: Skill `fewer-permission-prompts` (häufige lesende Befehle → Allowlist-Vorschlag zeigen, nicht eintragen).
 Treiber zum Nachmessen: Python-`pty`, `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1`, `--permission-mode` ausdrücklich setzen,
 Vertrauens-Dialog steht auf „No“ (Pfeil runter + Enter), Bildschirmtext ohne Leerzeichen vergleichen.

@@ -75,10 +75,11 @@ Vorab im Programm nachgesehen (S04, Zeichenketten der installierten Version):
 | `vibe … < /dev/null` | keine Ausnahme (scheitert) |
 | `vibe … > datei 2>&1` | keine Ausnahme (scheitert) |
 | `RUN=…; cd <projekt> && vibe … > "$RUN/…" 2>&1` (Aufrufform von `mistral-team`) | normale Freigabe-Rückfrage, danach **in** der Sandbox → scheitert |
-| `cd <eigener Arbeitsordner> && vibe …` | Claude Code entfernt das `cd` auf den eigenen Arbeitsordner; Ausnahme greift („OK“) |
+| `cd <eigener Arbeitsordner> && vibe …` | Claude Code entfernt das `cd` auf den eigenen Arbeitsordner (Transkript: derselbe `tool_use`-Eintrag in Original- und bereinigter Form, zwei Läufe); Ausnahme greift („OK“). `cd` in einen anderen Ordner nicht gemessen |
 | ausgenommenes vibe aus **Hintergrund-Sub-Agent** | Rückfrage „Bash command (unsandboxed) · from the general-purpose agent“ in der Hauptoberfläche; nach „Ja“ läuft vibe („OK“) |
-| ausgenommenes vibe im **Auto-Modus** | **keine Rückfrage**: der Auto-Modus gibt frei, vibe läuft außerhalb der Sandbox („OK“) |
-| Fester Lauf-Ordner `/tmp/claude-<uid>/vibe-runs/…` | Write-Werkzeug schreibt hinein; Bash in der Sandbox schreibt hinein (`antwort.txt`, `--output-dir`); vibe außerhalb liest die Prompt-Datei; Lesen mit dem Read-Werkzeug braucht eine Freigabe (außerhalb des Arbeitsordners) |
+| ausgenommenes vibe im **Auto-Modus** (ein Lauf, Vordergrund, Mini-Prompt) | keine Rückfrage: der Auto-Modus gab frei, vibe lief außerhalb der Sandbox („OK“) |
+| Netz aus Hintergrund-Sub-Agent im **Auto-Modus** (ein Lauf) | keine Rückfrage: Verbindung ohne Nachfrage gesperrt („not in this command's allowed_domains“) |
+| Fester Lauf-Ordner `/tmp/claude-<uid>/vibe-runs/…` | Write-Werkzeug (aus der äußeren Sitzung ohne Sandbox) schreibt hinein; Bash in der Sandbox schreibt hinein (`antwort.txt`, `--output-dir`); vibe außerhalb liest die Prompt-Datei; Lesen mit dem Read-Werkzeug braucht eine Freigabe (außerhalb des Arbeitsordners) |
 
 Folgen:
 - **Weg 2 (vibe/agy ausnehmen) ist machbar**, aber nur mit `excludedCommands` in den Benutzer-Einstellungen (oder `--settings`) und
@@ -88,10 +89,14 @@ Folgen:
   die Werkzeug-Ausgabe statt `> antwort.txt`. vibe lief im Bash-Werkzeug ohne `< /dev/null`, ohne zu hängen (drei Läufe).
 - Fester Lauf-Ordner: `/tmp/claude-<uid>/` ist in beiden Welten derselbe und beschreibbar – Kandidat für `vibe-runs`,
   `agy-runs`, `code-mode-runs` statt `${TMPDIR}`.
-- Rückfragen aus Hintergrund-Sub-Agenten kommen an; im Auto-Modus entfallen sie für ausgenommene Befehle ganz. Die Sandbox ändert
-  am Auto-Modus also nichts für vibe/agy; sie wirkt auf alle übrigen Bash-Befehle.
+- Rückfragen aus Hintergrund-Sub-Agenten kommen an (Standard-Modus). Im Auto-Modus gab es in je einem Lauf keine Rückfrage:
+  ausgenommenes vibe lief, Netz ohne Freigabe wurde gesperrt. Für vibe/agy bringt die Sandbox im Auto-Modus also vermutlich
+  keinen Schutz; sie wirkt auf die übrigen Bash-Befehle.
+- Die Ebenen-Regel für `excludedCommands` ist aus dem Programmtext gelesen, nicht mit einem Projekt-Eintrag gemessen (das
+  Programm meldet das Ignorieren im Debug-Log).
 
-Nicht gemessen: ob `--output-dir` allein die Ausnahme verhindert (nur zusammen mit Umleitungen geprüft); agy aus einem
+Nicht gemessen: ob `--output-dir` allein die Ausnahme verhindert (nur zusammen mit Umleitungen geprüft); weitere Fälle im
+Auto-Modus (agy, Schreiben außerhalb, längere Läufe); `excludedCommands` im Projekt-Eintrag; agy aus einem
 Hintergrund-Sub-Agenten und in der verketteten Form (nach dem vibe-Befund zu erwarten: keine Ausnahme); ob der Normen-Hook
 die Prompt-Datei auch ohne `RUN=`-Zuweisung findet; Mindestmenge der Freigaben; `Bash(vibe:*)`-Schreibweise.
 
