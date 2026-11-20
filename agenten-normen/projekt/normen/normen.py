@@ -31,7 +31,30 @@ import tomllib
 from collections import Counter
 from pathlib import Path
 
-HIER = Path(__file__).resolve().parent
+
+def _echt(pfad) -> Path:
+    """realpath und Schreibweise wie auf der Platte (v15, #74): Auf Dateisystemen ohne Groß-/Kleinschreibung (macOS) ist
+    `.Claude` dieselbe Datei wie `.claude` – ohne Angleichen gingen Sperrlisten (GESCHUETZT, gesperrt, Auftrag) daran vorbei.
+    Jeder vorhandene Teil bekommt den Namen aus der Verzeichnisliste, aber nur, wenn die abweichende Schreibweise wirklich
+    existiert (also nur ohne Groß-/Kleinschreibung); nicht vorhandene Teile bleiben, wie sie sind."""
+    p = Path(os.path.realpath(pfad))
+    ergebnis = Path(p.anchor)
+    teile = p.parts[1:]
+    for k, teil in enumerate(teile):
+        kandidat = ergebnis / teil
+        if not os.path.lexists(kandidat):
+            return ergebnis.joinpath(*teile[k:])
+        try:
+            namen = os.listdir(ergebnis)
+        except OSError:
+            return ergebnis.joinpath(*teile[k:])
+        if teil not in namen:
+            teil = next((n for n in namen if n.casefold() == teil.casefold()), teil)
+        ergebnis = ergebnis / teil
+    return ergebnis
+
+
+HIER = _echt(Path(__file__)).parent
 ROOT = HIER.parent
 AUFTRAG = ROOT / ".normen-auftrag"
 MARKE_ANFANG = "<!-- normen:anfang (erzeugt von normen/normen.py sync – nicht von Hand ändern) -->"
@@ -101,6 +124,11 @@ def passt(rel: str, muster: str) -> bool:
     return "/" not in muster and fnmatch.fnmatchcase(rel.rsplit("/", 1)[-1], muster)
 
 
+def _geheim(name: str, pf: dict) -> bool:
+    """Dateiname passt auf [pfade].geheimnisse – ohne Groß-/Kleinschreibung (v15, #74: `.ENV` ist auf macOS `.env`)."""
+    return any(fnmatch.fnmatchcase(name.casefold(), g.casefold()) for g in pf.get("geheimnisse", []))
+
+
 def darf(cfg: dict, rolle: str, faehigkeit: str) -> str:
     r = cfg["rollen"].get(rolle)
     if r is None:
@@ -135,7 +163,7 @@ def _art(tool: str, befehle: list) -> str:
 def _rel(pfad: str, cwd: str) -> str | None:
     p = Path(os.path.expanduser(pfad))
     p = (Path(cwd) / p) if not p.is_absolute() else p
-    p = Path(os.path.realpath(p))  # Symlinks auflösen wie bei ROOT (macOS: /var → /private/var)
+    p = _echt(p)  # Symlinks auflösen wie bei ROOT (macOS: /var → /private/var), Schreibweise wie auf der Platte
     try:
         return p.relative_to(ROOT).as_posix()
     except ValueError:
@@ -155,7 +183,7 @@ def _lauf_ordner(cfg) -> list[Path]:
     for o in cfg["projekt"].get("pfade", {}).get("lauf_ordner", []):
         e = os.path.expandvars(o)
         if "$" not in e:
-            aus.append(Path(os.path.realpath(e)))
+            aus.append(_echt(e))
     return aus
 
 
@@ -163,7 +191,7 @@ def _lesbar_extern(cfg) -> list[Path]:
     """[pfade].lesbar_extern ohne die Ordner, in denen dieses Projekt selbst liegt (dort darf es schreiben)."""
     aus = []
     for o in cfg["projekt"].get("pfade", {}).get("lesbar_extern", []):
-        q = Path(os.path.realpath(os.path.expanduser(os.path.expandvars(o))))
+        q = _echt(os.path.expanduser(os.path.expandvars(o)))
         if q != ROOT and q not in ROOT.parents:
             aus.append(q)
     return aus
@@ -189,7 +217,7 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
             rest = str(q)[len(home):]
             formen |= {"~" + rest, "$HOME" + rest, "${HOME}" + rest}
         nennt = [f for f in formen if f in cmd]
-        if not nennt and not (Path(os.path.realpath(cwd)) == q or q in Path(os.path.realpath(cwd)).parents):
+        if not nennt and not (_echt(cwd) == q or q in _echt(cwd).parents):
             continue
         # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
         if re.search(_SCHREIB_VERB, cmd):
@@ -197,7 +225,7 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
         for z in ziele:
             if z is None:
                 return q
-            zr = Path(os.path.realpath(z))
+            zr = _echt(z)
             if zr == q or q in zr.parents:
                 return q
     return None
@@ -420,7 +448,7 @@ def _loeschbar(cfg) -> list[tuple[Path, bool]]:
         if "$" in e or not e.strip("/"):
             continue
         relativ = not os.path.isabs(e)
-        pfad = Path(os.path.realpath(ROOT / e if relativ else e))
+        pfad = _echt(ROOT / e if relativ else e)
         if pfad != ROOT:
             aus.append((pfad, relativ))
     return aus
@@ -461,7 +489,7 @@ def _rm_bewerten(seg: str, cfg, cwd: str, rinfo: dict) -> str | None:
         z = os.path.expandvars(os.path.expanduser(z))
         if re.search(r"[$`*?\[]", z):
             return None  # unaufgelöste Variable oder Glob: lieber fragen
-        ziel = Path(os.path.realpath(Path(cwd) / z))
+        ziel = _echt(Path(cwd) / z)
         im_projekt = ziel == ROOT or ROOT in ziel.parents
         # Im Projekt zählen nur die relativen Einträge (sonst wäre ein Projekt unter $TMPDIR ganz löschbar).
         if any((relativ or not im_projekt) and (o in ziel.parents or (relativ and ziel == o)) for o, relativ in erlaubt):
@@ -666,7 +694,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if ziel is None:
                 continue
             try:
-                rel = Path(os.path.realpath(ziel)).relative_to(ROOT).as_posix()
+                rel = _echt(ziel).relative_to(ROOT).as_posix()
             except ValueError:
                 continue
             if any(rel == s.rstrip("/") or rel.startswith(s) for s in GESCHUETZT):
@@ -677,7 +705,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             for ziel in _schreibziele(cmd, cwd):
                 if ziel is None:
                     continue  # nicht bestimmbar (z. B. $(mktemp …)): bleibt pruefen --diff nach dem Lauf überlassen
-                echt = Path(os.path.realpath(ziel))
+                echt = _echt(ziel)
                 loeschbar = _loeschbar(cfg)
                 try:
                     rel = echt.relative_to(ROOT).as_posix()
@@ -715,10 +743,10 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
                 continue
             name = wort.rstrip("/").rsplit("/", 1)[-1]
             ist_datei = "/" in wort or (Path(cwd) / os.path.expanduser(wort)).exists()
-            if ist_datei and any(fnmatch.fnmatchcase(name, g) for g in pf.get("geheimnisse", [])):
+            if ist_datei and _geheim(name, pf):
                 pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: Befehl berührt {name}")
         for s in pf.get("gesperrt", []):
-            if s and s in cmd:
+            if s and s.casefold() in cmd.casefold():  # v15: ohne Groß-/Kleinschreibung (#74)
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
@@ -735,7 +763,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
     for p in pfade:
         rel = _rel(p, cwd)
         name = Path(p).name
-        if any(fnmatch.fnmatchcase(name, g) for g in pf.get("geheimnisse", [])):
+        if _geheim(name, pf):
             pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: {name}")
         # v12: auch der gesperrte Ordner selbst (`grep … daten/geheim/` → rel „daten/geheim“) – nicht nur Dateien darin
         if rel is not None and any(rel.startswith(s) or rel == s.rstrip("/") for s in pf.get("gesperrt", []) if s):
@@ -745,7 +773,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if rel == KOEDER:  # v14: Selbsttest-Köder für Datei-Werkzeuge (Write/Edit, write_file/edit) – alle Rollen
             gruende.append(("nein", "SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt (normen.py selbsttest)"))
         if rel is None:
-            ziel = Path(os.path.realpath(Path(cwd) / os.path.expanduser(p)))
+            ziel = _echt(Path(cwd) / os.path.expanduser(p))
             # [pfade].lesbar_extern (z. B. claude-tools): lesen ja, schreiben nie – außer aus diesem Projekt selbst.
             if any(ziel == q or q in ziel.parents for q in _lesbar_extern(cfg)):
                 gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: {ziel} liegt in [pfade].lesbar_extern – nur lesen"))
@@ -1573,7 +1601,7 @@ def _prompt_inhalt_pruefen(cfg: dict, werkzeug: str, text: str, basis: str | Non
     gruende: list[tuple[str, str]] = []
     for z in rest.split("\n"):
         for s in gesperrt:
-            if re.search(r"(^|[\s`\"'(/])" + re.escape(s), z):
+            if re.search(r"(^|[\s`\"'(/])" + re.escape(s), z, re.IGNORECASE):
                 gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: Auftrag nennt gesperrten Pfad {s}"))
         for rx, art in _GEHEIM_INHALT:
             if rx.search(z):
@@ -1584,7 +1612,7 @@ def _prompt_inhalt_pruefen(cfg: dict, werkzeug: str, text: str, basis: str | Non
             if not w:
                 continue
             name = w.rsplit("/", 1)[-1]
-            if werkzeug == "agy" and any(fnmatch.fnmatchcase(name, g) for g in geheimnisse):
+            if werkzeug == "agy" and _geheim(name, pf):
                 gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Auftrag an agy nennt Geheimnis-Datei {w}"))
         for eintrag in forsch:
             if not eintrag:
@@ -2042,7 +2070,7 @@ def _datenschutz_funde(cfg, text: str) -> list[str]:
             if rx.search(z):
                 funde.append(f"Zeile {i}: {name}")
         for s in cfg["projekt"].get("pfade", {}).get("gesperrt", []):
-            if s and s in z:
+            if s and s.casefold() in z.casefold():
                 funde.append(f"Zeile {i}: gesperrter Pfad {s}")
     return funde
 

@@ -32,6 +32,9 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 - Rückmeldungen der Projekte: offene Issues im privaten Rückmelde-Repository (`[rueckmeldung].repo` der Projekte) und lokale
   Kopien unter `<projekt>/.normen/rueckmeldungen/`. Kommentieren/Schließen nur nach Rückfrage.
 - Nach jedem Normen-Release die anderen Claude-Code-Sitzungen per `ListAgents`/`SendMessage` informieren.
+- **Vor großen Meilensteinen (Normen-Release, Merge nach main) `/code-review ultra`** *(Wunsch der Inhaberin 20.11.)*:
+  Mehr-Agenten-Review in der Cloud über den Branch, kostenpflichtig, startet nur die Inhaberin. Claude erinnert vor dem
+  `normen.py merge` daran und arbeitet die Befunde vor dem Merge ein.
 - Bekannter Hook-Fehlalarm: Liegt der Arbeitsordner einer *anderen* Projektsitzung hier, sperrt deren Hook Befehle mit `>`.
 
 ## Erledigt (letzte Schritte)
@@ -60,6 +63,30 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   v7 (PR #3), G7 Sandbox-Spike (Weg 2: vibe/agy ausnehmen, Sandbox nicht aktiv). Einzelheiten: CHANGELOG.
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
+
+### V15. Hooks: Schreibweise, `python -m`, Sitzungsprobe, G9, Labels *(läuft, Branch `paket-v15-hooks`)*
+
+Rückmelde-Issues (privates Rückmelde-Repository) #74, #71, #66, #61, #75. Plan vom Advisor geprüft 20.11.
+Befunde (Nachstellung im Wegwerf-Repo, 20.11.):
+- **#74 ist eine Lücke, nicht nur ein Fehlalarm:** `_rel`/`relative_to(ROOT)` vergleichen nach `realpath` mit Groß-/Kleinschreibung,
+  macOS-Dateisystem nicht. Gesperrt wird nur ein absoluter Pfad mit anderer Schreibweise des **Projektordners** (Fehlalarm). Mit
+  anderer Schreibweise **im Projekt** gehen durch: `.Claude/settings.json` (Rolle claude, sonst „fragen“), `NORMEN/normen.toml`,
+  `.ENV` (N03), `Daten/Geheim/…` (Sperrpfad, mistral-team read_file). Lösung: Pfad auf die Schreibweise auf der Platte bringen
+  (vorhandene Teile per Verzeichnisliste), Geheimnis-Muster ohne Groß-/Kleinschreibung; Negativtests für alle vier Fälle.
+  Issue erst schließen, wenn die Sperrmeldung aus dem Projektlauf zur Ursache passt (dort nachfragen).
+- **#71:** bestätigt: `python -c 'import projektmodul'` sperrt „Import … nicht in der Positivliste“ (vibe → nein);
+  `cd <lauf> && PYTHONPATH=<projekt> python3 -m pruef` (Skript mit `os.remove`) geht ungeprüft durch. Plan: `-m MOD` nach
+  Python-Reihenfolge (Basisordner, dann PYTHONPATH; `mod.py`, `pkg/__init__.py`, `pkg/__main__.py`) auflösen, außerhalb des
+  Projekts per AST prüfen, nicht gefunden = wie bisher (`-m pytest|venv|pip`); Import, der auf eine Projektdatei auflöst, erlaubt
+  (wie `python3 projektdatei.py`). Pflichtsatz „Hook-Sperre nicht umgehen, anhalten und melden“.
+- **#66:** Sitzungsprobe nur mit positivem Beleg (Hook schreibt beim Köder einen frischen Marker; `selbsttest --sitzung` verlangt
+  ihn) – „Köderdatei fehlt“ beweist nichts (im Elternordner scheitert `touch` schon am fehlenden Ordner). einrichten.sh: nur Hinweis.
+- **#61:** ganz gelöschte Testdatei → Hinweis statt Fehler, wenn der Diff eine Nicht-Testdatei löscht, deren Stamm als ganzes Wort
+  in der Testdatei vorkommt; Hinweis nennt beide Dateien; `--diff`, `--staged`, `--diff origin/main` testen. Stop-Hook-Wiederholung:
+  zurückgestellt (#61 danach nur kommentieren, nicht schließen).
+- **#75:** vorher prüfen, was `gh issue create --label` bei fehlendem Label tut (kein stiller Zweitversuch, N08).
+Vor dem Merge gebündelt an die Inhaberin: Lockerungen G9 (#61) und S06-Projektimporte (#71), neuer Pflichtsatz,
+Label-Schreibzugriffe im Rückmelde-Repository, `/code-review ultra`.
 
 ### A2. agy-Freigaben: Nacharbeiten
 
