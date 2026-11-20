@@ -4,7 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 18.11.2026 (v14 = Pakete B+C gemergt (PR #25), Sitzungen informiert; nächstes Paket: D, offen: A2 Punkte 4–6, G, H)*
+*Stand: 20.11.2026 (Paket D gemessen; nächstes Paket: D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -36,6 +36,12 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 20.11. **Paket D Sandbox interaktiv** (Bericht: `docs/plaene/sandbox-spike.md`, „Nachtrag Paket D“): pty-gesteuerte
+  Haiku-Sitzung mit Sandbox nur per `--settings`. `excludedCommands` greift interaktiv, nur mit `"vibe *"` (nicht `"vibe"`) und nur
+  für den **bloßen Befehl** (keine Zuweisung, Pipe, Umleitung, `< /dev/null`; `cd` auf den eigenen Arbeitsordner wird entfernt).
+  Laut Programmtext (nicht gemessen) zählt es bei `allowUnsandboxedCommands:false` nur aus Benutzer-/verwalteter/`--settings`-Ebene.
+  Rückfragen aus Hintergrund-Sub-Agenten kommen an; im Auto-Modus je ein Lauf ohne Rückfrage (vibe lief, Netz gesperrt).
+  `/tmp/claude-<uid>/` ist in und außerhalb der Sandbox derselbe beschreibbare Ordner. Einstellungen unverändert (Prüfsumme).
 - ✅ 18.11. **v14 = Pakete B + C** (PR #25, gemergt; 5 Sitzungen informiert): Datei-Köder im Hook, Selbsttest je Weg (claude bash/write,
   vibe bash/write_file/edit, `--weg`), Beleg-Log `.normen/selbsttest-*.log`, `auftrag --dateien` trennt nicht mehr,
   mistral-team Umsetzungsläufe 1200 s im Hintergrund. Befunde: `Edit(./pfad)` greift in `claude -p` nicht, `Edit(//abs)`
@@ -80,17 +86,19 @@ Offen:
    `einrichten.sh`/`aktualisieren` spielen nur von sauberem `main` ein (sonst Abbruch mit Hinweis) und `herkunft.toml`
    speichert den Commit der Quelle; `aktualisieren` meldet „gleiche Version, anderer Stand“. Kandidat für die nächste Version.
 
-### D. Sandbox simulieren *(Frage 4, freigegeben 18.11.)*
+### D2. Sandbox einführen? *(Entscheidung der Inhaberin offen)*
 
-Gemeint sind die offenen Punkte aus dem Sandbox-Spike (`docs/plaene/sandbox-spike.md`), nicht Rückfragen allgemein: greift
-`excludedCommands` für vibe/agy interaktiv, kommen Sandbox-Rückfragen auch aus Hintergrund-Sub-Agenten an, fester Lauf-Ordner
-statt umgeleitetem `$TMPDIR`. Der Spike lief nur mit `claude -p`; ein weiterer `-p`-Lauf belegt interaktives Verhalten nicht.
-Messweg festlegen: interaktive Claude-Sitzung in einem Wegwerf-Repo mit Sandbox in `.claude/settings.local.json` (nur dort),
-gesteuert über ein Pseudo-Terminal (tmux ist nicht installiert → `script`/Python `pty`, keine neuen Pakete ohne Freigabe).
-Fälle: Bash-Befehl im Projekt, Schreiben außerhalb, vibe/agy-Aufruf, Hintergrund-Sub-Agent mit Bash. Bericht ergänzen.
-Sandbox im echten Projekt einschalten = Einstellungsänderung → nur mit Freigabe. Nebenbei: Die Inhaberin bekommt viele
-Rückfragen; der Skill `fewer-permission-prompts` kann häufige lesende Befehle aus den Transkripten in eine Allowlist übernehmen
-(Vorschlag zeigen, nicht ohne Freigabe eintragen).
+Grundlage: Nachtrag Paket D im Sandbox-Bericht. Weg 2 ist machbar, verlangt aber: (1) Sandbox-Block mit
+`excludedCommands: ["vibe *", "agy *"]` in den **Benutzer-Einstellungen** (`~/.claude/settings.json`; Einstellungsänderung →
+Freigabe; Projekt-Ebene laut Programmtext wirkungslos, ggf. mit einem Lauf belegen), (2) Aufrufform von `mistral-team`/`gemini-analyst` als bloßer Befehl (Pfade wörtlich, kein `RUN=`/`ALLOW=` davor,
+keine Umleitung; Ergebnis über `--output-dir` bzw. Werkzeug-Ausgabe; agy-Freigaben als wörtliches `--settings`-JSON) – dafür
+den Normen-Hook prüfen (findet er die Prompt-Datei ohne `RUN=`?), (3) fester Lauf-Ordner `/tmp/claude-<uid>/…` statt `${TMPDIR}`,
+(4) `einrichten.sh`/`aktualisieren` außerhalb der Sandbox. Vorher nachmessen: `--output-dir` allein, agy im Hintergrund.
+Abwägung: Im Auto-Modus kam bei ausgenommenem vibe (ein Lauf) keine Rückfrage; die Sandbox schützt dort vermutlich nur die
+übrigen Bash-Befehle. Weitere Auto-Modus-Fälle (agy, Schreiben außerhalb) noch messen.
+Nebenbei offen: Skill `fewer-permission-prompts` (häufige lesende Befehle → Allowlist-Vorschlag zeigen, nicht eintragen).
+Treiber zum Nachmessen: Python-`pty`, `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1`, `--permission-mode` ausdrücklich setzen,
+Vertrauens-Dialog steht auf „No“ (Pfeil runter + Enter), Bildschirmtext ohne Leerzeichen vergleichen.
 
 ### E. `meta.ebenen` *(Frage 5, eingeplant)*
 
