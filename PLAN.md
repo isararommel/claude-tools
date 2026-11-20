@@ -85,6 +85,14 @@ Befunde (Nachstellung im Wegwerf-Repo, 20.11.):
   in der Testdatei vorkommt; Hinweis nennt beide Dateien; `--diff`, `--staged`, `--diff origin/main` testen. Stop-Hook-Wiederholung:
   zurückgestellt (#61 danach nur kommentieren, nicht schließen).
 - **#75:** vorher prüfen, was `gh issue create --label` bei fehlendem Label tut (kein stiller Zweitversuch, N08).
+Stand 20.11. abends: v15 umgesetzt, eingespielt (`einrichten.sh . --test "make test"`), `make test` grün (6 Testdateien, neu
+`tests/test_hook_luecken.py` mit 68 Prüfungen), `pruefen --diff` 0 Fehler. **Sitzungsprobe live bestanden** (Köder in dieser
+Sitzung gesperrt, `selbsttest --sitzung` → bestanden; session_id der Hook-Eingabe = `CLAUDE_CODE_SESSION_ID`).
+mistral-team-Lauf für die Tests endete nach 1200 s am Zeitlimit (`outcome: deadline`, 36 Schritte, mistral-large-4-0-3) ohne
+Datei, nur Lesen → Tests von Claude geschrieben; Beleg für Rückmeldung #52 (Kommentar dort nach Rückfrage).
+Offen: Branch pushen, PR, Advisor vor „fertig“; Merge erst nach Freigabe (unten) und `/code-review ultra`; nach dem Merge
+Issues kommentieren/schließen (#74 erst nach Abgleich mit der Sperrmeldung aus dem Projektlauf; #61 offen lassen wegen
+Stop-Hook), Labels `stufe:*` anlegen, Sitzungen informieren.
 Vor dem Merge gebündelt an die Inhaberin: Lockerungen G9 (#61) und S06-Projektimporte (#71), neuer Pflichtsatz,
 Label-Schreibzugriffe im Rückmelde-Repository, `/code-review ultra`.
 
