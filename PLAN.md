@@ -105,12 +105,15 @@ Grundlage: `docs/reviews/2026-11-20-paket-v15-hooks.md` (Nummern dort). Advisor 
 Auflagen sind hier eingearbeitet. Jede Korrektur in der Quelle mit neuem Test, der vorher rot ist; dann
 `bash einrichten.sh . --test "make test"`, `make test`, `pruefen --diff`. CHANGELOG-Abschnitt bleibt v15.
 Kernlogik → vor dem Bau kurz Advisor (S07 Punkt 2). Das Nachstell-Skript aus dem Pilot liegt nicht im Repo; die Fälle stehen im Bericht.
+Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR}/review-runs/20261120-1741-paket-v15-hooks/`.
 1. **Gemeinsamer Modul-Auflöser** für `-m` und `-c`-Importe (Nr. 1, 4, 5, 6): Reihenfolge wie Python (`FileFinder`: Paket
    `mod/__init__.py` vor `mod.py`, Namespace-Ordner zuletzt); bei `a.b` alle `__init__.py` auf dem Weg prüfen; Schatten eines
    Positivlisten-Imports im Basisordner/PYTHONPATH außerhalb des Projekts → per AST prüfen. „Fragen“, wenn ein **Kandidat des
    Moduls** (nicht irgendein Schreibziel!) im selben Befehl geschrieben wird oder unzerlegbar ist und außerhalb von Projekt/
    `lesbar_extern` liegt; andere Importformen (`importlib.machinery.all_suffixes()` außer `.py`, zip/pyz im PYTHONPATH) → fragen.
-   Positivtests vorab: `python3 -m pytest -q > "$LOG"`, `| tee`, Umleitung im Lauf-Ordner → ja.
+   Ein unzerlegbares Schreibziel → fragen nur, wenn ein Suchordner außerhalb von Projekt und `lesbar_extern` liegt.
+   Positivtests vorab: `python3 -m pytest -q > "$LOG"` → ja; `> out.txt` und `| tee out.txt` im Projekt nur mit
+   `.normen-auftrag`, das `out.txt` nennt (ohne Auftrag sperrt N06 wie bisher).
 2. Nr. 2: `_skript_geschrieben` mit `_echt(z)`; Test unter derselben Bedingung (Dateisystem ohne Groß-/Kleinschreibung) wie #74.
 3. Nr. 3 Regression: `$PWD`/`${PWD}`/`$HOME`/`~` in PYTHONPATH nur auflösen, wenn die Zuweisung Präfix des Python-Aufrufs ist
    oder kein `cd` dazwischen liegt (Negativtest `cd lauf; export PYTHONPATH=$PWD/sub; cd projekt && python3 -m x`). Unbekannter
@@ -122,7 +125,8 @@ Kernlogik → vor dem Bau kurz Advisor (S07 Punkt 2). Das Nachstell-Skript aus d
    .md .csv). Negativtests: `utils` nur im Kommentar, `data.json` mit `data` im Test. Grenze: mehrzeilige Importe → Fehler (sichere Richtung).
 6. Nr. 10: `.normen/sitzungsprobe.txt` in GESCHUETZT; `selbsttest --sitzung` mit `--werkzeug`/`--weg` → Fehler; CHANGELOG-Grenze
    „Beleg gegen Versehen, nicht gegen Täuschung“.
-7. Nr. 11: CHANGELOG `melden --stufe` nach „Geändert“. Nr. 12 nachstellen, bei Bestätigung casefold im Text-Gate.
+7. Nr. 11: CHANGELOG `melden --stufe` nach „Geändert“. Nr. 12 und Nr. 20 (Forschungsdaten-Teil: offene Richtung) nachstellen,
+   bei Bestätigung casefold bzw. `_echt`.
 8. Nr. 13–15, 19 als Grenzen bzw. plausibel im CHANGELOG/Bericht; Nr. 16, 18 zurückgestellt; Nr. 17 verworfen.
 9. Danach: Bericht-Status aktualisieren (behoben/Grenze), Advisor vor „fertig“, Kurzverweis im PR #30, `normen.py merge 30`.
 Danach Paket R mit den Verfahrensbefunden aus dem Bericht (Zweischritt bei Mistral, `--resume <id>`, absolute Pfade/Auszüge für agy).
