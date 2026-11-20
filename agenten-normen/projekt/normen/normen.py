@@ -67,6 +67,7 @@ GESCHUETZT = ["normen/", ".normen-auftrag", ".claude/", ".vibe/", ".gemini/", ".
 KOEDER = ".normen/normen-koeder.txt"
 KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
 KOEDER_BEFEHL = "touch " + KOEDER
+SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v15 (#66): session_ids, deren Hook den Köder gesperrt hat
 # Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
 SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
 SELBSTTEST_TEXTE = {
@@ -811,6 +812,12 @@ def cmd_hook(a) -> int:
             except json.JSONDecodeError:
                 eingabe = {"command": eingabe}
         entscheid, gruende = bewerten(cfg, a.rolle, tool, eingabe, str(data.get("cwd") or os.getcwd()))
+        if a.werkzeug == "claude" and data.get("session_id") and any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
+            # v15 (#66): Beleg für `selbsttest --sitzung` – diese Sitzung hat aktive Hooks (Fehler → gesperrt, s. u.)
+            probe = ROOT / SITZUNGSPROBE
+            probe.parent.mkdir(exist_ok=True)
+            alt = probe.read_text(encoding="utf-8").splitlines()[-19:] if probe.exists() else []
+            probe.write_text("\n".join([*alt, str(data["session_id"])]) + "\n", encoding="utf-8")
     except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Hook muss bei jedem Fehler sperren (fail-closed)
         entscheid, gruende = "nein", [f"Normen-Hook fehlerhaft ({type(e).__name__}: {e}) – gesperrt"]
     if a.werkzeug != "claude" and entscheid == "fragen":
@@ -877,7 +884,28 @@ def _selbsttest_werkzeug(name: str, weg: str) -> tuple[str, str]:
     return "unklar", "keine Hook-Meldung – Werkzeug hat den Befehl evtl. nicht versucht"
 
 
+def _sitzungsprobe() -> int:
+    """v15 (#66): Beleg, dass die Hooks in DIESER Sitzung aktiv sind. Der Hook schreibt beim Köder die session_id seiner
+    Eingabe nach SITZUNGSPROBE; verlangt wird ein Eintrag mit der eigenen CLAUDE_CODE_SESSION_ID. „Köderdatei fehlt“
+    reicht nicht: läuft die Sitzung außerhalb des Projekts, scheitert `touch` schon am fehlenden Ordner."""
+    sitzung = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    if not sitzung:
+        print("Sitzungsprobe: keine CLAUDE_CODE_SESSION_ID – nur in einer Claude-Code-Sitzung (Bash-Werkzeug) aufrufen.")
+        return 1
+    probe = ROOT / SITZUNGSPROBE
+    eintraege = probe.read_text(encoding="utf-8").splitlines() if probe.exists() else []
+    if sitzung in eintraege:
+        print("Sitzungsprobe bestanden: Der Normen-Hook hat den Köder in dieser Sitzung gesperrt.")
+        return 0
+    print(f"Sitzungsprobe NICHT bestanden: kein Hook-Beleg für diese Sitzung. Erst `{KOEDER_BEFEHL}` in dieser Sitzung "
+          "ausführen (muss gesperrt werden). Wurde er nicht gesperrt: Sitzung im Projekt-Stammverzeichnis neu starten "
+          "(Hooks aus .claude/settings.json lädt Claude Code nur dort und nur beim Start).")
+    return 1
+
+
 def cmd_selbsttest(a) -> int:
+    if a.sitzung:
+        return _sitzungsprobe()
     werkzeuge = [a.werkzeug] if a.werkzeug else ["claude", "vibe"]
     laeufe = []
     for name in werkzeuge:
@@ -914,8 +942,8 @@ def cmd_selbsttest(a) -> int:
                 print(f"{name}/{weg}: NICHT GESPERRT – Hook greift nicht (Beleg: {beleg_pfad.relative_to(ROOT)})")
             else:
                 print(f"{name}/{weg}: unklar ({grund})")
-    print("Selbsttest bestanden." if bestanden else
-          "Selbsttest NICHT bestanden – Hooks prüfen (docs/multi-ki-ablauf.md §3).")
+    print(("Selbsttest bestanden." if bestanden else "Selbsttest NICHT bestanden – Hooks prüfen (docs/multi-ki-ablauf.md §3).")
+          + " Geprüft: neu gestartete Claude- und Vibe-Läufe im Projekt, nicht diese Sitzung (dafür `selbsttest --sitzung`).")
     return 0 if bestanden else 1
 
 
@@ -961,6 +989,7 @@ def _ist_sys_executable(node) -> bool:
 class _Skript:
     def __init__(self, cfg, baum: ast.Module, cwd: str, lauf: Path | None, skript: Path | None = None):
         self.cfg, self.lauf, self.cwd, self.skript = cfg, lauf, cwd, skript
+        self.importordner: list[str] = []
         self.funde: list[tuple[str, str]] = []
         anzahl: dict[str, int] = {}
         self.knoten: dict[str, ast.expr] = {}
@@ -1149,7 +1178,9 @@ class _Skript:
         if kopf in NETZ_IMPORTE:
             self.fund("fragen", node, f"Netzzugriff (import {name})")
         elif kopf not in SKRIPT_IMPORTE:
-            self.fund("fragen", node, f"Import {name} nicht in der Positivliste")
+            datei = _py_modul_datei(kopf, self.importordner, als_main=False) if self.importordner else None
+            if datei is None or not (ROOT in datei.parents):
+                self.fund("fragen", node, f"Import {name} nicht in der Positivliste")
         elif alias and kopf in ("os", "subprocess", "sys"):
             self.fund("fragen", node, f"import {name} as {alias} – nicht prüfbar")
 
@@ -1201,14 +1232,17 @@ def _gefaehrlicher_name(n: str) -> bool:
             or (n.startswith("subprocess.") and n[len("subprocess."):] in (*SUBPROCESS_AUFRUFE, "getoutput", "getstatusoutput")))
 
 
-def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str) -> tuple[str, list[str]]:
+def code_pruefen(cfg, quelltext: str, lauf: Path | None, cwd: str, name: str,
+                 importordner: list[str] | None = None) -> tuple[str, list[str]]:
     """Quelltext per AST prüfen (S06): (ja|fragen|nein, Gründe). lauf=None → Inline-Code: jedes aufgelöste
-    Schreibziel liegt außerhalb des Lauf-Ordners; __file__ ist dann nicht auflösbar."""
+    Schreibziel liegt außerhalb des Lauf-Ordners; __file__ ist dann nicht auflösbar. importordner (v15, #71): Suchordner
+    wie sys.path des Aufrufs; ein Import, der dort zuerst auf eine Projektdatei auflöst, gilt wie `python3 projektdatei.py`."""
     try:
         baum = ast.parse(quelltext, name)
     except (SyntaxError, ValueError) as e:
         return "nein", [f"S06-CODE-MODE: {name} nicht prüfbar ({type(e).__name__}: {e})"]
     s = _Skript(cfg, baum, cwd, lauf, Path(name) if lauf is not None else None)
+    s.importordner = importordner or []
     for node in ast.walk(baum):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             s.importe(node)
@@ -1336,6 +1370,45 @@ def _shell_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str, rolle
     return [] if stufe == "ja" else [(stufe, f"{datei.name}: {g}") for g in gruende]
 
 
+def _py_modul_datei(modul: str, ordner: list[str], als_main: bool) -> Path | None:
+    """Datei eines Python-Moduls in den Ordnern (Reihenfolge wie sys.path): `a/b.py`, Paket `a/b/__main__.py` (als_main,
+    `python -m`) bzw. `a/b/__init__.py` (import); None = dort nicht vorhanden (installiert oder Standardbibliothek)."""
+    teil = modul.replace(".", "/")
+    for d in ordner:
+        basis = Path(d) / teil
+        for kandidat in (basis.with_name(basis.name + ".py"), basis / ("__main__.py" if als_main else "__init__.py")):
+            if kandidat.is_file():
+                return _echt(kandidat)
+    return None
+
+
+def _py_suchordner(basis: str | None, zuw: dict[str, str]) -> list[str] | str:
+    """Suchordner von `python3 -c`/`-m` wie sys.path: Basisordner, dann PYTHONPATH (Präfix, Zuweisung, Umgebung);
+    Text = Grund, warum nicht bestimmbar."""
+    pp = zuw.get("PYTHONPATH", os.environ.get("PYTHONPATH", ""))
+    if pp == _UNSICHER or "$" in pp:
+        return "PYTHONPATH unaufgelöst"
+    if basis is None:
+        return "Basisordner unbekannt (cd)"
+    return [basis] + [os.path.join(basis, os.path.expanduser(p)) for p in pp.split(os.pathsep) if p]
+
+
+def _python_m(cfg, modul: str, cmd: str, cwd: str, basis: str | None, zuw: dict[str, str]) -> list[tuple[str, str]]:
+    """`python3 -m MODUL` (v15, #71): Modul aus Basisordner und PYTHONPATH (Reihenfolge wie Python) auflösen; liegt die
+    Datei außerhalb des Projekts (z. B. im Lauf-Ordner eines Teams), per AST prüfen wie `python3 <datei>.py`.
+    Nicht gefunden = installiertes Modul (pytest, venv, pip) – wie bisher erlaubt."""
+    ordner = _py_suchordner(basis, zuw)
+    if isinstance(ordner, str):
+        return [("fragen", f"S06-CODE-MODE: python3 -m {modul}: {ordner} – nicht prüfbar")]
+    datei = _py_modul_datei(modul, ordner, als_main=True)
+    if datei is None:
+        return []
+    gate = _skript_gate(cfg, datei, f"-m {modul}", cmd)
+    if gate is not None:
+        return gate
+    return _python_datei_bewerten(cfg, datei, f"-m {modul}", cmd, cwd)
+
+
 def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str) -> list[tuple[str, str]]:
     """Python-Skriptdatei außerhalb des Projekts per AST prüfen (wie `python3 <datei>.py`)."""
     g = _skript_geschrieben(wort, datei, cmd, cwd)
@@ -1405,7 +1478,9 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
 
     if PYTHON.match(prog):
         def inline(code: str, art: str) -> list[tuple[str, str]]:
-            stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})")
+            ordner = _py_suchordner(basis, zuw)  # v15 (#71): Import einer Projektdatei wie `python3 projektdatei.py`
+            stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})",
+                                          ordner if isinstance(ordner, list) else None)
             return [] if stufe == "ja" else [(stufe, g) for g in gruende]
 
         def heredoc(art: str) -> list[tuple[str, str]]:
@@ -1428,7 +1503,11 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                 break
             for k, c in enumerate(a[1:], 1):  # Optionsgruppe wie -Bc, -IXdev, -W error
                 if c == "m":
-                    return []
+                    modul = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else "")
+                    modul = variablen(modul, None)
+                    if not re.fullmatch(r"[A-Za-z_][\w.]*", modul):
+                        return [("fragen", f"S06-CODE-MODE: python3 -m mit unklarem Modulnamen ({modul or 'leer'}) – nicht prüfbar")]
+                    return _python_m(cfg, modul, cmd, cwd, basis, zuw)
                 if c == "c":
                     code = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else None)
                     if code is None:
@@ -1929,6 +2008,22 @@ def pruefen(cfg, diff: bool, basis: str | None, staged: bool) -> tuple[int, int,
         weg: Counter[str] = Counter()
         neu: Counter[str] = Counter()
         weg_datei: dict[str, list[str]] = {}
+        # v15 (#61): Testdatei ganz gelöscht samt getestetem Altcode (N08) → Hinweis statt Fehler. Beleg: der Diff löscht
+        # eine Nicht-Testdatei, deren Dateistamm als ganzes Wort in der gelöschten Testdatei vorkommt.
+        geloescht = [z[2:] for z in _git(*(["diff", "--name-status", "--no-renames"]
+                                           + (["--cached"] if staged else [basis or "HEAD"]))).splitlines()
+                     if z.startswith("D\t")]
+        alt = [p for p in geloescht if not any(passt(p, g) for g in tests)]
+        for rel in geloescht:
+            if rel not in weg_z or not any(passt(rel, g) for g in tests):
+                continue
+            text = "\n".join(weg_z[rel])
+            code = next((p for p in alt if re.search(r"(?<!\w)" + re.escape(Path(p).stem) + r"(?!\w)", text)), None)
+            if code is not None:
+                anzahl = sum(1 for z in weg_z.pop(rel) if _ASSERT_RX.search(z.strip()))
+                melde(rel, "N02-TESTS-SIND-TABU", "hinweis",
+                      f"Testdatei gelöscht mit dem getesteten Code {code} ({anzahl} Asserts) – Review nötig "
+                      f"(nur Orchestrator/{inhaberin(cfg)})")
         for rel, zeilen in weg_z.items():
             if any(passt(rel, g) for g in tests):
                 for z in zeilen:
@@ -2115,11 +2210,13 @@ def cmd_melden(a) -> int:
               file=sys.stderr)
         return 1
     basis = ["gh", "issue", "create", "--repo", repo, "--title", a.titel, "--body-file", str(kopie)]
-    r = subprocess.run(basis + ["--label", "rueckmeldung", "--label", f"art:{a.art}"], capture_output=True, text=True)
+    labels = ["rueckmeldung", f"art:{a.art}"] + ([f"stufe:{a.stufe}"] if a.stufe else [])  # v15 (#75): Stufe als Label
+    r = subprocess.run(basis + [x for lb in labels for x in ("--label", lb)], capture_output=True, text=True)
     if r.returncode != 0 and "label" in r.stderr.lower():
         r = subprocess.run(basis, capture_output=True, text=True)
         if r.returncode == 0:
-            print("Hinweis: Labels fehlen im Ziel – Issue ohne Labels angelegt.")
+            print(f"Hinweis: Labels fehlen im Ziel ({', '.join(labels)}; `gh label create` im Rückmelde-Repository) – "
+                  "Issue ohne Labels angelegt.")
     if r.returncode != 0:
         print(f"Senden fehlgeschlagen: {r.stderr.strip()} – Text liegt in {kopie.relative_to(ROOT)}.", file=sys.stderr)
         return 1
@@ -2250,7 +2347,10 @@ def auftrag_zeilen(cfg: dict, rolle: str, dateien: list[str]) -> list[str]:
          "Dateien. Kein rm, kein git clean, kein git restore auf fremde Dateien.",
          "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
          "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
-         "anhalten und im Bericht nennen."]
+         "anhalten und im Bericht nennen.",
+         # v15 (#71): Vibe erreichte einen gesperrten `python -c`-Aufruf per `python -m` aus dem Lauf-Ordner
+         "- Sperrt ein Normen-Hook einen Aufruf: denselben Zweck nicht auf anderem Weg erreichen (anderer Befehl, Skript, "
+         "Ordner, `-m` statt `-c`), sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen."]
     for n in cfg["normen"]:
         if rolle in n.get("nur_rollen", [rolle]):
             z.append(f"- {n['id']}: {n['prompt']}")
@@ -2333,6 +2433,8 @@ def main() -> int:
     p = sub.add_parser("selbsttest", help="Hooks live prüfen (Köder-Befehl und Datei-Werkzeuge); Exit 0 nur wenn alle geprüften Wege sperren")
     p.add_argument("--werkzeug", choices=["claude", "vibe"], default=None, help="nur dieses Werkzeug prüfen (Standard: beide)")
     p.add_argument("--weg", choices=list(SELBSTTEST_TEXTE), default=None, help="nur dieser Weg prüfen (Standard: alle Wege des Werkzeugs)")
+    p.add_argument("--sitzung", action="store_true",
+                   help=f"laufende Claude-Sitzung prüfen: vorher `{KOEDER_BEFEHL}` in dieser Sitzung ausführen (muss gesperrt werden)")
     p.set_defaults(f=cmd_selbsttest)
     sub.add_parser("kurz").set_defaults(f=cmd_kurz)
     sub.add_parser("sync").set_defaults(f=cmd_sync)
