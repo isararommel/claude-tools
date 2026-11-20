@@ -46,11 +46,57 @@ Stand: 2026-11-16 · Claude Code 2.1.325 · macOS (Seatbelt) · nur Messung, **k
 - Freigaben wie `allowLocalBinding`, `allowWrite` und `allowedDomains` gelten für **jeden** Bash-Befehl in der Sandbox, nicht nur
   für vibe/agy.
 
-## Nicht gemessen (offen)
+## Nachtrag Paket D: interaktiv gemessen (20.11.2026, Claude Code 2.1.328)
 
-- Rückfragen im interaktiven Modus und im Auto-Modus (im `-p`-Modus gibt es keine Rückfrage).
-- Ob ein Befehl, der eine Freigabe braucht, aus einem **Hintergrund-Sub-Agenten** die Inhaberin erreicht.
-- `excludedCommands` im interaktiven Modus und mit anderen Schreibweisen (`vibe` allein, `Bash(vibe:*)`); warum es hier nicht wirkte.
+Aufbau: interaktive Sitzung `claude --model haiku --permission-mode default|auto --settings <datei>` in einem Wegwerf-Repo im
+Lauf-Ordner, gesteuert über ein Pseudo-Terminal (Python `pty`, kein neues Paket). Sandbox-Werte nur in der `--settings`-Datei:
+`enabled`, `failIfUnavailable: true`, `allowUnsandboxedCommands: false`, `autoAllowBashIfSandboxed: true`, je Lauf mit oder ohne
+`excludedCommands`. Beleg: Sitzungs-Transkript (rohe Werkzeug-Ergebnisse), Rückfragen aus dem Bildschirmtext. Haiku bekam
+wörtliche Befehle; was wirklich lief, steht im Transkript. Prüfsumme der Benutzer-Einstellungen vorher = nachher; geändert haben
+sich nur Vertrauens-Eintrag und Transkripte (`~/.claude.json`, `~/.claude/projects/`).
+
+Vorab im Programm nachgesehen (S04, Zeichenketten der installierten Version):
+- **`excludedCommands` zählt nur aus Benutzer-, verwalteten oder `--settings`-Einstellungen, sobald `allowUnsandboxedCommands: false`
+  gilt** (Meldung „excludedCommands restricted to trusted settings tiers: ignoring …“). Ein Eintrag in `.claude/settings.json`
+  oder `settings.local.json` des Projekts wird dann still ignoriert.
+- Eine Ausnahme gilt nur, „wo eine Rückfrage den Lauf ohne Sandbox freigeben kann“ – das erklärt den `-p`-Befund oben.
+- Verschachtelte Sitzungen erben `CLAUDE_CODE_CHILD_SESSION` und speichern dann kein Transkript;
+  `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` schaltet es wieder ein. Ohne `--permission-mode` startete die Probe im Auto-Modus.
+
+| Fall | Ergebnis |
+|---|---|
+| Sandbox aktiv? `echo $TMPDIR`, `mktemp -d`, `python3` schreibt außerhalb | `TMPDIR=/tmp/claude-<uid>`; `mktemp -d` und `python3` scheitern mit „Operation not permitted“ – **ohne Rückfrage** (Kernel) |
+| Netz zu nicht freigegebener Domain (`curl https://example.com`), Vordergrund | Rückfrage „Network request outside of sandbox · Host … Do you want to allow this connection?“; Option 2 trägt die Domain dauerhaft in die **Benutzer-Einstellungen** ein |
+| Derselbe Befehl aus einem **Hintergrund-Sub-Agenten** | Rückfrage erreicht die Hauptoberfläche; nach „Nein“ erhält der Sub-Agent `deny network-outbound … (user denied)` |
+| vibe / agy ohne Ausnahme | scheitern wie im `-p`-Modus („app-server closed“, `bind: operation not permitted`) |
+| `excludedCommands: ["vibe *", "agy *"]`, **bloßer Befehl** | Rückfrage „Bash command (unsandboxed) … This command requires approval“ (Option „don't ask again for: vibe *“); nach „Ja“ laufen beide außerhalb der Sandbox („OK“) |
+| `excludedCommands: ["vibe", "agy"]` (bloßer Name) | **keine** Ausnahme – Befehle mit Argumenten laufen in der Sandbox und scheitern |
+| `vibe … \| tail -5` | keine Ausnahme, keine Rückfrage, läuft in der Sandbox und scheitert |
+| `vibe … < /dev/null` | keine Ausnahme (scheitert) |
+| `vibe … > datei 2>&1` | keine Ausnahme (scheitert) |
+| `RUN=…; cd <projekt> && vibe … > "$RUN/…" 2>&1` (Aufrufform von `mistral-team`) | normale Freigabe-Rückfrage, danach **in** der Sandbox → scheitert |
+| `cd <eigener Arbeitsordner> && vibe …` | Claude Code entfernt das `cd` auf den eigenen Arbeitsordner; Ausnahme greift („OK“) |
+| ausgenommenes vibe aus **Hintergrund-Sub-Agent** | Rückfrage „Bash command (unsandboxed) · from the general-purpose agent“ in der Hauptoberfläche; nach „Ja“ läuft vibe („OK“) |
+| ausgenommenes vibe im **Auto-Modus** | **keine Rückfrage**: der Auto-Modus gibt frei, vibe läuft außerhalb der Sandbox („OK“) |
+| Fester Lauf-Ordner `/tmp/claude-<uid>/vibe-runs/…` | Write-Werkzeug schreibt hinein; Bash in der Sandbox schreibt hinein (`antwort.txt`, `--output-dir`); vibe außerhalb liest die Prompt-Datei; Lesen mit dem Read-Werkzeug braucht eine Freigabe (außerhalb des Arbeitsordners) |
+
+Folgen:
+- **Weg 2 (vibe/agy ausnehmen) ist machbar**, aber nur mit `excludedCommands` in den Benutzer-Einstellungen (oder `--settings`) und
+  einer Aufrufform als **bloßer Befehl**: keine Variablenzuweisung davor, kein `cd` in einen anderen Ordner, keine Umleitung, keine
+  Pipe. Die heutigen Aufrufe von `mistral-team` (`RUN=…; cd … && vibe … < /dev/null > "$RUN/antwort.txt" 2>&1`) und
+  `gemini-analyst` (`RUN=…; R=…; ALLOW=…; agy …`) müssten umgestellt werden: Pfade wörtlich, Ergebnis über `--output-dir` bzw.
+  die Werkzeug-Ausgabe statt `> antwort.txt`. vibe lief im Bash-Werkzeug ohne `< /dev/null`, ohne zu hängen (drei Läufe).
+- Fester Lauf-Ordner: `/tmp/claude-<uid>/` ist in beiden Welten derselbe und beschreibbar – Kandidat für `vibe-runs`,
+  `agy-runs`, `code-mode-runs` statt `${TMPDIR}`.
+- Rückfragen aus Hintergrund-Sub-Agenten kommen an; im Auto-Modus entfallen sie für ausgenommene Befehle ganz. Die Sandbox ändert
+  am Auto-Modus also nichts für vibe/agy; sie wirkt auf alle übrigen Bash-Befehle.
+
+Nicht gemessen: ob `--output-dir` allein die Ausnahme verhindert (nur zusammen mit Umleitungen geprüft); agy aus einem
+Hintergrund-Sub-Agenten und in der verketteten Form (nach dem vibe-Befund zu erwarten: keine Ausnahme); ob der Normen-Hook
+die Prompt-Datei auch ohne `RUN=`-Zuweisung findet; Mindestmenge der Freigaben; `Bash(vibe:*)`-Schreibweise.
+
+## Nicht gemessen (offen, Stand 16.11.; interaktive Punkte siehe Nachtrag Paket D)
+
 - Mindestmenge der Freigaben für vibe, agy und `gh` (die Läufe änderten mehrere Werte zugleich).
 - Schreiben ins Scratchpad der Sitzung (die Probe stoppte schon der Normen-Hook, vor der Sandbox).
 - `normen.py selbsttest` mit freigegebener Anthropic-Domain; `git push -u` gegen GitHub.
@@ -65,7 +111,7 @@ bekommen, der in beiden Welten gleich und beschreibbar ist.
 ## Zwei Wege (Entscheidung der Inhaberin)
 
 **Entschieden am 16.11.2026: Weg 2 (vibe/agy ausnehmen), fürs Erste. Die Sandbox ist nicht aktiviert;** vor dem Einschalten
-`excludedCommands` interaktiv prüfen.
+`excludedCommands` interaktiv prüfen. (20.11.: interaktiv geprüft – greift unter Bedingungen, siehe Nachtrag Paket D.)
 
 Die Sandbox schließt L2 (Bash und Unterprozesse schreiben überall / gehen überall ins Netz) wirksam – belegt durch Kernel-Fehler und
 Netz-Sperren. Ohne Anpassungen bricht sie aber den Ablauf (Teams, Temp-Ordner, `einrichten.sh`).
