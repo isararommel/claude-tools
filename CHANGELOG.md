@@ -4,6 +4,55 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v15 – Schreibweise von Pfaden, `python -m`, Sitzungsprobe, Testlöschung samt Altcode – 2026-11-20
+
+**Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren` (bzw. `einrichten.sh`), danach die Claude-Sitzung
+im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (muss gesperrt werden) und
+`python3 normen/normen.py selbsttest --sitzung`.
+
+### Sicherheit
+- **Groß-/Kleinschreibung von Pfaden (Rückmeldung „N06 sperrt absoluten Pfad“):** macOS unterscheidet sie im Dateisystem
+  nicht, der Hook schon. Dadurch gingen `.Claude/settings.json`, `NORMEN/normen.toml`, `.ENV` und Sperrpfade in anderer
+  Schreibweise (`Daten/Geheim/…`) an den Sperrlisten vorbei. Ein absoluter Pfad mit anderer Schreibweise des
+  Projektordners wurde dagegen fälschlich als „außerhalb“ gesperrt. Pfade werden jetzt auf die Schreibweise auf der Platte
+  gebracht (`_echt`). Geheimnis-Muster und Sperrpfade werden ohne Groß-/Kleinschreibung verglichen, auch wenn die Schreibweise
+  in `projekt.toml` von der Platte abweicht. Auftragseinträge ohne Platzhalter (`Modul.py`) werden auf die Schreibweise
+  der Platte gebracht.
+- **`python -m MODUL` (Rückmeldung „Vibe umgeht S06 per python -m“):** Das Modul wird wie bei Python aufgelöst (Basisordner,
+  dann PYTHONPATH aus Präfix, Zuweisung, `export` oder Umgebung; `mod.py`, `pkg/__main__.py`). Liegt es außerhalb des
+  Projekts, wird es per AST geprüft wie `python3 <datei>.py`. Installierte Module (`pytest`, `venv`, `pip`) bleiben erlaubt.
+  Unaufgelöster PYTHONPATH → fragen.
+
+### Geändert
+- **Projekt-Importe in `python3 -c`:** Ein Import, der (Suchreihenfolge wie Python) auf eine Datei im Projekt auflöst, gilt wie
+  `python3 projektdatei.py` und wird nicht mehr als „nicht in der Positivliste“ gesperrt. Ein gleichnamiges Modul im
+  Lauf-Ordner wird weiterhin gesperrt.
+- **Pflichtsatz in `normen.py auftrag`:** „Sperrt ein Normen-Hook einen Aufruf: denselben Zweck nicht auf anderem Weg
+  erreichen, sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen.“
+- **G9/N02 (Rückmeldung „N02 sperrt Löschen von Tests samt Altcode“):** Eine ganz gelöschte Testdatei ergibt einen Hinweis
+  statt Fehlern, wenn derselbe Diff eine Nicht-Testdatei löscht, deren Dateistamm als ganzes Wort in der Testdatei vorkommt
+  (N08: Altcode samt Tests entfernen). Der Hinweis nennt beide Dateien. `__init__` zählt nicht als Beleg.
+  Offen: Der Stop-Hook wiederholt bekannte Befunde.
+
+### Bekannte Grenzen
+- `python -m`: Geprüft wird nur, was im selben Befehl steht. Ein `cd` oder `export PYTHONPATH` aus einem früheren
+  Werkzeugaufruf sieht der Hook nicht. Starter-Module (`-m runpy`, `-m pdb <datei>`) führen weiteren Code aus, den der Hook
+  nicht auflöst.
+- G9: Jede gelöschte Nicht-Testdatei, deren Stamm in der Testdatei vorkommt, gilt als Beleg. Häufige Stämme (`utils`, `main`,
+  `README`) belegen nur schwach, deshalb gibt es einen Hinweis zum Review statt einer stillen Freigabe.
+- **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
+  und die Meldung nennt die fehlenden Labels.
+
+### Neu
+- **Sitzungsprobe (Rückmeldung „Hooks inaktiv, wenn die Sitzung nicht im Projekt-Stammverzeichnis läuft“):** Der Claude-Hook
+  schreibt beim Köder die `session_id` nach `.normen/sitzungsprobe.txt`. `selbsttest --sitzung` verlangt einen Eintrag mit
+  der eigenen `CLAUDE_CODE_SESSION_ID`, also einen positiven Beleg. „Köderdatei fehlt“ reicht nicht, weil `touch` außerhalb
+  des Projekts schon am fehlenden Ordner scheitert. Der normale Selbsttest sagt jetzt dazu, dass er neu gestartete Läufe
+  prüft und nicht die laufende Sitzung. `einrichten.sh` und `NEUES-REPOSITORY.md` (Schritt 7) verlangen, die Sitzung im
+  Projekt erneut zu starten.
+
+---
+
 ## v14 – Selbsttest über Datei-Werkzeuge, `auftrag --dateien` mit Leerzeichen – 2026-11-18
 
 **Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren` (bzw. `einrichten.sh`), danach

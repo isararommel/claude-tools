@@ -110,7 +110,14 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
 Vor dem ersten Commit folgende Punkte ausführen und prüfen:
 
 - [ ] **Testbefehl:** Eigener Testbefehl läuft erfolgreich durch (`make test`).
-- [ ] **Selbsttest:** `python3 normen/normen.py selbsttest` meldet „gesperrt“ für alle Wege von `claude` und `vibe` (beweist aktive Hooks).
+- [ ] **Sitzung neu im Projekt starten:** Claude Code lädt die Hooks aus `.claude/settings.json` nur, wenn die Sitzung im
+  Stammverzeichnis des Projekts **gestartet** wurde, und nur beim Start. Nach `einrichten.sh` (oder wenn die Sitzung im
+  Elternordner läuft) die Sitzung im Projekt-Stammverzeichnis neu starten, bevor die Abnahme läuft.
+- [ ] **Selbsttest:** `python3 normen/normen.py selbsttest` meldet „gesperrt“ für alle Wege von `claude` und `vibe`.
+  Er startet `claude`/`vibe` neu im Projekt und prüft **deren** Hooks, nicht die laufende Sitzung.
+- [ ] **Sitzungsprobe (Hooks dieser Sitzung):** `touch .normen/normen-koeder.txt` in der Sitzung ausführen; der Hook muss mit
+  „SELBSTTEST-KOEDER“ sperren. Danach `python3 normen/normen.py selbsttest --sitzung` → „Sitzungsprobe bestanden“.
+  Ohne Sperre bzw. „NICHT bestanden“: Sitzung im Projekt-Stammverzeichnis neu starten und wiederholen.
 - [ ] **Normen-Prüfung:** `python3 normen/normen.py pruefen --diff` meldet keine Fehler.
 - [ ] **Auftrags-Simulation:**
   ```bash
@@ -119,7 +126,7 @@ Vor dem ersten Commit folgende Punkte ausführen und prüfen:
   python3 normen/normen.py auftrag --ende
   # Prüfen: .normen-auftrag wurde entfernt
   ```
-- [ ] **Hook-Funktion:** Ein verbotener Befehl (z. B. `rm -r` außerhalb von `loeschbar`) wird vom PreToolUse-Hook gestoppt bzw. erfordert Freigabe.
+- [ ] **Hook-Funktion:** Ein verbotener Befehl (z. B. `rm -r docs/gibt-es-nicht` außerhalb von `loeschbar`) wird vom PreToolUse-Hook gestoppt bzw. erfordert Freigabe. Läuft er ohne Sperre durch (auch nur „No such file“), sind die Hooks dieser Sitzung nicht aktiv – siehe Sitzungsprobe.
 
 ---
 

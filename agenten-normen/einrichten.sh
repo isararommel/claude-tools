@@ -152,3 +152,6 @@ for e in ".normen-auftrag" "*.bak-*" "*.vorlage" ".normen/"; do grep -qxF "$e" "
 
 (cd "$ZIEL" && python3 normen/normen.py sync | sed 's/^/  /')
 echo "Fertig. Prüfen: cd \"$ZIEL\" && git diff && python3 normen/normen.py pruefen --nur-melden"
+# v15 (#66): Claude Code lädt Projekt-Hooks nur in Sitzungen, die im Projekt-Stammverzeichnis gestartet wurden
+echo "Hinweis: Claude-Sitzungen im Projekt-Stammverzeichnis ($ZIEL) erneut starten – Hooks wirken erst dann;"
+echo "         Beleg: dort \`touch .normen/normen-koeder.txt\` (muss gesperrt werden), dann \`python3 normen/normen.py selbsttest --sitzung\`."
