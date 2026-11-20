@@ -1,0 +1,35 @@
+{
+  "enableAllProjectMcpServers": false,
+  "permissions": {
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/*.secret)",
+      "Read(~/.ssh/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook --rolle claude --werkzeug claude" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" stop --werkzeug claude", "timeout": 600 }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          { "type": "command", "command": "cat \"$CLAUDE_PROJECT_DIR/normen/kurz.md\"" }
+        ]
+      }
+    ]
+  }
+}
