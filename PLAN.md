@@ -95,7 +95,7 @@ kein G9-Beleg, Doku, Grenzen im CHANGELOG; jetzt 82 Prüfungen grün. **PR #30**
 **Freigaben der Inhaberin 20.11.:** Lockerungen G9 (#61) und S06-Projektimporte (#71) ja, Pflichtsatz ja, Labels ja →
 `stufe:hoch|mittel|niedrig` angelegt, #72 → `stufe:hoch`, #61 → `stufe:mittel`. `/code-review ultra`: Claude fordert die
 Inhaberin auf, sie startet ihn.
-Ultra-Review der ganzen Codebasis (Wunsch 20.11., drei freie Läufe): Hilfs-PR **#31** (Entwurf, `review-alles` → `review-basis`;
+Ultra-Review der ganzen Codebasis (Wunsch 20.11., drei freie Läufe): #31 (alles) zu groß (Limit) und geschlossen → Hilfs-PR **#32** nur Kern v15 (normen.py, einrichten, Hooks; 2.838 Zeilen), Branch `review-kern`; Hilfs-PR-Aufbau wie #31 (Entwurf, `review-alles` → `review-basis`;
 leere Basis ohne Vorgänger, `review-alles` = Baum von main mit Eltern main + Basis) – **nie mergen**; nach dem Review schließen,
 Branches nur nach Freigabe löschen. Danach Ultra-Review für PR #30, dritter Lauf in Reserve.
 Offen: Befunde von `/code-review ultra` einarbeiten, dann `normen.py merge 30`; nach dem Merge
