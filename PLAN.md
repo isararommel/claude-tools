@@ -4,14 +4,15 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 20.11.2026 (Paket D gemessen; nächstes Paket: D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 21.11.2026 (Hotfix v15 „vertraute Werkzeuge“ auf main; Branch `paket-v15-hooks` muss auf main umgesetzt und zu v16 werden,
+dann V15b, R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
 | Datei | Wofür |
 |---|---|
 | [KONZEPT.md](KONZEPT.md) | Ziel und Aufbau von claude-tools |
-| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v13; Einzelheiten aller früheren Pakete stehen dort) |
+| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v15; Einzelheiten aller früheren Pakete stehen dort) |
 | [agenten-normen/](agenten-normen/LIES-MICH.md) | Quelle der Normen, Hooks, normen.py |
 | [multi-ki/multi-ki-ablauf.md](multi-ki/multi-ki-ablauf.md) | Ablauf mit mistral-team / gemini-analyst |
 | [NEUES-REPOSITORY.md](NEUES-REPOSITORY.md) | Neues Projekt einrichten |
@@ -33,8 +34,17 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   Kopien unter `<projekt>/.normen/rueckmeldungen/`. Kommentieren/Schließen nur nach Rückfrage.
 - Nach jedem Normen-Release die anderen Claude-Code-Sitzungen per `ListAgents`/`SendMessage` informieren.
 - Bekannter Hook-Fehlalarm: Liegt der Arbeitsordner einer *anderen* Projektsitzung hier, sperrt deren Hook Befehle mit `>`.
+- **`normen.py aktualisieren` liest den Arbeitsbaum dieses Ordners** (`[quelle].pfad`), also den gerade ausgecheckten Branch,
+  nicht `main`. Projekte nur aktualisieren lassen, wenn hier `main` (oder ein gemergter Stand) ausgecheckt ist.
 
 ## Erledigt (letzte Schritte)
+
+- ✅ 21.11. **Hotfix v15 vertraute Werkzeuge** (Rückmeldung „S06 sperrt freigegebenes Werkzeug“ im Rückmelde-Repository, Branch
+  `paket-v15-werkzeuge`): `[werkzeuge].vertraut` in `projekt.toml` (Pfad + freigegebene Unterbefehle, nur Rolle claude, sonst
+  nein); Befehlswort über Variable (`$B …`) wird aufgelöst, sonst fragen. Freigabe der Inhaberin 21.11. direkt (Stufe „ja“ für
+  die freigegebenen Unterbefehle, Hotfix von main statt im offenen Hooks-Paket). Tests `tests/test_werkzeuge.py` (vorher 11 rot).
+  **Folge für `paket-v15-hooks` (PR #30):** auf main umsetzen, Version 15 → 16 (normen.toml, `tests/test_v4.py`,
+  CHANGELOG-Überschrift), Konflikte in `_skript_im_befehl` beachten (beide Pakete ändern den Anfang), dann V15b.
 
 - ✅ 20.11. **Paket D Sandbox interaktiv** (Bericht: `docs/plaene/sandbox-spike.md`, „Nachtrag Paket D“): pty-gesteuerte
   Haiku-Sitzung mit Sandbox nur per `--settings`. `excludedCommands` greift interaktiv, nur mit `"vibe *"` (nicht `"vibe"`) und nur
