@@ -86,7 +86,16 @@ with tempfile.TemporaryDirectory() as t:
         (f"if x; then B={wz}; else B=/bin/ls; fi; $B status", "fragen", "doppelt zugewiesene Variable"),
         ("$UNBEKANNT_NORMEN_X status", "fragen", "unaufgelöste Variable als Befehl"),
         (f"{wz} status b-1; git reset --hard", "fragen", "Rest des Befehls wird weiter geprüft"),
-        (f"python3 {wz} status", "nein", "python3 davor: AST wie bisher"),
+        (f"python3 {wz} status", "nein", "python3 davor"),
+        (f"bash {wz} status", "nein", "bash davor"),
+        (f"source {wz} status", "nein", "source davor"),
+        (f"git commit -qm \"$(cat <<'EOF'\nText\n$ make test\n$NAME geht\nEOF\n)\"", "ja", "Heredoc mit $-Zeilen"),
+        (f"cat > {t}/notiz.txt <<'EOF'\n$ make test\n$NAME geht\nEOF", "ja", "Heredoc-Daten mit $ am Zeilenanfang"),
+        ("cat <<'EOF'\n$ make test\nEOF", "ja", "allein stehendes $ ist kein Befehl über Variable"),
+        (f"B={wz}; bash <<EOF\n$B schluessel-anlegen\nEOF", "nein", "Heredoc-Rumpf für bash wird geprüft"),
+        (f"( {wz} schluessel-anlegen )", "nein", "Unterschale"),
+        (f"{wz} status\n{wz} schluessel-anlegen", "nein", "zweite Zeile"),
+        ("echo \"$HOME\" && ls \"$HOME\"", "ja", "$ nur in Argumenten"),
         (f"cd {bindir} && ./werkzeug status", "ja", "relativer Aufruf nach cd"),
         (f"cd {bindir} && ./werkzeug schluessel-anlegen", "nein", "relativer Aufruf, verboten"),
         (f"echo x > {wz}; {wz} status", "fragen", "Werkzeug im selben Befehl geschrieben"),
@@ -106,8 +115,9 @@ with tempfile.TemporaryDirectory() as t:
     # lesbar_extern hebelt die Unterbefehl-Liste nicht aus
     pj.write_text(pj.read_text(encoding="utf-8").replace(
         'lesbar_extern = [', f'lesbar_extern = ["{t}/werkzeug", '), encoding="utf-8")
-    s, g = hook(repo, f"{wz} schluessel-anlegen")
-    check("lesbar_extern: verbotener Unterbefehl bleibt nein", s == "nein", f"{s} {g}")
+    for befehl in (f"{wz} schluessel-anlegen", f"python3 {wz} schluessel-anlegen", f"bash {wz} schluessel-anlegen"):
+        s, g = hook(repo, befehl)
+        check(f"lesbar_extern: verboten bleibt nein ({befehl.split()[0][-8:]})", s == "nein", f"{s} {g}")
 
     # fehlerhafter Eintrag: Hook sperrt mit Meldung (fail-closed)
     pj.write_text(vorlage.replace("\nvertraut = []\n", f'\nvertraut = [{{pfad = "{wz}"}}]\n'), encoding="utf-8")

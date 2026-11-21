@@ -1324,6 +1324,8 @@ def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int
     datei, grund = _skript_pfad(wort, basis, zuw)
     if grund:
         return [("fragen", grund)]
+    if datei in _vertraut(cfg):  # v15 (#87): sonst ginge `bash|python3 <werkzeug> <verboten>` an der Unterbefehl-Liste vorbei
+        return [("nein", f"S06-CODE-MODE: vertrautes Werkzeug {wort} nur direkt aufrufen, nicht über {prog or aktion}")]
     gate = _skript_gate(cfg, datei, wort, cmd)
     if gate is not None:
         return gate
@@ -1390,7 +1392,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     i = _praefixe_ueberspringen(w)  # NAME=wert, time, env …, nice, nohup, command vor dem Interpreter
     if i >= len(w):
         return []
-    if "$" in w[i]:  # v15 (#87): Befehl über Variable (`B=/x/werkzeug; $B …`) – auflösen wie geschrieben, sonst nicht prüfbar
+    if _VAR_RX.search(w[i]) or "$(" in w[i]:  # v15 (#87): Befehl über Variable (`B=/x/werkzeug; $B …`) – auflösen wie geschrieben, sonst nicht prüfbar
         wort = _var_ersetzen(w[i], zuweisungen or {})
         if "$" in wort:
             return [("fragen", f"S06-CODE-MODE: Befehl über unaufgelöste Variable ({w[i]}) – nicht prüfbar")]
