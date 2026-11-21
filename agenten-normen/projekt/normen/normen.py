@@ -1324,6 +1324,8 @@ def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int
     datei, grund = _skript_pfad(wort, basis, zuw)
     if grund:
         return [("fragen", grund)]
+    if datei in _vertraut(cfg):  # v15 (#87): sonst ginge `bash|python3 <werkzeug> <verboten>` an der Unterbefehl-Liste vorbei
+        return [("nein", f"S06-CODE-MODE: vertrautes Werkzeug {wort} nur direkt aufrufen, nicht über {prog or aktion}")]
     gate = _skript_gate(cfg, datei, wort, cmd)
     if gate is not None:
         return gate
@@ -1332,6 +1334,45 @@ def _skript_datei_arg(cfg, wort: str, cmd: str, cwd: str, rolle: str, tiefe: int
     if aktion == "shell":
         return _shell_datei_bewerten(cfg, datei, wort, cmd, cwd, rolle, tiefe, basis)
     return [("fragen", f"S06-CODE-MODE: {prog}-Skript außerhalb des Projekts – nicht prüfbar")]
+
+
+def _vertraut(cfg) -> dict[Path, set[str]]:
+    """v15 (#87): [werkzeuge].vertraut aus projekt.toml → {realpath des Werkzeugs: freigegebene Unterbefehle}.
+    Fehlerhafte Einträge brechen ab (der Hook sperrt dann mit der Meldung, fail-closed)."""
+    aus: dict[Path, set[str]] = {}
+    for e in cfg["projekt"].get("werkzeuge", {}).get("vertraut", []):
+        if not (isinstance(e, dict) and isinstance(e.get("pfad"), str) and isinstance(e.get("unterbefehle"), list)
+                and all(isinstance(u, str) and u for u in e["unterbefehle"])):
+            raise ValueError(f"[werkzeuge].vertraut: Eintrag {e!r} braucht pfad (Text) und unterbefehle (Liste von Texten)")
+        aus[Path(os.path.realpath(os.path.expanduser(os.path.expandvars(e["pfad"]))))] = set(e["unterbefehle"])
+    return aus
+
+
+def _vertraut_bewerten(cfg, w: list[str], i: int, cmd: str, cwd: str, basis: str | None,
+                       zuweisungen: dict[str, str] | None) -> list[tuple[str, str]] | None:
+    """v15 (#87): Aufruf eines vertrauten Werkzeugs (direkter Pfad oder Name aus $PATH) als Befehl bewerten statt per AST:
+    freigegebener Unterbefehl (erstes Wort, wörtlich) → keine Befunde; jeder andere oder fehlende → nein.
+    None = kein vertrautes Werkzeug."""
+    liste = _vertraut(cfg)
+    if not liste:
+        return None
+    if "/" in w[i]:
+        datei, grund = _skript_pfad(w[i], basis, zuweisungen)
+        if grund:
+            return None
+    else:
+        gefunden = shutil.which(w[i])
+        if gefunden is None:
+            return None
+        datei = Path(os.path.realpath(gefunden))
+    if datei not in liste:
+        return None
+    unter = w[i + 1] if i + 1 < len(w) else ""
+    if not unter or "$" in unter or unter.startswith("-") or unter not in liste[datei]:
+        return [("nein", f"S06-CODE-MODE: Unterbefehl `{unter or '(keiner)'}` von {w[i]} nicht freigegeben "
+                         f"([werkzeuge].vertraut: {', '.join(sorted(liste[datei]))})")]
+    g = _skript_geschrieben(w[i], datei, cmd, cwd)
+    return [g] if g else []
 
 
 def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0,
@@ -1351,6 +1392,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     i = _praefixe_ueberspringen(w)  # NAME=wert, time, env …, nice, nohup, command vor dem Interpreter
     if i >= len(w):
         return []
+    if _VAR_RX.search(w[i]) or "$(" in w[i]:  # v15 (#87): Befehl über Variable (`B=/x/werkzeug; $B …`) – auflösen wie geschrieben, sonst nicht prüfbar
+        wort = _var_ersetzen(w[i], zuweisungen or {})
+        if "$" in wort:
+            return [("fragen", f"S06-CODE-MODE: Befehl über unaufgelöste Variable ({w[i]}) – nicht prüfbar")]
+        w = w[:i] + [wort] + w[i + 1:]
+    if rolle == "claude" and (v := _vertraut_bewerten(cfg, w, i, cmd, cwd, basis, zuweisungen)) is not None:
+        return v
     prog = w[i].rsplit("/", 1)[-1]
     # Variablen im Inline-Code: Zuweisungen aus vorangehenden Teilbefehlen und Präfixen (`X=… python3 -c "$X"`), dann Umgebung
     zuw = dict(zuweisungen or {})
