@@ -71,6 +71,16 @@ dann V15b, R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
+### Offene Entscheidung: vertraute Werkzeuge für Teams *(Befund 21.11. aus einer Projektsitzung, nicht v15-bedingt)*
+
+Im Projekt, dem ein vertrautes Werkzeug selbst gehört, prüft der Hook Projektskripte für keine Rolle (`_skript_gate`: „Projektskripte
+wie bisher“). Die Unterbefehl-Liste greift nur für die Rolle claude (`rolle == "claude"` in `_skript_im_befehl`). Deshalb darf
+mistral-team (vibe) dort jeden Unterbefehl aufrufen, auch den gesperrten (Schlüssel anlegen auf dem Server), und `python3 <werkzeug>`.
+In anderen Projekten liegt das Werkzeug außerhalb, dort sperrt die AST-Prüfung für Teams wie bisher.
+Frage an die Inhaberin: Soll ein Eintrag in `[werkzeuge].vertraut` für Teams (a) dieselbe Unterbefehl-Liste bekommen oder
+(b) ganz gesperrt werden? Empfehlung: (b), denn die Freigabe galt Claude. Umsetzung: die Prüfung vor `_skript_gate` für alle
+Rollen, Teams bei Treffer → nein; Tests in `tests/test_werkzeuge.py` (Werkzeug im Projekt, Rolle mistral-team); v16 bzw. mit dem Hooks-Paket.
+
 ### A2. agy-Freigaben: Nacharbeiten
 
 Paket A ist gemergt (PR #19, Bericht `docs/plaene/agy-freigaben-spike.md`). Entscheidungen der Inhaberin 18.11.:
