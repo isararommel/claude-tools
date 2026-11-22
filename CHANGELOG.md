@@ -4,6 +4,34 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## Review-Aufträge (Multi-KI, kein neuer Normtext) – 2026-11-22
+
+**Aktualisieren nötig:** nur für Reviews – `multi-ki/einrichten.sh <projekt> --test "<testbefehl>"` legt die neuen Vorlagen an
+(vorhandene Dateien bleiben; `docs/multi-ki-ablauf.md` kommt als `.vorlage` und wird von Hand zusammengeführt);
+Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopieren (Rückfrage).
+
+### Neu
+- **Eigenes Review-Verfahren vor dem Merge von Meilensteinen** (ersetzt `/code-review ultra`, Größenlimit): Claude
+  (`/code-review`), `mistral-team` und `gemini-analyst` prüfen denselben Branch-Diff in Gruppen; Claude prüft jeden Befund
+  selbst und legt den Bericht unter `docs/reviews/<datum>-<branch>.md` ab. Vorlagen `docs/review-auftrag.md` (einheitliches
+  Befundformat mit Fehlerszenario und Beleg, „Bericht vor Vollständigkeit“, zweiter Schritt für Mistral) und
+  `docs/review-bericht.md` (Status bestätigt/plausibel/verworfen/Grenze/zurückgestellt). Ablauf: `docs/multi-ki-ablauf.md`,
+  Abschnitt „Review“. Pflicht nur bei Meilensteinen, als Ablauf – kein Prüftor in `normen.py merge`.
+
+### Geändert
+- **Vibe-Fortsetzung mit `--resume <session_id>`** statt `-c` (Abschnitt 7, `mistral-team.md`): `-c` greift bei parallelen
+  Läufen im selben Projekt die falsche Sitzung.
+- **Vibe-Lese-Modus mit `--add-dir <lauf-ordner>`:** ohne die Option lehnt `--agent ask` `read_file` außerhalb des Projekts ab
+  (gemessen 22.11.: 12 Runden ohne Bericht; mit `--add-dir`: 4 Schritte, Bericht im Format).
+- `gemini-analyst.md`: Bei Review-Aufträgen liegt das Material im eigenen Lauf-Ordner; eine Ebene höher endet agy sofort
+  mit „auto-denied“.
+
+### Bekannte Grenzen
+- Gemessen an einer Gruppe (141 Diff-Zeilen) aus dem Pilot. Wie groß eine Gruppe höchstens sein darf und ob der zweite
+  Schritt bei Mistral trägt, ist nicht gemessen. Ein Lauf mit `--smart-approve` hing im Modellaufruf, die Ursache ist offen.
+
+---
+
 ## v16 – Schreibweise von Pfaden, `python -m`, Sitzungsprobe, Testlöschung samt Altcode – 2026-11-22
 
 Entstanden als „v15“ auf dem Branch `paket-v15-hooks` (20.11.); nach dem Hotfix v15 (vertraute Werkzeuge) auf main

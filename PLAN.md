@@ -217,6 +217,36 @@ Danach Paket R mit den Verfahrensbefunden aus dem Bericht (Zweischritt bei Mistr
 
 ### R. Eigenes Code-Review-Verfahren: Claude + Gemini + Mistral über Branches *(Wunsch der Inhaberin 20.11.)*
 
+**Stand 22.11. (läuft, Branch `paket-r-review`):** Advisor-Zuschnitt: nur Vorlagen + Ablauf, kein `normen.py review`, kein
+Merge-Tor (Punkt 6 → Frage an die Inhaberin). Vorlagen `multi-ki/projekt/docs/review-{auftrag,bericht}.md` geschrieben,
+`einrichten.sh` und `NEUES-REPOSITORY.md` ergänzt. Offen: Abschnitt „Review“ in `multi-ki/multi-ki-ablauf.md` (+ Abschnitt 7),
+`mistral-team.md` Zeile 52 (`--resume` statt `-c`), `gemini-analyst.md` (absolute Pfade), CHANGELOG wie v12 (keine
+Normänderung), einspielen, PR. **Beweislauf** (Thema C aus PR #30 bei e5b8705, Basis c5bd79c; Lauf-Ordner
+`${TMPDIR}/review-runs/20261122-2004-beweis-c/`, Maßstab: Pilot-Befunde Nr. 9, 10, 11, 18):
+- Mistral `--agent ask --max-turns 12`, Dateien im Lauf-Ordner (außerhalb des Projekts): **gescheitert**, `turn_limit` nach
+  12 Schritten/≈ 90 s, 5× „Tool call denied: file_system.read_file (needs approval…)“, 1× bash. ⇒ Im Lese-Modus liest Vibe
+  nur im Projektordner. Nächster Messlauf: `--smart-approve` (Schreiben sperrt der Hook ohne `.normen-auftrag`).
+- Mistral Lauf 2 `--smart-approve --max-turns 20 --time-limit 540`, gleicher Prompt: **gescheitert**, `deadline` nach 544 s mit
+  nur 2 Schritten und 14 779 Token (antwort: „Ich lese zuerst den Diff …“). Vermutung: Freigabe-Prüfung für Lesen außerhalb
+  des Projekts hängt. Journal widerlegt das: 6 `read_file` „Auto-approved: read-only file operation within trusted temporary
+  directory“ bzw. „…project file…“ (smart). Hänger danach im Modellaufruf, **Ursache offen**.
+- `vibe --help`: `--add-dir <ADD_DIR>` („Additional working directory for file access“). Lauf 3 (Versuch 3, S03; Advisor):
+  `--agent ask --max-turns 12 --add-dir <lauf-ordner>`, zweiter Schritt `--resume <session_id>` mit `bericht.md` erlaubt.
+  Scheitert das: anhalten und melden, keine vierte Variante.
+- Mistral Lauf 3 (`--agent ask --max-turns 12 --time-limit 540 --add-dir <lauf-ordner>`): **bestanden** – `finished`,
+  exit 0, 4 Schritte, ≈ 340 s, 104 684 Token, keine Ablehnung, Bericht im Format in Schritt 1 (zweiter Schritt nicht nötig,
+  also ungeprüft). Befunde = Pilot Nr. 9 (G9), Nr. 10 (Sitzungsprobe), Nr. 11 (CHANGELOG) – alle drei Maßstab-Befunde bis
+  auf Nr. 18 (Labels) getroffen. `--add-dir` damit belegt.
+- Gemini Lauf 1: **gescheitert** nach 17 s, „auto-denied“ (`read_file`): Sub-Agent gab nur `$RUN/gemini/` frei, Dateien lagen
+  eine Ebene höher. ⇒ Für agy liegt das Material **im eigenen Lauf-Ordner** (`$RUN/`). agy schlug selbst
+  `--dangerously-skip-permissions` vor – nicht befolgt. Lauf 2: Material nach `gemini2/` kopiert, Pfade angepasst.
+- Gemini Lauf 2: **bestanden** – vollständig, exit 0, ≈ 6–7 min, Bericht im Format; trifft alle vier Maßstab-Befunde
+  (Nr. 9, 10, 11, 18). Neu (am Code v16 gelesen, gelten noch; für ein späteres Paket): (a) G9: eine gelöschte Code-Datei
+  entschuldigt beliebig viele Testlöschungen (`alt` wird nicht verbraucht, `pruefen` ≈ Z. 2274–2284) – plausibel, gering,
+  da seit v16 nur Importzeilen belegen; (b) Sitzungsprobe behält nur 20 Einträge (`[-19:]`, Z. 861) – Fehlschlag in sichere
+  Richtung (fälschlich „durchgefallen“).
+- **Abnahme Beweislauf:** beide Teams liefern ohne Handrettung einen Bericht im Format (Mistral in 1 Schritt, agy durch).
+
 Ziel: vor jedem Merge eines Meilensteins (Normen-Release, größere Pakete in Projekten) prüfen drei unabhängige Prüfer den
 Branch-Diff; Claude führt zusammen, belegt jeden Befund selbst und arbeitet ihn ein. Ersetzt `/code-review ultra`
 (Größenlimit, kostenpflichtig). Branch `paket-r-review`. Plan und Schnittstellen vor dem Bau vom Advisor prüfen (S07 Punkt 1),

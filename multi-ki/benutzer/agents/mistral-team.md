@@ -31,7 +31,9 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
    - **Lese-Modus:** Sagt Claude „nur lesen“ (Analyse ohne ändernde Befehle), statt `--smart-approve` den eingebauten Agenten
      `--agent ask` und `--max-turns 12` verwenden: Schreiben und nicht-lesende Shell-Befehle werden abgelehnt, auch bei Sub-Agenten
      (gemessen 16.11., Vibe 3.1.2); lesende Befehle wie `ls`, `cat`, `grep` laufen. Vibe versucht Abgelehntes erneut, deshalb die
-     niedrige Rundenzahl. Nicht nachgewiesen: ob der Normen-Hook im Lese-Modus lesende Befehle auf Sperrpfade sperrt – in Projekten
+     niedrige Rundenzahl. Dateien außerhalb des Projekts (z. B. `diff.patch` im Lauf-Ordner) liest der Lese-Modus nur mit
+     `--add-dir <lauf-ordner>`, sonst „Tool call denied: file_system.read_file (needs approval …)“ (gemessen 22.11.,
+     Review-Aufträge nach `docs/review-auftrag.md`). Nicht nachgewiesen: ob der Normen-Hook im Lese-Modus lesende Befehle auf Sperrpfade sperrt – in Projekten
      mit `[pfade].gesperrt` den Lese-Modus nur nach Rückfrage bei Claude verwenden. Braucht ein Review Befehle (z. B. den Hook-Prüfbefehl), bleibt es bei `--smart-approve` mit „Ändere keine
      Dateien.“ – ohne offenen Auftrag sperrt der Normen-Hook Schreiben der Teams (Datei-Werkzeuge und seit v8 auch Bash).
    - `--time-limit 540` im Vordergrund nur für kurze Läufe (Scout, Review, Testlauf) – die Grenze kommt vom 600-s-Limit des
@@ -49,7 +51,7 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
 3. Ergebnis auslesen:
    - `tail -n 80 "$RUN/antwort.txt"`
    - `python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('exit_code'),d.get('error'),d.get('cost_usd'),d.get('steps'),d.get('config',{}).get('active_model'),d['usage'])"`
-   - `outcome` sagt, warum Vibe aufhörte: `turn_limit` = alle `--max-turns` verbraucht (Auftrag zu groß → Claude soll ihn teilen), sonst Zeitlimit (`--time-limit`). Die Zahl der Runden steht in `steps` – genau diese Zahl berichten, nicht schätzen. Nur beim Zeitlimit einmal mit `-c` und einem Fortsetzungs-Prompt fortsetzen; bei `turn_limit` an Claude melden.
+   - `outcome` sagt, warum Vibe aufhörte: `turn_limit` = alle `--max-turns` verbraucht (Auftrag zu groß → Claude soll ihn teilen), sonst Zeitlimit (`--time-limit`). Die Zahl der Runden steht in `steps` – genau diese Zahl berichten, nicht schätzen. Nur beim Zeitlimit einmal fortsetzen, mit `--resume <session_id>` (Feld `session_id` in `export.json`) und einem Fortsetzungs-Prompt – nicht `-c`, das greift bei parallelen Läufen im selben Projekt die falsche Sitzung; bei `turn_limit` an Claude melden. **Review-Aufträge:** Fehlt nach dem ersten Lauf der Bericht (egal ob `deadline` oder `turn_limit`), genau einmal mit `--resume <session_id>` und der Prompt-Datei `bericht.md` fortsetzen, die Claude in den Lauf-Ordner gelegt hat (Abschnitt „Zweiter Schritt“ in `docs/review-auftrag.md`), gleiche Optionen, `--max-turns 3`.
    - **Modell prüfen:** `config.active_model` muss das Modell des Teamleiters sein (Mistral Large). Steht dort etwas anderes (z. B. `mistral-medium-3.5`) oder meldet `antwort.txt` „Model … is not available“, ist Vibe auf ein schwächeres Modell ausgewichen: im Bericht als Erstes nennen (Issue #25).
    - **Hooks prüfen:** Meldet `antwort.txt` beim Start einen Fehler zu `hooks.toml` (z. B. „name: Field required“), greifen die Normen-Hooks nicht. Dann Status „gescheitert“ und an Claude melden – das Ergebnis nicht als normal abliefern.
    - „Reading API keys from the macOS Keychain“ ist normal.
