@@ -138,8 +138,10 @@ Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR
    `lesbar_extern`, Rollen claude und mistral-team); Werkzeug im Projekt: `python3 -m wp schluessel` und
    `python3 -c 'import wp'` → **ja** (beide Rollen). Außerhalb ohne `lesbar_extern` sperrt die AST-Prüfung (nein).
    `python3 wp.py …` sperrt der Hotfix für alle Rollen (nein). Soll: Auflösung auf ein vertrautes Werkzeug → nein
-   („nur direkt aufrufen“), für `-m` und `-c`-Import; Tests in `tests/test_werkzeuge.py`. Auf main (v15) lief `-m` gar nicht
-   über den Auflöser, die Lücke ist dort also ebenfalls offen. Probe-Skript lag nur im Scratchpad; die Fälle stehen hier.
+   („nur direkt aufrufen“), für `-m` und `-c`-Import; Tests in `tests/test_werkzeuge.py`. Gegenmessung auf main (v15),
+   22.11.: `-m` geht dort in allen Fällen durch (auch Werkzeug außerhalb ohne `lesbar_extern` = Lücke #71, die v16 schließt);
+   `-c 'import wp'` im Projekt ist auf main „fragen“, auf dem Branch „ja“ (neu durch die Lockerung #71). Probe-Skript lag nur
+   im Scratchpad; die Fälle stehen hier.
 2. Nr. 2: `_skript_geschrieben` mit `_echt(z)`; Test unter derselben Bedingung (Dateisystem ohne Groß-/Kleinschreibung) wie #74.
 3. Nr. 3 Regression: `$PWD`/`${PWD}`/`$HOME`/`~` in PYTHONPATH nur auflösen, wenn die Zuweisung Präfix des Python-Aufrufs ist
    oder kein `cd` dazwischen liegt (Negativtest `cd lauf; export PYTHONPATH=$PWD/sub; cd projekt && python3 -m x`). Unbekannter
