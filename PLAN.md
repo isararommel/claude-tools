@@ -4,8 +4,10 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 21.11.2026 (Hotfix v15 „vertraute Werkzeuge“ auf main; Branch `paket-v15-hooks` muss auf main umgesetzt und zu v16 werden,
-dann V15b, R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (main in `paket-v15-hooks` zusammengeführt, dort jetzt v16, PR #30; nächstes Paket **V15b auf diesem
+Branch** – Abschnitte V15, V15b, R und der neue Befund „`python3 -m`/`-c import` an vertrauten Werkzeugen vorbei“ stehen in
+PLAN.md auf `paket-v15-hooks`, dort lesen. Auf main (v15) geht `python3 -m` noch ungeprüft durch (#71). Danach R; D2 nach
+Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
