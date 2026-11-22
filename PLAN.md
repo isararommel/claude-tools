@@ -50,7 +50,15 @@ von PR #30, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkt
   Befunde: transitive Schatten (`_json.py`, `_datetime.py` im Skriptordner) wirken und sind nicht geprüft → Grenze im
   CHANGELOG (Option: Dateinamen aus `sys.stdlib_module_names` in fremden Suchordnern → fragen); `python3 -c` in einer
   Subshell `( … )` → nein (Fehlalarm, Grenze). Zählung von `tests/test_v4.py` schwankt mit der Zahl untracked Dateien
-  (Dateien × private Begriffe, `tests/test_v4.py:206`), harmlos.
+  (Dateien × private Begriffe, `tests/test_v4.py:206`), harmlos. Nachtrag (Advisor): geschriebenes Schatten-Modul auch beim
+  Skriptweg `python3 <datei>.py` → fragen (Test vorher rot).
+  **Notizen für V15b-2:** (a) `_cd_basis` kennt Zuweisungen aus demselben Befehl nicht (`_schreibziele` jetzt schon):
+  `D=…; cd "$D"` gilt als unbekannt → `-m`/`-c` mit Import „fragen“ (vibe: nein); der Test `D=<schatten>; cd "$D"` besteht
+  deshalb, nicht über die Schatten-Erkennung. Prüfen, ob `_cd_basis` die Zuweisungen bekommen soll (dann Test mit
+  bekanntem Basisordner ergänzen). (b) Text von PR #30 nennt noch v15, 6 Testdateien, 82 Prüfungen → vor dem Merge
+  neu schreiben. (c) Kommentare/Docstrings „v15 (#71)“, „v15 (#87)“ in `normen.py` an v16 angleichen (#87 war v15 – nur
+  die #71-Stellen). (d) Offene Fragen an die Inhaberin: Bestätigung S06-Zusatz; transitive Schatten über
+  `sys.stdlib_module_names` sperren oder Grenze lassen.
 
 - ✅ 22.11. **main in `paket-v15-hooks` zusammengeführt, dort v16** (Merge statt Rebase, kein Force-Push für PR #30):
   CHANGELOG-Abschnitt des Branches heißt jetzt v16 (über v15 „vertraute Werkzeuge“), `normen.toml` 16, `tests/test_v4.py`

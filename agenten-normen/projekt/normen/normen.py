@@ -1585,7 +1585,10 @@ def _python_datei_bewerten(cfg, datei: Path, wort: str, cmd: str, cwd: str,
     g = _skript_geschrieben(wort, datei, cmd, cwd)
     if g:
         return [g]
-    stufe, gruende = skript_pruefen(cfg, datei, cwd, schatten)
+    ordner = schatten if schatten is not None else [str(datei.parent)]
+    if g := _py_kandidat_geschrieben(cfg, [], ordner, cmd, cwd):  # V15b: Schatten-Modul im selben Befehl geschrieben
+        return [g]
+    stufe, gruende = skript_pruefen(cfg, datei, cwd, ordner)
     return [] if stufe == "ja" else [(stufe, g) for g in gruende]
 
 

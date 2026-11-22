@@ -33,7 +33,8 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
     `-m`-Dateien oder in `python3 <datei>.py` (Skriptordner) auf eine Datei außerhalb von Projekt/`lesbar_extern` auf → fragen.
     Bewusst strenger als der Plan (dort: AST-Prüfung der Schatten-Datei).
   - **Geschriebene Module:** Wird im selben Befehl in einem Suchordner außerhalb des Projekts eine importierbare Datei
-    (`.py`, `.so`, `.pyc` …) oder etwas im Paketordner geschrieben → fragen (auch in anderer Schreibweise: `> Evil.py`).
+    (`.py`, `.so`, `.pyc` …) oder etwas im Paketordner geschrieben → fragen (auch in anderer Schreibweise: `> Evil.py`),
+    bei `-m`, `-c` und `python3 <datei>.py` (Skriptordner).
     `> pytest.log` bleibt erlaubt.
   - **Andere Importformen** außerhalb des Projekts (`.so`/`.pyc` statt `.py`, zip/pyz im PYTHONPATH) → fragen.
   - **Code-Starter** `-m timeit|cProfile|profile|trace|pdb|runpy` → fragen.

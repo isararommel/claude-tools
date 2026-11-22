@@ -129,6 +129,10 @@ with tempfile.TemporaryDirectory() as t:
         ("PYTHONPATH=$X python3 -c 'import json'", "fragen"),
         ("cd \"$(mktemp -d)\" && python3 -c 'print(1)'", "ja"),
         (f"cd {schatten} && python3 -m nutzt", "fragen"),
+        # Schatten-Modul im selben Befehl geschrieben, Skriptweg (Advisor 22.11.)
+        (f"cd {lauf} && {schreib} > json.py && python3 harmlos.py", "fragen"),
+        (f"{schreib} > {lauf}/json.py; python3 {lauf}/harmlos.py", "fragen"),
+        (f"cd {lauf} && python3 harmlos.py > out.txt", "ja"),
         # Namespace und `from ns import x`
         (f"PYTHONPATH={lauf} python3 -c 'from ns import boese'", "fragen"),  # Untermodul außerhalb, nicht prüfbar
         ("python3 -c 'import ns'", "fragen"),
