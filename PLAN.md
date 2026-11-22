@@ -157,6 +157,15 @@ Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR
    bei Bestätigung casefold bzw. `_echt`.
 8. Nr. 13–15, 19 als Grenzen bzw. plausibel im CHANGELOG/Bericht; Nr. 16, 18 zurückgestellt; Nr. 17 verworfen.
 9. Danach: Bericht-Status aktualisieren (behoben/Grenze), Advisor vor „fertig“, Kurzverweis im PR #30, `normen.py merge 30`.
+   (Punkt 10 vorher erledigen.)
+10. **Vertraute Werkzeuge für Teams ganz sperren** (Entscheidung der Inhaberin 22.11.: Variante b, gilt gleich für mistral-team,
+   gemini-analyst und lokal; Begründung: die Freigabe galt Claude). Jeder Aufruf, der auf einen Eintrag aus
+   `[werkzeuge].vertraut` auflöst, ergibt für Nicht-claude-Rollen „nein“, egal wo das Werkzeug liegt (im Projekt, unter
+   `lesbar_extern`, außerhalb) und auf welchem Weg (direkt, über Variable, `python3|bash <werkzeug>`, `python3 -m`,
+   `-c`-Import; mit Punkt 1). Prüfung vor `_skript_gate`, nicht nur bei `rolle == "claude"`. Tests in
+   `tests/test_werkzeuge.py`, vorher rot: die Fälle aus der Messung 22.11. (Abschnitt „Entschieden 22.11.“ unten) für
+   mistral-team; claude unverändert. CHANGELOG v16 „Sicherheit“, S06-Normtext-Satz zu `[werkzeuge].vertraut` um „nur Rolle
+   claude, Teams nie“ ergänzen (Normänderung: Advisor S07 Punkt 5; Freigabe der Inhaberin liegt mit dieser Entscheidung vor).
 Danach Paket R mit den Verfahrensbefunden aus dem Bericht (Zweischritt bei Mistral, `--resume <id>`, absolute Pfade/Auszüge für agy).
 
 ### R. Eigenes Code-Review-Verfahren: Claude + Gemini + Mistral über Branches *(Wunsch der Inhaberin 20.11.)*
@@ -193,7 +202,7 @@ bestätigte Befunde behoben, `make test` grün. Danach Vorlagen in `multi-ki/` (
 - **Gemini bekommt den Code:** Kein Projekt hat sensible Daten im Code; solche Daten liegen in Datenbanken bzw. eigenen
   Ordnern, die über `[pfade].gesperrt` ohnehin aus jedem Auftrag fallen. Keine Sonderregel nötig.
 
-### Offene Entscheidung: vertraute Werkzeuge für Teams *(Befund 21.11. aus einer Projektsitzung, nicht v15-bedingt)*
+### Entschieden 22.11.: vertraute Werkzeuge für Teams ganz gesperrt (b) – umsetzen in V15b Punkt 10 *(Befund 21.11.)*
 
 Im Projekt, dem ein vertrautes Werkzeug selbst gehört, prüft der Hook Projektskripte für keine Rolle (`_skript_gate`: „Projektskripte
 wie bisher“). Die Unterbefehl-Liste greift nur für die Rolle claude (`rolle == "claude"` in `_skript_im_befehl`). Deshalb darf
