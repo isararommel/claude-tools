@@ -73,7 +73,7 @@ Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
-### Offene Entscheidung: vertraute Werkzeuge für Teams *(Befund 21.11. aus einer Projektsitzung, nicht v15-bedingt)*
+### Entschieden 22.11.: vertraute Werkzeuge für Teams ganz gesperrt (b) *(Befund 21.11.; Umsetzung in V15b Punkt 10, PLAN.md auf `paket-v15-hooks`)*
 
 Im Projekt, dem ein vertrautes Werkzeug selbst gehört, prüft der Hook Projektskripte für keine Rolle (`_skript_gate`: „Projektskripte
 wie bisher“). Die Unterbefehl-Liste greift nur für die Rolle claude (`rolle == "claude"` in `_skript_im_befehl`). Deshalb darf
