@@ -7,5 +7,6 @@ test:
 	python3 tests/test_hook_luecken.py
 	python3 tests/test_werkzeuge.py
 	python3 tests/test_v15b.py
+	python3 tests/test_v15b2.py
 
 .PHONY: test

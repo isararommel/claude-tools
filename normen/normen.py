@@ -34,7 +34,7 @@ from pathlib import Path
 
 
 def _echt(pfad) -> Path:
-    """realpath und Schreibweise wie auf der Platte (v15, #74): Auf Dateisystemen ohne Groß-/Kleinschreibung (macOS) ist
+    """realpath und Schreibweise wie auf der Platte (v16, #74): Auf Dateisystemen ohne Groß-/Kleinschreibung (macOS) ist
     `.Claude` dieselbe Datei wie `.claude` – ohne Angleichen gingen Sperrlisten (GESCHUETZT, gesperrt, Auftrag) daran vorbei.
     Jeder vorhandene Teil bekommt den Namen aus der Verzeichnisliste, aber nur, wenn die abweichende Schreibweise wirklich
     existiert (also nur ohne Groß-/Kleinschreibung); nicht vorhandene Teile bleiben, wie sie sind."""
@@ -62,13 +62,13 @@ MARKE_ANFANG = "<!-- normen:anfang (erzeugt von normen/normen.py sync – nicht 
 MARKE_ENDE = "<!-- normen:ende -->"
 RANG = {"ja": 0, "fragen": 1, "nein": 2}
 # Schreiben hier braucht die Fähigkeit „einstellungen“ (Regeln dürfen sich nicht selbst aufweichen).
-GESCHUETZT = ["normen/", ".normen-auftrag", ".claude/", ".vibe/", ".gemini/", ".githooks/", "AGENTS.md", "CLAUDE.md", "GEMINI.md"]
+GESCHUETZT = ["normen/", ".normen-auftrag", ".normen/sitzungsprobe.txt", ".claude/", ".vibe/", ".gemini/", ".githooks/", "AGENTS.md", "CLAUDE.md", "GEMINI.md"]
 # Köder des Selbsttests (`normen.py selbsttest`): diesen einen Befehl sperrt der Hook für jede Rolle absichtlich.
 # Steht nicht in normen.toml – Agenten sollen ihn nicht kennen und nicht von sich aus verweigern.
 KOEDER = ".normen/normen-koeder.txt"
 KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
 KOEDER_BEFEHL = "touch " + KOEDER
-SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v15 (#66): session_ids, deren Hook den Köder gesperrt hat
+SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v16 (#66): session_ids, deren Hook den Köder gesperrt hat
 # Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
 SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
 SELBSTTEST_TEXTE = {
@@ -127,7 +127,7 @@ def passt(rel: str, muster: str) -> bool:
 
 
 def _geheim(name: str, pf: dict) -> bool:
-    """Dateiname passt auf [pfade].geheimnisse – ohne Groß-/Kleinschreibung (v15, #74: `.ENV` ist auf macOS `.env`)."""
+    """Dateiname passt auf [pfade].geheimnisse – ohne Groß-/Kleinschreibung (v16, #74: `.ENV` ist auf macOS `.env`)."""
     return any(fnmatch.fnmatchcase(name.casefold(), g.casefold()) for g in pf.get("geheimnisse", []))
 
 
@@ -218,18 +218,16 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
         if str(q).startswith(home + "/"):
             rest = str(q)[len(home):]
             formen |= {"~" + rest, "$HOME" + rest, "${HOME}" + rest}
-        nennt = [f for f in formen if f in cmd]
+        # Aufgelöste Ziele immer nach Platten-Schreibweise (V15b Nr. 12: `~/…/CLAUDE-TOOLS/x`)
+        for z in ziele:
+            if z is not None and ((zr := _echt(z)) == q or q in zr.parents):
+                return q
+        nennt = [f for f in formen if f.casefold() in cmd.casefold()]
         if not nennt and not (_echt(cwd) == q or q in _echt(cwd).parents):
             continue
         # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
-        if re.search(_SCHREIB_VERB, cmd):
+        if re.search(_SCHREIB_VERB, cmd) or None in ziele:
             return q
-        for z in ziele:
-            if z is None:
-                return q
-            zr = _echt(z)
-            if zr == q or q in zr.parents:
-                return q
     return None
 
 
@@ -677,7 +675,7 @@ def _auftrag_globs() -> list[str] | None:
 
 
 def _wie_platte(muster: str) -> str:
-    """Auftragseintrag ohne Platzhalter in der Schreibweise auf der Platte (v15, #74): `Modul.py` meint auf macOS `modul.py`,
+    """Auftragseintrag ohne Platzhalter in der Schreibweise auf der Platte (v16, #74): `Modul.py` meint auf macOS `modul.py`,
     und der Werkzeugpfad wird mit `_echt` ebenso angeglichen. Mit Platzhaltern oder außerhalb des Projekts unverändert."""
     if re.search(r"[*?\[]", muster):
         return muster
@@ -773,21 +771,32 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if ist_datei and _geheim(name, pf):
                 pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: Befehl berührt {name}")
         for s in pf.get("gesperrt", []):
-            if s and s.casefold() in cmd.casefold():  # v15: ohne Groß-/Kleinschreibung (#74)
+            if s and s.casefold() in cmd.casefold():  # v16: ohne Groß-/Kleinschreibung (#74)
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
         if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
             basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
             unsicher = _unsichere_namen(cmd)  # v11: mehrfach zugewiesene Namen nie auflösen (if/for/read …)
             zuweisungen: dict[str, str] = {n: _UNSICHER for n in unsicher}  # G5: Zuweisungen aus vorangehenden Teilbefehlen
-            for pos, seg in _segmente_pos(cmd):  # Trenner in Anführungszeichen bleiben im Teilbefehl
+            # V15b: für `cd "$D"` nur Zuweisungen, die sicher laufen – eigener Teilbefehl nach Anfang/;/Zeilenumbruch, nicht in
+            # einer Pipeline oder im Hintergrund, keine Steuerstrukturen/Subshells im Befehl; sonst bleibt der Basisordner unbekannt
+            segs = _segmente_pos(cmd)
+            trenner = [""] + [cmd[p + len(s):segs[k + 1][0]].strip() for k, (p, s) in enumerate(segs[:-1])] + [""]
+            schlicht = not re.search(r"\b(if|then|else|elif|fi|while|until|do|done|case|esac|for|select|function)\b|[(){}`]",
+                                     _maskiert(cmd))
+            cd_zuw: dict[str, str] = dict(zuweisungen)
+            for k, (pos, seg) in enumerate(segs):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 # V15b: $PWD/$OLDPWD gelten an dieser Stelle (nach cd), nicht aus der Umgebung des Hooks
                 zuweisungen.update(PWD=basis if basis is not None else _UNSICHER, OLDPWD=_UNSICHER)
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
                 # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
-                zuweisungen.update({k: _sichere_zuweisung(k, _var_ersetzen(v, zuweisungen), unsicher)
-                                    for k, v in _zuweisungen_aus_seg(seg).items()})
-                basis = _cd_basis(seg, basis)
+                neu = {n: _sichere_zuweisung(n, _var_ersetzen(v, zuweisungen), unsicher)
+                       for n, v in _zuweisungen_aus_seg(seg).items()}
+                zuweisungen.update(neu)
+                sicher = schlicht and trenner[k] in ("", ";") and trenner[k + 1] not in ("|", "&")
+                cd_zuw.update(neu if sicher else {n: _UNSICHER for n in neu})
+                cd_zuw.update(PWD=zuweisungen["PWD"], OLDPWD=_UNSICHER)
+                basis = _cd_basis(seg, basis, cd_zuw)
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -795,7 +804,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if _geheim(name, pf):
             pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: {name}")
         # v12: auch der gesperrte Ordner selbst (`grep … daten/geheim/` → rel „daten/geheim“) – nicht nur Dateien darin
-        if rel is not None and any(rel.casefold().startswith(s.casefold()) or rel.casefold() == s.rstrip("/").casefold()  # v15: wie Platte (#74)
+        if rel is not None and any(rel.casefold().startswith(s.casefold()) or rel.casefold() == s.rstrip("/").casefold()  # v16: wie Platte (#74)
                                   for s in pf.get("gesperrt", []) if s):
             pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {rel}")
         if art != "schreiben":
@@ -842,7 +851,7 @@ def cmd_hook(a) -> int:
                 eingabe = {"command": eingabe}
         entscheid, gruende = bewerten(cfg, a.rolle, tool, eingabe, str(data.get("cwd") or os.getcwd()))
         if a.werkzeug == "claude" and data.get("session_id") and any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
-            # v15 (#66): Beleg für `selbsttest --sitzung` – diese Sitzung hat aktive Hooks (Fehler → gesperrt, s. u.)
+            # v16 (#66): Beleg für `selbsttest --sitzung` – diese Sitzung hat aktive Hooks (Fehler → gesperrt, s. u.)
             probe = ROOT / SITZUNGSPROBE
             probe.parent.mkdir(exist_ok=True)
             alt = probe.read_text(encoding="utf-8").splitlines()[-19:] if probe.exists() else []
@@ -914,7 +923,7 @@ def _selbsttest_werkzeug(name: str, weg: str) -> tuple[str, str]:
 
 
 def _sitzungsprobe() -> int:
-    """v15 (#66): Beleg, dass die Hooks in DIESER Sitzung aktiv sind. Der Hook schreibt beim Köder die session_id seiner
+    """v16 (#66): Beleg, dass die Hooks in DIESER Sitzung aktiv sind. Der Hook schreibt beim Köder die session_id seiner
     Eingabe nach SITZUNGSPROBE; verlangt wird ein Eintrag mit der eigenen CLAUDE_CODE_SESSION_ID. „Köderdatei fehlt“
     reicht nicht: läuft die Sitzung außerhalb des Projekts, scheitert `touch` schon am fehlenden Ordner."""
     sitzung = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
@@ -934,6 +943,9 @@ def _sitzungsprobe() -> int:
 
 def cmd_selbsttest(a) -> int:
     if a.sitzung:
+        if a.werkzeug or a.weg:
+            print("--sitzung prüft nur diese Sitzung – nicht mit --werkzeug/--weg kombinieren", file=sys.stderr)
+            return 64
         return _sitzungsprobe()
     werkzeuge = [a.werkzeug] if a.werkzeug else ["claude", "vibe"]
     laeufe = []
@@ -1349,9 +1361,10 @@ def _pwd_ersetzen(text: str, basis: str | None) -> str:
     return _PWD_RX.sub(lambda m: basis if (m.group(1) or m.group(2)) == "PWD" and basis is not None else _UNSICHER, text)
 
 
-def _cd_basis(seg: str, basis: str | None) -> str | None:
+def _cd_basis(seg: str, basis: str | None, zuw: dict[str, str] | None = None) -> str | None:
     """Basisordner für relative Pfade im nächsten Teilbefehl: nach `cd <ordner>` dieser Ordner, sonst
-    unverändert; None = unbekannt (cd ohne Argument, `cd -`, unaufgelöste Variable)."""
+    unverändert; None = unbekannt (cd ohne Argument, `cd -`, unaufgelöste Variable). zuw: sicher bekannte Zuweisungen
+    aus vorangehenden Teilbefehlen (`D=/x; cd "$D"`)."""
     if basis is None:
         return None
     try:
@@ -1368,7 +1381,7 @@ def _cd_basis(seg: str, basis: str | None) -> str | None:
     args = [a for a in w[i + 1:] if not a.startswith("-")]
     if not args:
         return None
-    roh = os.path.expanduser(os.path.expandvars(_pwd_ersetzen(args[0], basis)))
+    roh = os.path.expanduser(_var_ersetzen(_pwd_ersetzen(args[0], basis), zuw or {}))
     if "$" in roh:
         return None
     p = Path(roh)
@@ -1891,8 +1904,8 @@ def _prompt_wort(wort: str, basis: str | None) -> str:
     if w.startswith("./"):
         w = w[2:]
     if w.startswith("/"):
-        p = Path(os.path.realpath(w))
-        for wurzel in [ROOT] + ([Path(os.path.realpath(basis))] if basis else []):
+        p = _echt(w)  # V15b Nr. 20: Schreibweise wie auf der Platte (wie #74)
+        for wurzel in [_echt(ROOT)] + ([_echt(basis)] if basis else []):
             try:
                 return p.relative_to(wurzel).as_posix()
             except ValueError:
@@ -1936,8 +1949,8 @@ def _prompt_inhalt_pruefen(cfg: dict, werkzeug: str, text: str, basis: str | Non
             if "/" in eintrag or "*" in eintrag:
                 praefix = eintrag.split("*", 1)[0].rstrip("/")
                 for wort in worte:
-                    w = _prompt_wort(wort, basis)
-                    if fnmatch.fnmatchcase(w, eintrag) or (praefix and w.rstrip("/") == praefix):
+                    w = _prompt_wort(wort, basis).casefold()  # V15b Nr. 20: ohne Groß-/Kleinschreibung (sichere Richtung)
+                    if fnmatch.fnmatchcase(w, eintrag.casefold()) or (praefix and w.rstrip("/") == praefix.casefold()):
                         treffer = True
                         break
             elif eintrag.lower() in rest.lower():
@@ -2078,6 +2091,9 @@ def _diff(basis: str | None, staged: bool) -> tuple[dict[str, set[int] | None], 
 
 
 # Assert-Zeile in Tests (N02/G9): assert, assertEqual(…, expect(, check(, XCTAssert…(, pytest.raises
+# G9-Beleg (V15b Nr. 9): Importzeile am Zeilenanfang (Python, Swift, C) oder require( in JS/Ruby
+_G9_IMPORT_RX = re.compile(r"^(import|from|@testable\s+import|#\s*include)\b|\brequire\s*\(")
+_G9_KEIN_CODE = {".json", ".toml", ".yaml", ".yml", ".txt", ".md", ".csv"}
 _ASSERT_RX = re.compile(r"\bassert\b|\bassert[A-Z]\w*\(|\bexpect\(|\bcheck\(|XCTAssert\w*\(|pytest\.raises")
 
 
@@ -2244,18 +2260,22 @@ def pruefen(cfg, diff: bool, basis: str | None, staged: bool) -> tuple[int, int,
         weg: Counter[str] = Counter()
         neu: Counter[str] = Counter()
         weg_datei: dict[str, list[str]] = {}
-        # v15 (#61): Testdatei ganz gelöscht samt getestetem Altcode (N08) → Hinweis statt Fehler. Beleg: der Diff löscht
+        # v16 (#61): Testdatei ganz gelöscht samt getestetem Altcode (N08) → Hinweis statt Fehler. Beleg: der Diff löscht
         # eine Nicht-Testdatei, deren Dateistamm als ganzes Wort in der gelöschten Testdatei vorkommt.
         geloescht = [z[2:] for z in _git(*(["diff", "--name-status", "--no-renames"]
                                            + (["--cached"] if staged else [basis or "HEAD"]))).splitlines()
                      if z.startswith("D\t")]
-        # `__init__` steht in fast jeder Python-Testdatei – kein Beleg (Grenze: auch andere häufige Stämme belegen schwach)
-        alt = [p for p in geloescht if not any(passt(p, g) for g in tests) and Path(p).stem != "__init__"]
+        # `__init__` steht in fast jeder Python-Testdatei – kein Beleg; Daten/Doku und Ausgeschlossenes auch nicht (V15b Nr. 9)
+        ausgeschl = pj.get("pruefen", {}).get("ausschliessen", [])
+        alt = [p for p in geloescht if not any(passt(p, g) for g in tests) and Path(p).stem != "__init__"
+               and Path(p).suffix.lower() not in _G9_KEIN_CODE and not any(p.startswith(x) for x in ausgeschl)]
         for rel in geloescht:
             if rel not in weg_z or not any(passt(rel, g) for g in tests):
                 continue
-            text = "\n".join(weg_z[rel])
-            code = next((p for p in alt if re.search(r"(?<!\w)" + re.escape(Path(p).stem) + r"(?!\w)", text)), None)
+            # Beleg nur aus Importzeilen (Stamm als ganzes Wort in derselben Zeile); mehrzeilige Importe → kein Beleg
+            importe = [z.strip() for z in weg_z[rel] if _G9_IMPORT_RX.search(z.strip())]
+            code = next((p for p in alt if any(re.search(r"(?<!\w)" + re.escape(Path(p).stem) + r"(?!\w)", z)
+                                               for z in importe)), None)
             if code is not None:
                 anzahl = sum(1 for z in weg_z.pop(rel) if _ASSERT_RX.search(z.strip()))
                 melde(rel, "N02-TESTS-SIND-TABU", "hinweis",
@@ -2447,7 +2467,7 @@ def cmd_melden(a) -> int:
               file=sys.stderr)
         return 1
     basis = ["gh", "issue", "create", "--repo", repo, "--title", a.titel, "--body-file", str(kopie)]
-    labels = ["rueckmeldung", f"art:{a.art}"] + ([f"stufe:{a.stufe}"] if a.stufe else [])  # v15 (#75): Stufe als Label
+    labels = ["rueckmeldung", f"art:{a.art}"] + ([f"stufe:{a.stufe}"] if a.stufe else [])  # v16 (#75): Stufe als Label
     r = subprocess.run(basis + [x for lb in labels for x in ("--label", lb)], capture_output=True, text=True)
     if r.returncode != 0 and "label" in r.stderr.lower():
         r = subprocess.run(basis, capture_output=True, text=True)
@@ -2585,7 +2605,7 @@ def auftrag_zeilen(cfg: dict, rolle: str, dateien: list[str]) -> list[str]:
          "- Du darfst NUR diese Pfade ändern: " + (", ".join(f"`{g}`" for g in globs) if globs else "keine (nur lesen)."),
          "- `.normen-auftrag` nie lesen, ändern oder erweitern – nur Claude vergibt Pfade. Brauchst du eine weitere Datei: "
          "anhalten und im Bericht nennen.",
-         # v15 (#71): Vibe erreichte einen gesperrten `python -c`-Aufruf per `python -m` aus dem Lauf-Ordner
+         # v16 (#71): Vibe erreichte einen gesperrten `python -c`-Aufruf per `python -m` aus dem Lauf-Ordner
          "- Sperrt ein Normen-Hook einen Aufruf: denselben Zweck nicht auf anderem Weg erreichen (anderer Befehl, Skript, "
          "Ordner, `-m` statt `-c`), sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen."]
     for n in cfg["normen"]:

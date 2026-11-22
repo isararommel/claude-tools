@@ -67,3 +67,25 @@ ohne `.normen-auftrag` ist für Teams wie bisher N06-gesperrt (kein v15-Thema).
 
 ## Ergebnis
 Nicht mergereif: Nr. 1–8 sind bestätigte Lücken bzw. eine Regression im neuen `-m`-Code. Korrekturen im Paket V15b (PLAN.md).
+
+## Stand nach V15b (22.11.2026, Normen v16)
+Je Korrektur ein Test, der vorher rot war (`tests/test_v15b.py`, `tests/test_v15b2.py`); Grenzen im CHANGELOG v16.
+
+| Nr. | Stand |
+|---|---|
+| 1, 2, 4, 5, 6 | behoben (gemeinsamer Modul-Auflöser, Suchreihenfolge gegen den Interpreter getestet; Schatten-Module → fragen) |
+| 3 | behoben (`$PWD` aus dem Basisordner); unbekannter Basisordner bleibt fragen → Grenze |
+| 7 | behoben (Code-Starter → fragen) |
+| 8 | Grenze (Testläufer mit Ziel außerhalb; Verbotsliste nie vollständig) |
+| 9 | behoben (Beleg nur aus Importzeilen; Daten-/Doku-Dateien und Ausgeschlossenes zählen nicht); mehrzeilige Importe → Grenze |
+| 10 | Probe geschützt, `--sitzung` mit `--werkzeug`/`--weg` → Fehler; Grenze: Beleg gegen Versehen, nicht gegen Täuschung |
+| 11 | behoben (CHANGELOG „Geändert“) |
+| 12 | behoben (Ziele in Platten-Schreibweise, Textsuche ohne Groß-/Kleinschreibung) |
+| 13, 14, 15 | Grenze |
+| 16, 18 | zurückgestellt |
+| 17 | verworfen (gemessen, unauffällig) |
+| 19 | Grenze |
+| 20 | Forschungsdaten behoben (ohne Groß-/Kleinschreibung, `_echt`); Auftrags-Globs → Grenze (sichere Richtung) |
+
+Zusätzlich aus dem Zusammenführen mit v15: `python3 -m`/Import eines vertrauten Werkzeugs → nein; vertraute Werkzeuge nur
+für die Rolle claude (Entscheidung der Inhaberin 22.11.).

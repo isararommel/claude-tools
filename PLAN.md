@@ -4,8 +4,8 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 22.11.2026 (Branch `paket-v15-hooks` = v16; V15b-1 erledigt; nächstes Paket: **V15b-2** (Punkte 5–9), dann Merge
-von PR #30, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (Branch `paket-v15-hooks` = v16; V15b-1 und V15b-2 umgesetzt; offen: Advisor vor „fertig“, PR-Text,
+`normen.py merge 30`, danach Issues/Sitzungen; dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -38,6 +38,17 @@ von PR #30, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkt
   nicht `main`. Projekte nur aktualisieren lassen, wenn hier `main` (oder ein gemergter Stand) ausgecheckt ist.
 
 ## Erledigt (letzte Schritte)
+
+- ✅ 22.11. **V15b-2** (V15b Punkte 5–9, Branch `paket-v15-hooks`, Tests `tests/test_v15b2.py`, vorher rot): G9-Beleg nur aus
+  Importzeilen, ohne Daten/Doku/Ausgeschlossenes (Nr. 9); `.normen/sitzungsprobe.txt` in GESCHUETZT, `--sitzung` mit
+  `--werkzeug`/`--weg` → Exit 64 (Nr. 10); `lesbar_extern` in Platten-Schreibweise (Nr. 12); Forschungsdaten im Prompt ohne
+  Groß-/Kleinschreibung, `_prompt_wort` mit `_echt` (Nr. 20); `cd "$D"` mit sicher bekannter Zuweisung (Notiz a, einzige
+  Lockerung, gegen die Shell gemessen); CHANGELOG (`melden --stufe` → Geändert, Grenzen Nr. 10, 13–15, G9 mehrzeilig);
+  Markierungen v15 (#61/#66/#71/#74/#75) → v16; Bericht `docs/reviews/…` mit Stand je Befund. Selbst umgesetzt: kleine
+  Korrekturen in sicherheitskritischer Hook-Logik, je wenige Zeilen.
+  **Nächste Schritte:** Advisor vor „fertig“; PR #30 Text neu (v16, 9 Testdateien, Zahlen aus `make test`); prüfen, ob
+  origin/main enthalten ist; `python3 normen/normen.py merge 30`; danach Issues #74/#71/#66/#61/#75 abgleichen
+  (#61 offen wegen Stop-Hook), Sitzungen informieren (Memory „Versionsschritt“).
 
 - ✅ 22.11. **V15b-1** (V15b Punkte 1–4 und 10, Branch `paket-v15-hooks`): gemeinsamer Modul-Auflöser
   `_py_modul_aufloesen` (Suchreihenfolge gegen den Interpreter getestet) für `-m`, `-c`-Importe und `python3 <datei>.py`

@@ -49,8 +49,16 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   gehört, kann mistral-team es beim Entwickeln nicht mehr direkt starten.
   S06-Normtext ergänzt: „…, auch nicht per `python3 -m` oder Import. Die Freigabe gilt nur dir: Teams rufen vertraute
   Werkzeuge nie auf, Aufträge an Teams nennen sie nicht.“ (Der agy-Weg hat keinen Hook; dort gilt nur die Anweisung.)
-- **`python3 -c` mit Import bei unbekanntem Suchpfad** (unaufgelöster PYTHONPATH, `cd "$D"`) → fragen wie bei `-m`, weil
-  die Schatten-Prüfung sonst entfiele. `python3 -c` ohne Import bleibt erlaubt.
+- **`python3 -c` mit Import bei unbekanntem Suchpfad** (unaufgelöster PYTHONPATH, `cd "$(mktemp -d)"`) → fragen wie bei
+  `-m`, weil die Schatten-Prüfung sonst entfiele. `python3 -c` ohne Import bleibt erlaubt.
+- **`lesbar_extern` in anderer Schreibweise (Review Nr. 12):** `touch ~/…/CLAUDE-TOOLS/x` bei `lesbar_extern =
+  ["~/…/claude-tools"]` wurde nicht als Schreiben in den Ordner erkannt. Aufgelöste Schreibziele werden jetzt immer in der
+  Schreibweise der Platte verglichen, die Textsuche nach dem Ordner ohne Groß-/Kleinschreibung.
+- **Forschungsdaten im Prompt (Review Nr. 20):** Ein Prompt an agy, der `Daten/Roh/p1.csv` oder den Projektpfad in anderer
+  Schreibweise nennt, ging an `forschungsdaten = ["daten/roh/**"]` vorbei. Der Vergleich ist jetzt ohne
+  Groß-/Kleinschreibung, absolute Pfade in der Schreibweise der Platte.
+- **Sitzungsprobe geschützt (Review Nr. 10):** `.normen/sitzungsprobe.txt` gehört zu den geschützten Pfaden (Schreiben:
+  Claude fragt, Teams nein). `selbsttest --sitzung` mit `--werkzeug`/`--weg` → Fehler (Exit 64) statt stiller Sitzungsprobe.
 
 ### Geändert
 - **Projekt-Importe in `python3 -c`:** Ein Import, der (Suchreihenfolge wie Python) auf eine Datei im Projekt auflöst, gilt wie
@@ -59,9 +67,17 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
 - **Pflichtsatz in `normen.py auftrag`:** „Sperrt ein Normen-Hook einen Aufruf: denselben Zweck nicht auf anderem Weg
   erreichen, sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen.“
 - **G9/N02 (Rückmeldung „N02 sperrt Löschen von Tests samt Altcode“):** Eine ganz gelöschte Testdatei ergibt einen Hinweis
-  statt Fehlern, wenn derselbe Diff eine Nicht-Testdatei löscht, deren Dateistamm als ganzes Wort in der Testdatei vorkommt
-  (N08: Altcode samt Tests entfernen). Der Hinweis nennt beide Dateien. `__init__` zählt nicht als Beleg.
+  statt Fehlern, wenn derselbe Diff eine Nicht-Testdatei löscht, deren Dateistamm als ganzes Wort in einer **Importzeile**
+  der Testdatei steht (`import`/`from`/`@testable import`/`#include` am Zeilenanfang, `require(`) – N08: Altcode samt Tests
+  entfernen. Der Hinweis nennt beide Dateien. Kein Beleg: `__init__`, Daten-/Doku-Dateien (`.json .toml .yaml .yml .txt .md
+  .csv`), Dateien unter `[pruefen].ausschliessen`, der Stamm nur im Kommentar oder Text (Review Nr. 9).
   Offen: Der Stop-Hook wiederholt bekannte Befunde.
+- **`cd "$D"` mit bekannter Zuweisung:** `D=/x; cd "$D" && python3 -c 'import json'` kennt jetzt den Basisordner (vorher
+  unbekannt → fragen). Gilt nur für Zuweisungen, die sicher laufen: eigener Teilbefehl am Anfang oder nach `;`/Zeilenumbruch,
+  nicht in Pipeline oder Hintergrund, keine Steuerstrukturen, Subshells oder Backticks im Befehl. `D=/x cd "$D"`,
+  `false && D=/x; cd "$D"`, `(D=/x); cd "$D"` bleiben unbekannt (fragen), gegen die Shell gemessen.
+- **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
+  und die Meldung nennt die fehlenden Labels.
 
 ### Bekannte Grenzen
 - `python -m`: Geprüft wird nur, was im selben Befehl steht. Ein `cd` oder `export PYTHONPATH` aus einem früheren
@@ -74,10 +90,14 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   lädt intern `_json`, `import datetime` lädt `_datetime`; liegt `_json.py` bzw. `_datetime.py` im Skriptordner oder
   Suchpfad, führt Python sie aus, ohne dass der Hook sie prüft.
   `python3 -c` innerhalb einer Subshell `( … )` ist nicht zerlegbar → nein (Fehlalarm in der sicheren Richtung).
-- G9: Jede gelöschte Nicht-Testdatei, deren Stamm in der Testdatei vorkommt, gilt als Beleg. Häufige Stämme (`utils`, `main`,
-  `README`) belegen nur schwach, deshalb gibt es einen Hinweis zum Review statt einer stillen Freigabe.
-- **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
-  und die Meldung nennt die fehlenden Labels.
+- G9: Mehrzeilige Importe (`from x import (\n utils)`) belegen nicht → Fehler „Assert entfernt“ (sichere Richtung).
+  Ein Import mit häufigem Stamm (`import utils`) belegt weiter nur schwach, deshalb Hinweis zum Review statt stiller Freigabe.
+- Sitzungsprobe: Beleg gegen Versehen (Sitzung ohne Hooks), nicht gegen Täuschung – wer Hooks umgeht, kann auch die Probe
+  fälschen (Review Nr. 10).
+- Schreibweise (Review Nr. 13–15): Feste Namen in den geschützten Pfaden (`normen/`, `.claude/`) gelten in der Schreibweise
+  der Vorlage – nur relevant, wenn der Ordner auf der Platte anders heißt; `_echt` übernimmt bei Ordnern ohne Leserecht die
+  getippte Schreibweise; Unicode-Normalform (NFC/NFD) wird nicht angeglichen. Auftrags-Globs mit Platzhaltern
+  (`Docs/*.md`) bleiben schreibweisengenau (sichere Richtung: Fehlalarm).
 
 ### Neu
 - **Sitzungsprobe (Rückmeldung „Hooks inaktiv, wenn die Sitzung nicht im Projekt-Stammverzeichnis läuft“):** Der Claude-Hook
