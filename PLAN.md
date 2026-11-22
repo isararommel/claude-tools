@@ -158,6 +158,13 @@ Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR
 8. Nr. 13–15, 19 als Grenzen bzw. plausibel im CHANGELOG/Bericht; Nr. 16, 18 zurückgestellt; Nr. 17 verworfen.
 9. Danach: Bericht-Status aktualisieren (behoben/Grenze), Advisor vor „fertig“, Kurzverweis im PR #30, `normen.py merge 30`.
    (Punkt 10 vorher erledigen.)
+**Schnitt (22.11.):** V15b-1 = Punkte 1–4 und 10 (Python-Auflösung im S06-Hook, eigene Testdatei `tests/test_v15b.py`);
+V15b-2 = Punkte 5–9 (G9, Sitzungsprobe, CHANGELOG, Nr. 12/20, Bericht, Merge). Auflagen des Advisors zu V15b-1 (22.11.):
+Schatten-Prüfung auch für per AST geprüfte `-m`-Dateien (nur Schatten, keine Projekt-Import-Lockerung); `$PWD` überall aus
+dem Basisordner (auch `_cd_basis`, `_schreibziele`); Kandidaten nur importierbare Endungen + Ordner `d/<kopf>/`
+(`> pytest.log` bleibt ja); Punkt 10 mit `is not None` und `_echt`; „nicht gefunden“ je Fall getrennt (`-m` installiert = ja,
+Positivliste = ja, sonst fragen; reiner Namespace nie „im Projekt“; `from ns import x` löst `ns.x` mit auf); Suchreihenfolge
+gegen den echten Interpreter testen. Bewusste Abweichung: Schatten-Modul außerhalb → fragen (statt AST-Prüfung).
 10. **Vertraute Werkzeuge für Teams ganz sperren** (Entscheidung der Inhaberin 22.11.: Variante b, gilt gleich für mistral-team,
    gemini-analyst und lokal; Begründung: die Freigabe galt Claude). Jeder Aufruf, der auf einen Eintrag aus
    `[werkzeuge].vertraut` auflöst, ergibt für Nicht-claude-Rollen „nein“, egal wo das Werkzeug liegt (im Projekt, unter
