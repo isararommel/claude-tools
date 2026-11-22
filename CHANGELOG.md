@@ -29,6 +29,8 @@ Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/` kopi
 ### Bekannte Grenzen
 - Gemessen an einer Gruppe (141 Diff-Zeilen) aus dem Pilot. Wie groß eine Gruppe höchstens sein darf und ob der zweite
   Schritt bei Mistral trägt, ist nicht gemessen. Ein Lauf mit `--smart-approve` hing im Modellaufruf, die Ursache ist offen.
+- Gemessen nur mit Kopien der Dateien im Lauf-Ordner. Der Normalfall der Vorlage (Dateien aus dem ausgecheckten Projekt) ist
+  für agy in diesem Format nicht belegt.
 
 ---
 

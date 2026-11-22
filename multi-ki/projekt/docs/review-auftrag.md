@@ -1,8 +1,9 @@
 # Review-Auftrag (Vorlage)
 
 Claude füllt die Felder aus, setzt die Pflichtsätze aus `python3 normen/normen.py auftrag --rolle <team>` ein und schreibt die Datei
-mit dem Write-Werkzeug als `prompt.md` in den Lauf-Ordner (`${TMPDIR}/review-runs/<zeit>-<branch>/<team>/`). Dieselbe ausgefüllte
-Datei geht an `gemini-analyst` und `mistral-team` (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).
+mit dem Write-Werkzeug als `prompt.md` in den Lauf-Ordner (`${TMPDIR}/review-runs/<zeit>-<branch>/<team>/`; für Reviews statt
+`vibe-runs/` bzw. `agy-runs/`). `gemini-analyst` und `mistral-team` bekommen denselben Inhalt, aber je Team eigene Pfade (eigener
+Lauf-Ordner) und eigene Pflichtsätze (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).
 
 Vorher legt Claude den Diff der Gruppe als `diff.patch` in den Lauf-Ordner **des jeweiligen Teams** (agy liest nur dort, wo
 seine Freigabe gilt). Ist der geprüfte Branch ausgecheckt, nennt der Auftrag die geänderten Dateien im Projekt; sonst kommen
