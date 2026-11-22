@@ -25,6 +25,26 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   dann PYTHONPATH aus Präfix, Zuweisung, `export` oder Umgebung; `mod.py`, `pkg/__main__.py`). Liegt es außerhalb des
   Projekts, wird es per AST geprüft wie `python3 <datei>.py`. Installierte Module (`pytest`, `venv`, `pip`) bleiben erlaubt.
   Unaufgelöster PYTHONPATH → fragen.
+- **Ein Modul-Auflöser für `-m` und Importe (Review-Befunde Nr. 1–8, `docs/reviews/2026-11-20-paket-v15-hooks.md`):**
+  Suchreihenfolge wie Python (`FileFinder`; gegen den Interpreter getestet): Paket `mod/__init__.py` vor `mod.py`,
+  Namespace-Ordner zuletzt, bei `a.b` alle `__init__.py` auf dem Weg, bei `-m` eines Pakets dazu `__main__.py`; jede
+  ausgeführte Datei außerhalb von Projekt/`lesbar_extern` wird geprüft.
+  - **Schatten-Module:** Löst ein Import einer Positivlisten-Bibliothek (`import json`) in `-c`, in per AST geprüften
+    `-m`-Dateien oder in `python3 <datei>.py` (Skriptordner) auf eine Datei außerhalb von Projekt/`lesbar_extern` auf → fragen.
+    Bewusst strenger als der Plan (dort: AST-Prüfung der Schatten-Datei).
+  - **Geschriebene Module:** Wird im selben Befehl in einem Suchordner außerhalb des Projekts eine importierbare Datei
+    (`.py`, `.so`, `.pyc` …) oder etwas im Paketordner geschrieben → fragen (auch in anderer Schreibweise: `> Evil.py`).
+    `> pytest.log` bleibt erlaubt.
+  - **Andere Importformen** außerhalb des Projekts (`.so`/`.pyc` statt `.py`, zip/pyz im PYTHONPATH) → fragen.
+  - **Code-Starter** `-m timeit|cProfile|profile|trace|pdb|runpy` → fragen.
+  - **`$PWD`** gilt als Basisordner an der jeweiligen Stelle des Befehls (nach `cd`), in der Skriptprüfung, bei `cd` und bei
+    Schreibzielen; vorher kam er aus der Umgebung des Hooks. `$OLDPWD` bleibt unaufgelöst. Behebt die Regression
+    `PYTHONPATH=$PWD/src python3 -m pytest` → fragen (jetzt ja). Ein `cd` mit unaufgelöster Variable macht relative
+    Schreibziele unbekannt (strenger).
+- **Vertraute Werkzeuge nur für Claude (Entscheidung der Inhaberin 22.11.):** Ein Aufruf eines Werkzeugs aus
+  `[werkzeuge].vertraut` ergibt für jede andere Rolle „nein“, auch im eigenen Projekt und unter `lesbar_extern` (vorher
+  für Teams ungeprüft). `python3 -m <werkzeug>` und `python3 -c 'import <werkzeug>'` → nein für alle Rollen (nur direkt
+  aufrufen). Pfadvergleich in der Schreibweise der Platte (`./WP.py` = `wp.py`).
 
 ### Geändert
 - **Projekt-Importe in `python3 -c`:** Ein Import, der (Suchreihenfolge wie Python) auf eine Datei im Projekt auflöst, gilt wie
@@ -39,8 +59,11 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
 
 ### Bekannte Grenzen
 - `python -m`: Geprüft wird nur, was im selben Befehl steht. Ein `cd` oder `export PYTHONPATH` aus einem früheren
-  Werkzeugaufruf sieht der Hook nicht. Starter-Module (`-m runpy`, `-m pdb <datei>`) führen weiteren Code aus, den der Hook
-  nicht auflöst.
+  Werkzeugaufruf sieht der Hook nicht. Unbekannter Basisordner (`cd "$(mktemp -d)" && python3 -m pytest`) → fragen.
+  Testläufer mit Ziel außerhalb des Projekts (`python3 -m unittest <modul>`, `python3 -m pytest <lauf>/test_x.py`) führen
+  fremden Code aus, den der Hook nicht prüft; die Liste der Code-Starter ist nie vollständig. Nicht modelliert: Optionen
+  `-E`/`-I`/`-P`, `PYTHONHOME`, `.pth`-Dateien, Bytecode in `__pycache__`, Schatten-Module über den PYTHONPATH bei
+  `python3 <datei>.py` (geprüft wird nur der Skriptordner), geschriebene Module bei unbekanntem Basisordner.
 - G9: Jede gelöschte Nicht-Testdatei, deren Stamm in der Testdatei vorkommt, gilt als Beleg. Häufige Stämme (`utils`, `main`,
   `README`) belegen nur schwach, deshalb gibt es einen Hinweis zum Review statt einer stillen Freigabe.
 - **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
