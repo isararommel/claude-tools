@@ -4,7 +4,7 @@
 #   Beispiel: bash einrichten.sh ~/Documents/Projekte/mein-projekt --test "make test" --sperre "daten/geheim.json" --sperre "daten/"
 # Legt an bzw. ergänzt (überschreibt nichts; abweichende Fassungen landen als <datei>.vorlage daneben):
 #   docs/multi-ki-ablauf.md, AGENTS.md, .geminiignore, docs/uebergabe-vorlage.md, docs/recherche-{auftrag,bericht}.md,
-#   .claude/settings.json (zusammengeführt),
+#   docs/review-{auftrag,bericht}.md, .claude/settings.json (zusammengeführt),
 #   CLAUDE.md (Abschnitt angehängt), PLAN.md (nur wenn sie fehlt), .gitignore (Lauf-Reste).
 #   Die Agenten-Normen (normen/, Hooks) richtet ../agenten-normen/einrichten.sh ein – vorher oder danach ausführen.
 # --benutzer-agents: kopiert mistral-team.md, gemini-analyst.md und Explore.md nach ~/.claude/agents/ – nur wenn dort noch keine liegen.
@@ -53,6 +53,8 @@ fuelle "$QUELLE/projekt/.geminiignore" "$TMP/.geminiignore";   lege "$TMP/.gemin
 lege "$QUELLE/projekt/docs/uebergabe-vorlage.md" docs/uebergabe-vorlage.md
 lege "$QUELLE/projekt/docs/recherche-auftrag.md" docs/recherche-auftrag.md
 lege "$QUELLE/projekt/docs/recherche-bericht.md" docs/recherche-bericht.md
+lege "$QUELLE/projekt/docs/review-auftrag.md" docs/review-auftrag.md
+lege "$QUELLE/projekt/docs/review-bericht.md" docs/review-bericht.md
 S="$ZIEL/.claude/settings.json"; mkdir -p "$ZIEL/.claude"
 if [ ! -e "$S" ]; then cp "$QUELLE/projekt/.claude/settings.json" "$S"; echo "  neu        .claude/settings.json"
 else

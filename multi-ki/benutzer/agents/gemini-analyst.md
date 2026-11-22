@@ -45,6 +45,10 @@ Immer `--model gemini-3.8-flash-high`. agy bietet auch Claude- und GPT-Modelle a
    **Recherche-Aufträge** (Prompt nach `docs/recherche-auftrag.md`): wie Analyse; die Google-Suche von agy braucht keine
    zusätzliche Freigabe (gemessen 17.11.). Meldet agy, dass die Suche nicht lief, ist das Ergebnis „gescheitert“.
 
+   **Review-Aufträge** (Prompt nach `docs/review-auftrag.md`): wie Analyse. `read_file` gilt nur für `$RUN` selbst; das Material
+   (`diff.patch`, Dateistände) muss dort liegen, nicht in einem Ober- oder Nachbarordner – sonst endet der Lauf sofort mit
+   „auto-denied“ (gemessen 22.11.). Liegt es woanders: an Claude melden, die Freigabe nicht erweitern.
+
    **Analyse (Standard, nur lesen):** In den Prompt „Ändere keine Dateien.“ schreiben.
    ```
    agy --model gemini-3.8-flash-high --disable-slash-commands --print-timeout 540s \

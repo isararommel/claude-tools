@@ -94,6 +94,8 @@ Danach die Datei `normen/projekt.toml` prüfen und anpassen:
      dass eine frische Sitzung ohne Rückfrage loslegt), offene Fragen an die Inhaberin. Jede Sitzung beginnt dort.
 5. **Recherche-Vorlagen:** `docs/recherche-auftrag.md` und `docs/recherche-bericht.md` legt `einrichten.sh` an; Ablauf und wer
    wann recherchiert: `docs/multi-ki-ablauf.md`, Abschnitt „Recherche“. Berichte liegen unter `docs/recherche/`.
+6. **Review-Vorlagen:** `docs/review-auftrag.md` und `docs/review-bericht.md` legt `einrichten.sh` ebenfalls an; Review vor dem
+   Merge von Meilensteinen: `docs/multi-ki-ablauf.md`, Abschnitt „Review“. Berichte liegen unter `docs/reviews/`.
 
 ---
 
