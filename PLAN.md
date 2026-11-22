@@ -4,10 +4,8 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 22.11.2026 (main in `paket-v15-hooks` zusammengeführt, dort jetzt v16, PR #30; nächstes Paket **V15b auf diesem
-Branch** – Abschnitte V15, V15b, R und der neue Befund „`python3 -m`/`-c import` an vertrauten Werkzeugen vorbei“ stehen in
-PLAN.md auf `paket-v15-hooks`, dort lesen. Auf main (v15) geht `python3 -m` noch ungeprüft durch (#71). Danach R; D2 nach
-Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (Branch `paket-v15-hooks` = v16; V15b-1 und V15b-2 umgesetzt; offen: Advisor vor „fertig“, PR-Text,
+`normen.py merge 30`, danach Issues/Sitzungen; dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -41,6 +39,53 @@ Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Erledigt (letzte Schritte)
 
+- ✅ 22.11. **V15b-2** (V15b Punkte 5–9, Branch `paket-v15-hooks`, Tests `tests/test_v15b2.py`, vorher rot): G9-Beleg nur aus
+  Importzeilen, ohne Daten/Doku/Ausgeschlossenes (Nr. 9); `.normen/sitzungsprobe.txt` in GESCHUETZT, `--sitzung` mit
+  `--werkzeug`/`--weg` → Exit 64 (Nr. 10); `lesbar_extern` in Platten-Schreibweise (Nr. 12); Forschungsdaten im Prompt ohne
+  Groß-/Kleinschreibung, `_prompt_wort` mit `_echt` (Nr. 20); `cd "$D"` mit sicher bekannter Zuweisung (Notiz a, einzige
+  Lockerung, gegen die Shell gemessen); CHANGELOG (`melden --stufe` → Geändert, Grenzen Nr. 10, 13–15, G9 mehrzeilig);
+  Markierungen v15 (#61/#66/#71/#74/#75) → v16; Bericht `docs/reviews/…` mit Stand je Befund. Selbst umgesetzt: kleine
+  Korrekturen in sicherheitskritischer Hook-Logik, je wenige Zeilen. Advisor vor „fertig“: Lücke in (a) (Wert über zweite
+  Variable, `unset`/`eval`/`printf -v`/Heredoc) gefunden, nachgestellt und geschlossen.
+  **Befund für ein späteres Paket (gemessen 22.11., älter als v16):** `_cd_basis` folgt jedem `cd`, auch wenn es nicht
+  wirkt (`cd <s>; false && cd <p>; python3 -c 'import json'`, `cd <p> | true`, `cd /gibt/es/nicht`) → ja, obwohl die Shell
+  in `<s>` bleibt (Schatten unerkannt). Vorschlag: nach `cd` hinter `&&`/`||`/`|`/`&` oder auf einen nicht vorhandenen Ordner
+  Basis = unbekannt. Im CHANGELOG v16 als Grenze.
+  **Nächste Schritte:** Advisor vor „fertig“; PR #30 Text neu (v16, 9 Testdateien, Zahlen aus `make test`); prüfen, ob
+  origin/main enthalten ist; `python3 normen/normen.py merge 30`; danach Issues #74/#71/#66/#61/#75 abgleichen
+  (#61 offen wegen Stop-Hook), Sitzungen informieren (Memory „Versionsschritt“).
+
+- ✅ 22.11. **V15b-1** (V15b Punkte 1–4 und 10, Branch `paket-v15-hooks`): gemeinsamer Modul-Auflöser
+  `_py_modul_aufloesen` (Suchreihenfolge gegen den Interpreter getestet) für `-m`, `-c`-Importe und `python3 <datei>.py`
+  (Schatten im Skriptordner); geschriebene Modul-Kandidaten → fragen; `.so`/`.pyc`/zip außerhalb → fragen; Code-Starter →
+  fragen; `$PWD` aus dem Basisordner (Skriptprüfung, `_cd_basis`, `_schreibziele`); `-c` mit Import bei unbekanntem
+  Suchpfad → fragen; vertraute Werkzeuge für Teams → nein (auch über den Vibe-Hook getestet), `-m`/Import des Werkzeugs →
+  nein für alle; `_echt` beim Werkzeug-Vergleich (`./WP.py`). S06-Normtext ergänzt (Wortlaut im CHANGELOG v16; Advisor
+  geprüft, **Bestätigung der Inhaberin für den Zusatz zu `-m`/Import steht aus – vor `normen.py merge 30` nötig**).
+  Neue Testdatei `tests/test_v15b.py` (95 Prüfungen, vorher 56 rot), `make test` grün (8 Dateien), `pruefen --diff` 0 Fehler.
+  Befunde: transitive Schatten (`_json.py`, `_datetime.py` im Skriptordner) wirken und sind nicht geprüft → Grenze im
+  CHANGELOG (Option: Dateinamen aus `sys.stdlib_module_names` in fremden Suchordnern → fragen); `python3 -c` in einer
+  Subshell `( … )` → nein (Fehlalarm, Grenze). Zählung von `tests/test_v4.py` schwankt mit der Zahl untracked Dateien
+  (Dateien × private Begriffe, `tests/test_v4.py:206`), harmlos. Nachtrag (Advisor): geschriebenes Schatten-Modul auch beim
+  Skriptweg `python3 <datei>.py` → fragen (Test vorher rot).
+  **Notizen für V15b-2:** (a) `_cd_basis` kennt Zuweisungen aus demselben Befehl nicht (`_schreibziele` jetzt schon):
+  `D=…; cd "$D"` gilt als unbekannt → `-m`/`-c` mit Import „fragen“ (vibe: nein); der Test `D=<schatten>; cd "$D"` besteht
+  deshalb, nicht über die Schatten-Erkennung. Prüfen, ob `_cd_basis` die Zuweisungen bekommen soll (dann Test mit
+  bekanntem Basisordner ergänzen). (b) Text von PR #30 nennt noch v15, 6 Testdateien, 82 Prüfungen → vor dem Merge
+  neu schreiben. (c) Kommentare/Docstrings „v15 (#71)“, „v15 (#87)“ in `normen.py` an v16 angleichen (#87 war v15 – nur
+  die #71-Stellen). (d) **Entschieden 22.11. (Inhaberin):** S06-Zusatz („auch nicht per `python3 -m` oder Import“,
+  Teamsatz) bestätigt. Transitive Schatten bleiben Grenze – keine Sperre über `sys.stdlib_module_names`, weil harmlose
+  Dateien (`random.py`, `test.py`) sonst ständig Rückfragen auslösen („keine ständigen Rückfragen bei
+  Belanglosigkeiten“). Daraus für V15b-2: Fehlalarme senken, wo es sicher geht – (a) bevorzugt umsetzen
+  (`D=…; cd "$D"` mit bekannter Zuweisung soll nicht mehr fragen).
+
+- ✅ 22.11. **main in `paket-v15-hooks` zusammengeführt, dort v16** (Merge statt Rebase, kein Force-Push für PR #30):
+  CHANGELOG-Abschnitt des Branches heißt jetzt v16 (über v15 „vertraute Werkzeuge“), `normen.toml` 16, `tests/test_v4.py`
+  16, Makefile führt `test_hook_luecken.py` und `test_werkzeuge.py` aus; Kopie mit `einrichten.sh . --test "make test"`
+  eingespielt, `normen.py` Quelle = Kopie. `make test` grün (7 Testdateien, Exit 0), `pruefen --diff` 0 Fehler.
+  `normen.py` wurde von git ohne Konflikt zusammengeführt; Wechselwirkung gemessen → Befund in V15b Punkt 1.
+  PR #30 bleibt **nicht mergereif** (Review-Bericht), Merge erst nach V15b.
+
 - ✅ 21.11. **Hotfix v15 vertraute Werkzeuge** (Rückmeldung „S06 sperrt freigegebenes Werkzeug“ im Rückmelde-Repository, Branch
   `paket-v15-werkzeuge`): `[werkzeuge].vertraut` in `projekt.toml` (Pfad + freigegebene Unterbefehle, nur Rolle claude, sonst
   nein); Befehlswort über Variable (`$B …`) wird aufgelöst, sonst fragen. Freigabe der Inhaberin 21.11. direkt (Stufe „ja“ für
@@ -73,7 +118,138 @@ Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Nächste Aufgaben (in dieser Reihenfolge, je ein Paket = eine Sitzung)
 
-### Entschieden 22.11.: vertraute Werkzeuge für Teams ganz gesperrt (b) *(Befund 21.11.; Umsetzung in V15b Punkt 10, PLAN.md auf `paket-v15-hooks`)*
+### V15. Hooks: Schreibweise, `python -m`, Sitzungsprobe, G9, Labels *(läuft, Branch `paket-v15-hooks`)*
+
+Rückmelde-Issues (privates Rückmelde-Repository) #74, #71, #66, #61, #75. Plan vom Advisor geprüft 20.11.
+Befunde (Nachstellung im Wegwerf-Repo, 20.11.):
+- **#74 ist eine Lücke, nicht nur ein Fehlalarm:** `_rel`/`relative_to(ROOT)` vergleichen nach `realpath` mit Groß-/Kleinschreibung,
+  macOS-Dateisystem nicht. Gesperrt wird nur ein absoluter Pfad mit anderer Schreibweise des **Projektordners** (Fehlalarm). Mit
+  anderer Schreibweise **im Projekt** gehen durch: `.Claude/settings.json` (Rolle claude, sonst „fragen“), `NORMEN/normen.toml`,
+  `.ENV` (N03), `Daten/Geheim/…` (Sperrpfad, mistral-team read_file). Lösung: Pfad auf die Schreibweise auf der Platte bringen
+  (vorhandene Teile per Verzeichnisliste), Geheimnis-Muster ohne Groß-/Kleinschreibung; Negativtests für alle vier Fälle.
+  Issue erst schließen, wenn die Sperrmeldung aus dem Projektlauf zur Ursache passt (dort nachfragen).
+- **#71:** bestätigt: `python -c 'import projektmodul'` sperrt „Import … nicht in der Positivliste“ (vibe → nein);
+  `cd <lauf> && PYTHONPATH=<projekt> python3 -m pruef` (Skript mit `os.remove`) geht ungeprüft durch. Plan: `-m MOD` nach
+  Python-Reihenfolge (Basisordner, dann PYTHONPATH; `mod.py`, `pkg/__init__.py`, `pkg/__main__.py`) auflösen, außerhalb des
+  Projekts per AST prüfen, nicht gefunden = wie bisher (`-m pytest|venv|pip`); Import, der auf eine Projektdatei auflöst, erlaubt
+  (wie `python3 projektdatei.py`). Pflichtsatz „Hook-Sperre nicht umgehen, anhalten und melden“.
+- **#66:** Sitzungsprobe nur mit positivem Beleg (Hook schreibt beim Köder einen frischen Marker; `selbsttest --sitzung` verlangt
+  ihn) – „Köderdatei fehlt“ beweist nichts (im Elternordner scheitert `touch` schon am fehlenden Ordner). einrichten.sh: nur Hinweis.
+- **#61:** ganz gelöschte Testdatei → Hinweis statt Fehler, wenn der Diff eine Nicht-Testdatei löscht, deren Stamm als ganzes Wort
+  in der Testdatei vorkommt; Hinweis nennt beide Dateien; `--diff`, `--staged`, `--diff origin/main` testen. Stop-Hook-Wiederholung:
+  zurückgestellt (#61 danach nur kommentieren, nicht schließen).
+- **#75:** vorher prüfen, was `gh issue create --label` bei fehlendem Label tut (kein stiller Zweitversuch, N08).
+Stand 20.11. abends: v15 umgesetzt, eingespielt (`einrichten.sh . --test "make test"`), `make test` grün (6 Testdateien, neu
+`tests/test_hook_luecken.py` mit 68 Prüfungen), `pruefen --diff` 0 Fehler. **Sitzungsprobe live bestanden** (Köder in dieser
+Sitzung gesperrt, `selbsttest --sitzung` → bestanden; session_id der Hook-Eingabe = `CLAUDE_CODE_SESSION_ID`).
+mistral-team-Lauf für die Tests endete nach 1200 s am Zeitlimit (`outcome: deadline`, 36 Schritte, mistral-large-4-0-3) ohne
+Datei, nur Lesen → Tests von Claude geschrieben; Beleg für Rückmeldung #52 (Kommentar dort nach Rückfrage).
+Advisor vor „fertig“ geprüft: Befund Sperrpfad/Auftrag in Konfig-Schreibweise (Rückschritt durch `_echt`) behoben, `__init__`
+kein G9-Beleg, Doku, Grenzen im CHANGELOG; jetzt 82 Prüfungen grün. **PR #30** offen.
+**Freigaben der Inhaberin 20.11.:** Lockerungen G9 (#61) und S06-Projektimporte (#71) ja, Pflichtsatz ja, Labels ja →
+`stufe:hoch|mittel|niedrig` angelegt, #72 → `stufe:hoch`, #61 → `stufe:mittel`.
+`/code-review ultra` verworfen (20.11.): ganze Codebasis zu groß (Limit), Kern-PR von der Inhaberin abgebrochen; Hilfs-PRs
+#31/#32 geschlossen, Hilfs-Branches gelöscht. Stattdessen eigenes Review-Verfahren (Paket R).
+✅ 20.11. **Pilot von Paket R** gelaufen: Bericht `docs/reviews/2026-11-20-paket-v15-hooks.md` (19 Befunde, Status je Befund,
+Verfahrensbefunde). Ergebnis: **nicht mergereif** – Nr. 1–8 bestätigte Lücken/Regression im `-m`-Code → Paket V15b.
+Offen: V15b umsetzen, Advisor vor „fertig“, dann `normen.py merge 30`; nach dem Merge
+Issues kommentieren/schließen (#74 und #71 erst nach Abgleich mit Sperrmeldung bzw. Befehl aus dem Projektlauf; #61 offen
+lassen wegen Stop-Hook), Sitzungen informieren.
+
+### V15b. Review-Befunde zu v15 einarbeiten *(nächstes Paket, Branch `paket-v15-hooks`)*
+
+Grundlage: `docs/reviews/2026-11-20-paket-v15-hooks.md` (Nummern dort). Advisor hat den Korrekturplan geprüft (20.11.); seine
+Auflagen sind hier eingearbeitet. Jede Korrektur in der Quelle mit neuem Test, der vorher rot ist; dann
+`bash einrichten.sh . --test "make test"`, `make test`, `pruefen --diff`. CHANGELOG-Abschnitt bleibt v16 (seit 22.11.; vorher „v15“ auf dem Branch).
+Kernlogik → vor dem Bau kurz Advisor (S07 Punkt 2). Das Nachstell-Skript aus dem Pilot liegt nicht im Repo; die Fälle stehen im Bericht.
+Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR}/review-runs/20261120-1741-paket-v15-hooks/`.
+1. **Gemeinsamer Modul-Auflöser** für `-m` und `-c`-Importe (Nr. 1, 4, 5, 6): Reihenfolge wie Python (`FileFinder`: Paket
+   `mod/__init__.py` vor `mod.py`, Namespace-Ordner zuletzt); bei `a.b` alle `__init__.py` auf dem Weg prüfen; Schatten eines
+   Positivlisten-Imports im Basisordner/PYTHONPATH außerhalb des Projekts → per AST prüfen. „Fragen“, wenn ein **Kandidat des
+   Moduls** (nicht irgendein Schreibziel!) im selben Befehl geschrieben wird oder unzerlegbar ist und außerhalb von Projekt/
+   `lesbar_extern` liegt; andere Importformen (`importlib.machinery.all_suffixes()` außer `.py`, zip/pyz im PYTHONPATH) → fragen.
+   Ein unzerlegbares Schreibziel → fragen nur, wenn ein Suchordner außerhalb von Projekt und `lesbar_extern` liegt.
+   Positivtests vorab: `python3 -m pytest -q > "$LOG"` → ja; `> out.txt` und `| tee out.txt` im Projekt nur mit
+   `.normen-auftrag`, das `out.txt` nennt (ohne Auftrag sperrt N06 wie bisher).
+   **Zusätzlich (Befund 22.11. nach dem Zusammenführen mit dem Hotfix, gemessen im Wegwerf-Repo):** Der Auflöser muss
+   `[werkzeuge].vertraut` kennen. Heute löst `_python_m` das Modul auf, fragt aber nicht `_vertraut(cfg)` ab (anders als
+   `_skript_datei_arg`). Ergebnis bei Werkzeug `wz.py` mit Unterbefehl-Liste `["status"]`:
+   `cd <ext> && python3 -m wz schluessel` und `PYTHONPATH=<ext> python3 -m wz schluessel` → **ja** (Werkzeug unter
+   `lesbar_extern`, Rollen claude und mistral-team); Werkzeug im Projekt: `python3 -m wp schluessel` und
+   `python3 -c 'import wp'` → **ja** (beide Rollen). Außerhalb ohne `lesbar_extern` sperrt die AST-Prüfung (nein).
+   `python3 wp.py …` sperrt der Hotfix für alle Rollen (nein). Soll: Auflösung auf ein vertrautes Werkzeug → nein
+   („nur direkt aufrufen“), für `-m` und `-c`-Import; Tests in `tests/test_werkzeuge.py`. Gegenmessung auf main (v15),
+   22.11.: `-m` geht dort in allen Fällen durch (auch Werkzeug außerhalb ohne `lesbar_extern` = Lücke #71, die v16 schließt);
+   `-c 'import wp'` im Projekt ist auf main „fragen“, auf dem Branch „ja“ (neu durch die Lockerung #71). Probe-Skript lag nur
+   im Scratchpad; die Fälle stehen hier.
+2. Nr. 2: `_skript_geschrieben` mit `_echt(z)`; Test unter derselben Bedingung (Dateisystem ohne Groß-/Kleinschreibung) wie #74.
+3. Nr. 3 Regression: `$PWD`/`${PWD}`/`$HOME`/`~` in PYTHONPATH nur auflösen, wenn die Zuweisung Präfix des Python-Aufrufs ist
+   oder kein `cd` dazwischen liegt (Negativtest `cd lauf; export PYTHONPATH=$PWD/sub; cd projekt && python3 -m x`). Unbekannter
+   Basisordner (`cd "$(mktemp -d)"`) bleibt fragen → Grenze im CHANGELOG.
+4. Nr. 7/8: kleine Liste Code-Starter (`timeit`, `cProfile`, `profile`, `trace`, `pdb`, `runpy`) → fragen; `unittest`/`pytest`
+   mit Ziel außerhalb des Projekts: im CHANGELOG als **Grenze** (Verbotsliste nie vollständig), nicht „geschlossen“.
+5. Nr. 9 G9: Beleg nur, wenn der Stamm in einer Importzeile der gelöschten Testdatei steht (`import`/`from`/`@testable import`/
+   `require(`/`#include`); gelöschte Datei nicht unter `ausschliessen`, keine Daten-/Doku-Endung (.json .toml .yaml .yml .txt
+   .md .csv). Negativtests: `utils` nur im Kommentar, `data.json` mit `data` im Test. Grenze: mehrzeilige Importe → Fehler (sichere Richtung).
+6. Nr. 10: `.normen/sitzungsprobe.txt` in GESCHUETZT; `selbsttest --sitzung` mit `--werkzeug`/`--weg` → Fehler; CHANGELOG-Grenze
+   „Beleg gegen Versehen, nicht gegen Täuschung“.
+7. Nr. 11: CHANGELOG `melden --stufe` nach „Geändert“. Nr. 12 und Nr. 20 (Forschungsdaten-Teil: offene Richtung) nachstellen,
+   bei Bestätigung casefold bzw. `_echt`.
+8. Nr. 13–15, 19 als Grenzen bzw. plausibel im CHANGELOG/Bericht; Nr. 16, 18 zurückgestellt; Nr. 17 verworfen.
+9. Danach: Bericht-Status aktualisieren (behoben/Grenze), Advisor vor „fertig“, Kurzverweis im PR #30, `normen.py merge 30`.
+   (Punkt 10 vorher erledigen.)
+**Schnitt (22.11.):** V15b-1 = Punkte 1–4 und 10 (Python-Auflösung im S06-Hook, eigene Testdatei `tests/test_v15b.py`);
+V15b-2 = Punkte 5–9 (G9, Sitzungsprobe, CHANGELOG, Nr. 12/20, Bericht, Merge). Auflagen des Advisors zu V15b-1 (22.11.):
+Schatten-Prüfung auch für per AST geprüfte `-m`-Dateien (nur Schatten, keine Projekt-Import-Lockerung); `$PWD` überall aus
+dem Basisordner (auch `_cd_basis`, `_schreibziele`); Kandidaten nur importierbare Endungen + Ordner `d/<kopf>/`
+(`> pytest.log` bleibt ja); Punkt 10 mit `is not None` und `_echt`; „nicht gefunden“ je Fall getrennt (`-m` installiert = ja,
+Positivliste = ja, sonst fragen; reiner Namespace nie „im Projekt“; `from ns import x` löst `ns.x` mit auf); Suchreihenfolge
+gegen den echten Interpreter testen. Bewusste Abweichung: Schatten-Modul außerhalb → fragen (statt AST-Prüfung).
+10. **Vertraute Werkzeuge für Teams ganz sperren** (Entscheidung der Inhaberin 22.11.: Variante b, gilt gleich für mistral-team,
+   gemini-analyst und lokal; Begründung: die Freigabe galt Claude). Jeder Aufruf, der auf einen Eintrag aus
+   `[werkzeuge].vertraut` auflöst, ergibt für Nicht-claude-Rollen „nein“, egal wo das Werkzeug liegt (im Projekt, unter
+   `lesbar_extern`, außerhalb) und auf welchem Weg (direkt, über Variable, `python3|bash <werkzeug>`, `python3 -m`,
+   `-c`-Import; mit Punkt 1). Prüfung vor `_skript_gate`, nicht nur bei `rolle == "claude"`. Tests in
+   `tests/test_werkzeuge.py`, vorher rot: die Fälle aus der Messung 22.11. (Abschnitt „Entschieden 22.11.“ unten) für
+   mistral-team; claude unverändert. CHANGELOG v16 „Sicherheit“, S06-Normtext-Satz zu `[werkzeuge].vertraut` um „nur Rolle
+   claude, Teams nie“ ergänzen (Normänderung: Advisor S07 Punkt 5; Freigabe der Inhaberin liegt mit dieser Entscheidung vor).
+Danach Paket R mit den Verfahrensbefunden aus dem Bericht (Zweischritt bei Mistral, `--resume <id>`, absolute Pfade/Auszüge für agy).
+
+### R. Eigenes Code-Review-Verfahren: Claude + Gemini + Mistral über Branches *(Wunsch der Inhaberin 20.11.)*
+
+Ziel: vor jedem Merge eines Meilensteins (Normen-Release, größere Pakete in Projekten) prüfen drei unabhängige Prüfer den
+Branch-Diff; Claude führt zusammen, belegt jeden Befund selbst und arbeitet ihn ein. Ersetzt `/code-review ultra`
+(Größenlimit, kostenpflichtig). Branch `paket-r-review`. Plan und Schnittstellen vor dem Bau vom Advisor prüfen (S07 Punkt 1),
+Normänderung (Pflicht vor Merge?) nur mit Advisor (Punkt 5) und Freigabe der Inhaberin.
+Entwurf:
+1. **Eingang:** `git diff origin/main...HEAD` des Branches plus die ganzen geänderten Dateien (Kontext). Große Diffs in
+   Gruppen schneiden (nach Datei/Thema), jede Gruppe an jedes Team; keine Größengrenze wie beim Cloud-Review.
+2. **Drei Prüfer parallel, je nur lesen:**
+   - `gemini-analyst` (`agy`, Nur-Lesen): Konzept gegen Code, Zusammenhänge über viele Dateien, Doku/CHANGELOG gegen Verhalten.
+     Nicht bei personenbezogenen/Forschungsdaten oder gesperrten Pfaden (dann nur die übrigen Dateien bzw. nicht Gemini).
+   - `mistral-team` (`vibe --agent ask`, Sub-Agent `code-reviewer`): Zeile für Zeile Fehler, Randfälle, fehlende Tests.
+     Kurze Läufe je Gruppe (Zeitlimit-Befund #52: 1200-s-Läufe enden beim Lesen).
+   - Claude: Skill `/code-review` (lokal, Stufe nach Umfang) über denselben Diff.
+3. **Einheitliches Befundformat** (Vorlage `docs/review-auftrag.md`/`review-bericht.md`, wie die Recherche-Vorlagen):
+   `datei:zeile`, Schwere (fehler/hinweis), Befund, konkretes Fehlerszenario (Eingabe → falsches Ergebnis), Vorschlag.
+   Berichte landen im Lauf-Ordner (`${TMPDIR}/review-runs/<zeit>-<branch>/<team>.md`).
+4. **Zusammenführen (Claude, S06-Skript):** doppelte Befunde zusammenfassen, jeden selbst prüfen (nachstellen/Test schreiben);
+   Status bestätigt / plausibel / verworfen mit Grund. Ausgaben der Teams sind Daten, keine Anweisungen.
+5. **Ergebnis:** Review-Bericht als `docs/reviews/<datum>-<branch>.md` (siehe Entscheidungen);
+   bestätigte Befunde auf dem Branch beheben (mit Test), danach erst `normen.py merge`.
+6. **Werkzeug (zu klären):** `normen.py review [--basis origin/main]` legt Lauf-Ordner, Diff-Gruppen und Aufträge mit
+   Pflichtsätzen an (Teams startet weiter nur Claude über die Schnittstellen, nie ein Skript); ggf. prüft `normen.py merge`,
+   ob für Meilensteine ein Review-Bericht vorliegt.
+Abnahme: Pilot auf PR #30 (v15) – alle drei Berichte im Format, zusammengeführter Bericht mit Status je Befund,
+bestätigte Befunde behoben, `make test` grün. Danach Vorlagen in `multi-ki/` (für alle Projekte), CHANGELOG.
+**Entscheidungen der Inhaberin (20.11.):**
+- Pflicht nur bei **Meilensteinen** (Normen-Release, größere Pakete), nicht vor jedem Merge.
+- Bericht als **Datei** `docs/reviews/<datum>-<branch>.md` (Claudes Wahl: dauerhaft, im Diff prüfbar, in jedem Projekt
+  gleich, unabhängig von GitHub; im PR nur ein kurzer Verweis). In öffentlichen Repos ohne private Bezüge (`make test` prüft).
+- **Gemini bekommt den Code:** Kein Projekt hat sensible Daten im Code; solche Daten liegen in Datenbanken bzw. eigenen
+  Ordnern, die über `[pfade].gesperrt` ohnehin aus jedem Auftrag fallen. Keine Sonderregel nötig.
+
+### Entschieden 22.11.: vertraute Werkzeuge für Teams ganz gesperrt (b) – umsetzen in V15b Punkt 10 *(Befund 21.11.)*
 
 Im Projekt, dem ein vertrautes Werkzeug selbst gehört, prüft der Hook Projektskripte für keine Rolle (`_skript_gate`: „Projektskripte
 wie bisher“). Die Unterbefehl-Liste greift nur für die Rolle claude (`rolle == "claude"` in `_skript_im_befehl`). Deshalb darf
@@ -82,6 +258,9 @@ In anderen Projekten liegt das Werkzeug außerhalb, dort sperrt die AST-Prüfung
 Frage an die Inhaberin: Soll ein Eintrag in `[werkzeuge].vertraut` für Teams (a) dieselbe Unterbefehl-Liste bekommen oder
 (b) ganz gesperrt werden? Empfehlung: (b), denn die Freigabe galt Claude. Umsetzung: die Prüfung vor `_skript_gate` für alle
 Rollen, Teams bei Treffer → nein; Tests in `tests/test_werkzeuge.py` (Werkzeug im Projekt, Rolle mistral-team); v16 bzw. mit dem Hooks-Paket.
+Messung 22.11. (Stand v16 auf dem Branch): `python3 <werkzeug>` sperrt der Hotfix schon für alle Rollen (nein). Der direkte
+Aufruf mit verbotenem Unterbefehl geht für mistral-team durch (ja), und zwar im eigenen Projekt **und** wenn das Werkzeug unter
+`[pfade].lesbar_extern` liegt. `python3 -m`/`-c import`: siehe V15b Punkt 1.
 
 ### A2. agy-Freigaben: Nacharbeiten
 

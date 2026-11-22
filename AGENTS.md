@@ -1,5 +1,5 @@
 <!-- normen:anfang (erzeugt von normen/normen.py sync – nicht von Hand ändern) -->
-# Agenten-Normen (Kurzfassung, v15, Stand 2026-11-21)
+# Agenten-Normen (Kurzfassung, v16, Stand 2026-11-22)
 
 Gilt für alle Agenten in diesem Projekt (Claude Code, Mistral Vibe, Antigravity/Gemini, lokale Modelle). Volltext mit Begründungen und Quellen: `normen/normen.toml`; Zuständigkeiten: `normen/rollen.toml`; Projektwerte: `normen/projekt.toml`. Bei Widerspruch gilt die strengere Regel.
 

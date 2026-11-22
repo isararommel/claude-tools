@@ -61,6 +61,9 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
    „unklar“. Nur „gesperrt“ ist in Ordnung – sonst greifen die Hooks nicht (bis 15.11.2026 hatte Vibe alle Normen-Hooks still
    verworfen, ohne dass es auffiel). Bei „NICHT GESPERRT“ liegt der Beleg (Ausgabe, Vibe-Ausgabeordner) unter
    `.normen/selbsttest-<zeit>-<werkzeug>-<weg>.log`. Kostet je Weg einen kurzen Lauf (5 Läufe); `--werkzeug` und `--weg` grenzen ein.
+   Er prüft neu gestartete Läufe, **nicht die laufende Sitzung**: Claude Code lädt Projekt-Hooks nur in Sitzungen, die im
+   Projekt-Stammverzeichnis gestartet wurden. Beleg für die eigene Sitzung (v15): `touch .normen/normen-koeder.txt` (muss
+   gesperrt werden), dann `python3 normen/normen.py selbsttest --sitzung` → „Sitzungsprobe bestanden“.
 
 ### Projektspezifisch anpassen
 

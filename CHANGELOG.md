@@ -4,6 +4,116 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v16 – Schreibweise von Pfaden, `python -m`, Sitzungsprobe, Testlöschung samt Altcode – 2026-11-22
+
+Entstanden als „v15“ auf dem Branch `paket-v15-hooks` (20.11.); nach dem Hotfix v15 (vertraute Werkzeuge) auf main
+zusammengeführt und zu v16 umbenannt.
+
+**Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren` (bzw. `einrichten.sh`), danach die Claude-Sitzung
+im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (muss gesperrt werden) und
+`python3 normen/normen.py selbsttest --sitzung`.
+
+### Sicherheit
+- **Groß-/Kleinschreibung von Pfaden (Rückmeldung „N06 sperrt absoluten Pfad“):** macOS unterscheidet sie im Dateisystem
+  nicht, der Hook schon. Dadurch gingen `.Claude/settings.json`, `NORMEN/normen.toml`, `.ENV` und Sperrpfade in anderer
+  Schreibweise (`Daten/Geheim/…`) an den Sperrlisten vorbei. Ein absoluter Pfad mit anderer Schreibweise des
+  Projektordners wurde dagegen fälschlich als „außerhalb“ gesperrt. Pfade werden jetzt auf die Schreibweise auf der Platte
+  gebracht (`_echt`). Geheimnis-Muster und Sperrpfade werden ohne Groß-/Kleinschreibung verglichen, auch wenn die Schreibweise
+  in `projekt.toml` von der Platte abweicht. Auftragseinträge ohne Platzhalter (`Modul.py`) werden auf die Schreibweise
+  der Platte gebracht.
+- **`python -m MODUL` (Rückmeldung „Vibe umgeht S06 per python -m“):** Das Modul wird wie bei Python aufgelöst (Basisordner,
+  dann PYTHONPATH aus Präfix, Zuweisung, `export` oder Umgebung; `mod.py`, `pkg/__main__.py`). Liegt es außerhalb des
+  Projekts, wird es per AST geprüft wie `python3 <datei>.py`. Installierte Module (`pytest`, `venv`, `pip`) bleiben erlaubt.
+  Unaufgelöster PYTHONPATH → fragen.
+- **Ein Modul-Auflöser für `-m` und Importe (Review-Befunde Nr. 1–8, `docs/reviews/2026-11-20-paket-v15-hooks.md`):**
+  Suchreihenfolge wie Python (`FileFinder`; gegen den Interpreter getestet): Paket `mod/__init__.py` vor `mod.py`,
+  Namespace-Ordner zuletzt, bei `a.b` alle `__init__.py` auf dem Weg, bei `-m` eines Pakets dazu `__main__.py`; jede
+  ausgeführte Datei außerhalb von Projekt/`lesbar_extern` wird geprüft.
+  - **Schatten-Module:** Löst ein Import einer Positivlisten-Bibliothek (`import json`) in `-c`, in per AST geprüften
+    `-m`-Dateien oder in `python3 <datei>.py` (Skriptordner) auf eine Datei außerhalb von Projekt/`lesbar_extern` auf → fragen.
+    Bewusst strenger als der Plan (dort: AST-Prüfung der Schatten-Datei).
+  - **Geschriebene Module:** Wird im selben Befehl in einem Suchordner außerhalb des Projekts eine importierbare Datei
+    (`.py`, `.so`, `.pyc` …) oder etwas im Paketordner geschrieben → fragen (auch in anderer Schreibweise: `> Evil.py`),
+    bei `-m`, `-c` und `python3 <datei>.py` (Skriptordner).
+    `> pytest.log` bleibt erlaubt.
+  - **Andere Importformen** außerhalb des Projekts (`.so`/`.pyc` statt `.py`, zip/pyz im PYTHONPATH) → fragen.
+  - **Code-Starter** `-m timeit|cProfile|profile|trace|pdb|runpy` → fragen.
+  - **`$PWD`** gilt als Basisordner an der jeweiligen Stelle des Befehls (nach `cd`), in der Skriptprüfung, bei `cd` und bei
+    Schreibzielen; vorher kam er aus der Umgebung des Hooks. `$OLDPWD` bleibt unaufgelöst. Behebt die Regression
+    `PYTHONPATH=$PWD/src python3 -m pytest` → fragen (jetzt ja). Ein `cd` mit unaufgelöster Variable macht relative
+    Schreibziele unbekannt (strenger).
+- **Vertraute Werkzeuge nur für Claude (Entscheidung der Inhaberin 22.11.):** Ein Aufruf eines Werkzeugs aus
+  `[werkzeuge].vertraut` ergibt für jede andere Rolle „nein“, auch im eigenen Projekt und unter `lesbar_extern` (vorher
+  für Teams ungeprüft). `python3 -m <werkzeug>` und `python3 -c 'import <werkzeug>'` → nein für alle Rollen (nur direkt
+  aufrufen). Pfadvergleich in der Schreibweise der Platte (`./WP.py` = `wp.py`). Folge: Im Projekt, dem das Werkzeug
+  gehört, kann mistral-team es beim Entwickeln nicht mehr direkt starten.
+  S06-Normtext ergänzt: „…, auch nicht per `python3 -m` oder Import. Die Freigabe gilt nur dir: Teams rufen vertraute
+  Werkzeuge nie auf, Aufträge an Teams nennen sie nicht.“ (Der agy-Weg hat keinen Hook; dort gilt nur die Anweisung.)
+- **`python3 -c` mit Import bei unbekanntem Suchpfad** (unaufgelöster PYTHONPATH, `cd "$(mktemp -d)"`) → fragen wie bei
+  `-m`, weil die Schatten-Prüfung sonst entfiele. `python3 -c` ohne Import bleibt erlaubt.
+- **`lesbar_extern` in anderer Schreibweise (Review Nr. 12):** `touch ~/…/CLAUDE-TOOLS/x` bei `lesbar_extern =
+  ["~/…/claude-tools"]` wurde nicht als Schreiben in den Ordner erkannt. Aufgelöste Schreibziele werden jetzt immer in der
+  Schreibweise der Platte verglichen, die Textsuche nach dem Ordner ohne Groß-/Kleinschreibung.
+- **Forschungsdaten im Prompt (Review Nr. 20):** Ein Prompt an agy, der `Daten/Roh/p1.csv` oder den Projektpfad in anderer
+  Schreibweise nennt, ging an `forschungsdaten = ["daten/roh/**"]` vorbei. Der Vergleich ist jetzt ohne
+  Groß-/Kleinschreibung, absolute Pfade in der Schreibweise der Platte.
+- **Sitzungsprobe geschützt (Review Nr. 10):** `.normen/sitzungsprobe.txt` gehört zu den geschützten Pfaden (Schreiben:
+  Claude fragt, Teams nein). `selbsttest --sitzung` mit `--werkzeug`/`--weg` → Fehler (Exit 64) statt stiller Sitzungsprobe.
+
+### Geändert
+- **Projekt-Importe in `python3 -c`:** Ein Import, der (Suchreihenfolge wie Python) auf eine Datei im Projekt auflöst, gilt wie
+  `python3 projektdatei.py` und wird nicht mehr als „nicht in der Positivliste“ gesperrt. Ein gleichnamiges Modul im
+  Lauf-Ordner wird weiterhin gesperrt.
+- **Pflichtsatz in `normen.py auftrag`:** „Sperrt ein Normen-Hook einen Aufruf: denselben Zweck nicht auf anderem Weg
+  erreichen, sondern anhalten und die Sperrmeldung wörtlich im Bericht nennen.“
+- **G9/N02 (Rückmeldung „N02 sperrt Löschen von Tests samt Altcode“):** Eine ganz gelöschte Testdatei ergibt einen Hinweis
+  statt Fehlern, wenn derselbe Diff eine Nicht-Testdatei löscht, deren Dateistamm als ganzes Wort in einer **Importzeile**
+  der Testdatei steht (`import`/`from`/`@testable import`/`#include` am Zeilenanfang, `require(`) – N08: Altcode samt Tests
+  entfernen. Der Hinweis nennt beide Dateien. Kein Beleg: `__init__`, Daten-/Doku-Dateien (`.json .toml .yaml .yml .txt .md
+  .csv`), Dateien unter `[pruefen].ausschliessen`, der Stamm nur im Kommentar oder Text (Review Nr. 9).
+  Offen: Der Stop-Hook wiederholt bekannte Befunde.
+- **`cd "$D"` mit bekannter Zuweisung:** `D=/x; cd "$D" && python3 -c 'import json'` kennt jetzt den Basisordner (vorher
+  unbekannt → fragen). Gilt nur für Zuweisungen, die sicher laufen: eigener Teilbefehl am Anfang oder nach `;`/Zeilenumbruch,
+  nicht in Pipeline oder Hintergrund, Wert nur aus ebenso sicheren Zuweisungen; im Befehl keine Steuerstrukturen, Subshells,
+  Backticks, Heredocs und nichts, was Variablen ohne `NAME=` ändert (`unset`, `eval`, `source`/`.`, `read`, `printf -v` …).
+  `D=/x cd "$D"`, `false && D=/x; cd "$D"`, `false && X=/x; D=$X; cd "$D"`, `(D=/x); cd "$D"` bleiben unbekannt (fragen),
+  gegen die Shell gemessen.
+- **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
+  und die Meldung nennt die fehlenden Labels.
+
+### Bekannte Grenzen
+- `python -m`: Geprüft wird nur, was im selben Befehl steht. Ein `cd` oder `export PYTHONPATH` aus einem früheren
+  Werkzeugaufruf sieht der Hook nicht. Unbekannter Basisordner (`cd "$(mktemp -d)" && python3 -m pytest`) → fragen.
+  Testläufer mit Ziel außerhalb des Projekts (`python3 -m unittest <modul>`, `python3 -m pytest <lauf>/test_x.py`) führen
+  fremden Code aus, den der Hook nicht prüft; die Liste der Code-Starter ist nie vollständig. Nicht modelliert: Optionen
+  `-E`/`-I`/`-P`, `PYTHONHOME`, `.pth`-Dateien, Bytecode in `__pycache__`, Schatten-Module über den PYTHONPATH bei
+  `python3 <datei>.py` (geprüft wird nur der Skriptordner), geschriebene Module bei unbekanntem Basisordner.
+  **Transitive Schatten** (gemessen 22.11.): Aufgelöst werden nur Importe, die im geprüften Code stehen. `import json`
+  lädt intern `_json`, `import datetime` lädt `_datetime`; liegt `_json.py` bzw. `_datetime.py` im Skriptordner oder
+  Suchpfad, führt Python sie aus, ohne dass der Hook sie prüft.
+  `python3 -c` innerhalb einer Subshell `( … )` ist nicht zerlegbar → nein (Fehlalarm in der sicheren Richtung).
+  **`cd`, das nicht wirkt** (gemessen 22.11., älter als v16): Der Basisordner folgt jedem `cd`, auch wenn die Shell es
+  nicht ausführt oder es scheitert (`false && cd <p>`, `cd <p> | true`, `cd /gibt/es/nicht`). Danach prüft der Hook im
+  falschen Ordner, ein Schatten-Modul im wirklichen Ordner bleibt unerkannt.
+- G9: Mehrzeilige Importe (`from x import (\n utils)`) belegen nicht → Fehler „Assert entfernt“ (sichere Richtung).
+  Ein Import mit häufigem Stamm (`import utils`) belegt weiter nur schwach, deshalb Hinweis zum Review statt stiller Freigabe.
+- Sitzungsprobe: Beleg gegen Versehen (Sitzung ohne Hooks), nicht gegen Täuschung – wer Hooks umgeht, kann auch die Probe
+  fälschen (Review Nr. 10).
+- Schreibweise (Review Nr. 13–15): Feste Namen in den geschützten Pfaden (`normen/`, `.claude/`) gelten in der Schreibweise
+  der Vorlage – nur relevant, wenn der Ordner auf der Platte anders heißt; `_echt` übernimmt bei Ordnern ohne Leserecht die
+  getippte Schreibweise; Unicode-Normalform (NFC/NFD) wird nicht angeglichen. Auftrags-Globs mit Platzhaltern
+  (`Docs/*.md`) bleiben schreibweisengenau (sichere Richtung: Fehlalarm).
+
+### Neu
+- **Sitzungsprobe (Rückmeldung „Hooks inaktiv, wenn die Sitzung nicht im Projekt-Stammverzeichnis läuft“):** Der Claude-Hook
+  schreibt beim Köder die `session_id` nach `.normen/sitzungsprobe.txt`. `selbsttest --sitzung` verlangt einen Eintrag mit
+  der eigenen `CLAUDE_CODE_SESSION_ID`, also einen positiven Beleg. „Köderdatei fehlt“ reicht nicht, weil `touch` außerhalb
+  des Projekts schon am fehlenden Ordner scheitert. Der normale Selbsttest sagt jetzt dazu, dass er neu gestartete Läufe
+  prüft und nicht die laufende Sitzung. `einrichten.sh` und `NEUES-REPOSITORY.md` (Schritt 7) verlangen, die Sitzung im
+  Projekt erneut zu starten.
+
+---
+
 ## v15 – Vertraute Werkzeuge im S06-Hook, Befehle über Variablen – 2026-11-21
 
 **Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren`. Wer ein Werkzeug freigeben will, trägt es
