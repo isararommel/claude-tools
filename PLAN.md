@@ -4,8 +4,7 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 22.11.2026 (Branch `paket-v15-hooks` = v16; V15b-1 und V15b-2 umgesetzt; offen: Advisor vor „fertig“, PR-Text,
-`normen.py merge 30`, danach Issues/Sitzungen; dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (v16 auf main, PR #30 gemergt; offen: Rückmelde-Issues abgleichen; nächstes Paket: **R**; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -51,9 +50,10 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   wirkt (`cd <s>; false && cd <p>; python3 -c 'import json'`, `cd <p> | true`, `cd /gibt/es/nicht`) → ja, obwohl die Shell
   in `<s>` bleibt (Schatten unerkannt). Vorschlag: nach `cd` hinter `&&`/`||`/`|`/`&` oder auf einen nicht vorhandenen Ordner
   Basis = unbekannt. Im CHANGELOG v16 als Grenze.
-  **Nächste Schritte:** Advisor vor „fertig“; PR #30 Text neu (v16, 9 Testdateien, Zahlen aus `make test`); prüfen, ob
-  origin/main enthalten ist; `python3 normen/normen.py merge 30`; danach Issues #74/#71/#66/#61/#75 abgleichen
-  (#61 offen wegen Stop-Hook), Sitzungen informieren (Memory „Versionsschritt“).
+  ✅ Advisor vor „fertig“, PR-Text neu, **PR #30 per `normen.py merge 30` gemergt (22.11., v16 auf main)**, fünf laufende
+  Sitzungen per SendMessage zum Aktualisieren aufgefordert.
+  **Offen:** Rückmelde-Issues #74/#71/#66/#61/#75 abgleichen und kommentieren/schließen (#74 und #71 erst nach Abgleich mit
+  Sperrmeldung bzw. Befehl aus dem Projektlauf; #61 offen lassen wegen Stop-Hook).
 
 - ✅ 22.11. **V15b-1** (V15b Punkte 1–4 und 10, Branch `paket-v15-hooks`): gemeinsamer Modul-Auflöser
   `_py_modul_aufloesen` (Suchreihenfolge gegen den Interpreter getestet) für `-m`, `-c`-Importe und `python3 <datei>.py`
