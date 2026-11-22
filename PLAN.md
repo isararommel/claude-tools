@@ -4,14 +4,15 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 20.11.2026 (Pilot-Review v15 gelaufen; nächstes Paket: V15b, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (main in `paket-v15-hooks` zusammengeführt, dort jetzt v16; nächstes Paket: V15b, dann R; D2 nach
+Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
 | Datei | Wofür |
 |---|---|
 | [KONZEPT.md](KONZEPT.md) | Ziel und Aufbau von claude-tools |
-| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v13; Einzelheiten aller früheren Pakete stehen dort) |
+| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v15; Einzelheiten aller früheren Pakete stehen dort) |
 | [agenten-normen/](agenten-normen/LIES-MICH.md) | Quelle der Normen, Hooks, normen.py |
 | [multi-ki/multi-ki-ablauf.md](multi-ki/multi-ki-ablauf.md) | Ablauf mit mistral-team / gemini-analyst |
 | [NEUES-REPOSITORY.md](NEUES-REPOSITORY.md) | Neues Projekt einrichten |
@@ -33,8 +34,24 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   Kopien unter `<projekt>/.normen/rueckmeldungen/`. Kommentieren/Schließen nur nach Rückfrage.
 - Nach jedem Normen-Release die anderen Claude-Code-Sitzungen per `ListAgents`/`SendMessage` informieren.
 - Bekannter Hook-Fehlalarm: Liegt der Arbeitsordner einer *anderen* Projektsitzung hier, sperrt deren Hook Befehle mit `>`.
+- **`normen.py aktualisieren` liest den Arbeitsbaum dieses Ordners** (`[quelle].pfad`), also den gerade ausgecheckten Branch,
+  nicht `main`. Projekte nur aktualisieren lassen, wenn hier `main` (oder ein gemergter Stand) ausgecheckt ist.
 
 ## Erledigt (letzte Schritte)
+
+- ✅ 22.11. **main in `paket-v15-hooks` zusammengeführt, dort v16** (Merge statt Rebase, kein Force-Push für PR #30):
+  CHANGELOG-Abschnitt des Branches heißt jetzt v16 (über v15 „vertraute Werkzeuge“), `normen.toml` 16, `tests/test_v4.py`
+  16, Makefile führt `test_hook_luecken.py` und `test_werkzeuge.py` aus; Kopie mit `einrichten.sh . --test "make test"`
+  eingespielt, `normen.py` Quelle = Kopie. `make test` grün (7 Testdateien, Exit 0), `pruefen --diff` 0 Fehler.
+  `normen.py` wurde von git ohne Konflikt zusammengeführt; Wechselwirkung gemessen → Befund in V15b Punkt 1.
+  PR #30 bleibt **nicht mergereif** (Review-Bericht), Merge erst nach V15b.
+
+- ✅ 21.11. **Hotfix v15 vertraute Werkzeuge** (Rückmeldung „S06 sperrt freigegebenes Werkzeug“ im Rückmelde-Repository, Branch
+  `paket-v15-werkzeuge`): `[werkzeuge].vertraut` in `projekt.toml` (Pfad + freigegebene Unterbefehle, nur Rolle claude, sonst
+  nein); Befehlswort über Variable (`$B …`) wird aufgelöst, sonst fragen. Freigabe der Inhaberin 21.11. direkt (Stufe „ja“ für
+  die freigegebenen Unterbefehle, Hotfix von main statt im offenen Hooks-Paket). Tests `tests/test_werkzeuge.py` (vorher 11 rot).
+  **Folge für `paket-v15-hooks` (PR #30):** auf main umsetzen, Version 15 → 16 (normen.toml, `tests/test_v4.py`,
+  CHANGELOG-Überschrift), Konflikte in `_skript_im_befehl` beachten (beide Pakete ändern den Anfang), dann V15b.
 
 - ✅ 20.11. **Paket D Sandbox interaktiv** (Bericht: `docs/plaene/sandbox-spike.md`, „Nachtrag Paket D“): pty-gesteuerte
   Haiku-Sitzung mit Sandbox nur per `--settings`. `excludedCommands` greift interaktiv, nur mit `"vibe *"` (nicht `"vibe"`) und nur
@@ -103,7 +120,7 @@ lassen wegen Stop-Hook), Sitzungen informieren.
 
 Grundlage: `docs/reviews/2026-11-20-paket-v15-hooks.md` (Nummern dort). Advisor hat den Korrekturplan geprüft (20.11.); seine
 Auflagen sind hier eingearbeitet. Jede Korrektur in der Quelle mit neuem Test, der vorher rot ist; dann
-`bash einrichten.sh . --test "make test"`, `make test`, `pruefen --diff`. CHANGELOG-Abschnitt bleibt v15.
+`bash einrichten.sh . --test "make test"`, `make test`, `pruefen --diff`. CHANGELOG-Abschnitt bleibt v16 (seit 22.11.; vorher „v15“ auf dem Branch).
 Kernlogik → vor dem Bau kurz Advisor (S07 Punkt 2). Das Nachstell-Skript aus dem Pilot liegt nicht im Repo; die Fälle stehen im Bericht.
 Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR}/review-runs/20261120-1741-paket-v15-hooks/`.
 1. **Gemeinsamer Modul-Auflöser** für `-m` und `-c`-Importe (Nr. 1, 4, 5, 6): Reihenfolge wie Python (`FileFinder`: Paket
@@ -114,6 +131,15 @@ Rohausgaben der Teams (Zeilennummern, Vorschläge), solange vorhanden: `${TMPDIR
    Ein unzerlegbares Schreibziel → fragen nur, wenn ein Suchordner außerhalb von Projekt und `lesbar_extern` liegt.
    Positivtests vorab: `python3 -m pytest -q > "$LOG"` → ja; `> out.txt` und `| tee out.txt` im Projekt nur mit
    `.normen-auftrag`, das `out.txt` nennt (ohne Auftrag sperrt N06 wie bisher).
+   **Zusätzlich (Befund 22.11. nach dem Zusammenführen mit dem Hotfix, gemessen im Wegwerf-Repo):** Der Auflöser muss
+   `[werkzeuge].vertraut` kennen. Heute löst `_python_m` das Modul auf, fragt aber nicht `_vertraut(cfg)` ab (anders als
+   `_skript_datei_arg`). Ergebnis bei Werkzeug `wz.py` mit Unterbefehl-Liste `["status"]`:
+   `cd <ext> && python3 -m wz schluessel` und `PYTHONPATH=<ext> python3 -m wz schluessel` → **ja** (Werkzeug unter
+   `lesbar_extern`, Rollen claude und mistral-team); Werkzeug im Projekt: `python3 -m wp schluessel` und
+   `python3 -c 'import wp'` → **ja** (beide Rollen). Außerhalb ohne `lesbar_extern` sperrt die AST-Prüfung (nein).
+   `python3 wp.py …` sperrt der Hotfix für alle Rollen (nein). Soll: Auflösung auf ein vertrautes Werkzeug → nein
+   („nur direkt aufrufen“), für `-m` und `-c`-Import; Tests in `tests/test_werkzeuge.py`. Auf main (v15) lief `-m` gar nicht
+   über den Auflöser, die Lücke ist dort also ebenfalls offen. Probe-Skript lag nur im Scratchpad; die Fälle stehen hier.
 2. Nr. 2: `_skript_geschrieben` mit `_echt(z)`; Test unter derselben Bedingung (Dateisystem ohne Groß-/Kleinschreibung) wie #74.
 3. Nr. 3 Regression: `$PWD`/`${PWD}`/`$HOME`/`~` in PYTHONPATH nur auflösen, wenn die Zuweisung Präfix des Python-Aufrufs ist
    oder kein `cd` dazwischen liegt (Negativtest `cd lauf; export PYTHONPATH=$PWD/sub; cd projekt && python3 -m x`). Unbekannter
@@ -164,6 +190,19 @@ bestätigte Befunde behoben, `make test` grün. Danach Vorlagen in `multi-ki/` (
   gleich, unabhängig von GitHub; im PR nur ein kurzer Verweis). In öffentlichen Repos ohne private Bezüge (`make test` prüft).
 - **Gemini bekommt den Code:** Kein Projekt hat sensible Daten im Code; solche Daten liegen in Datenbanken bzw. eigenen
   Ordnern, die über `[pfade].gesperrt` ohnehin aus jedem Auftrag fallen. Keine Sonderregel nötig.
+
+### Offene Entscheidung: vertraute Werkzeuge für Teams *(Befund 21.11. aus einer Projektsitzung, nicht v15-bedingt)*
+
+Im Projekt, dem ein vertrautes Werkzeug selbst gehört, prüft der Hook Projektskripte für keine Rolle (`_skript_gate`: „Projektskripte
+wie bisher“). Die Unterbefehl-Liste greift nur für die Rolle claude (`rolle == "claude"` in `_skript_im_befehl`). Deshalb darf
+mistral-team (vibe) dort jeden Unterbefehl aufrufen, auch den gesperrten (Schlüssel anlegen auf dem Server), und `python3 <werkzeug>`.
+In anderen Projekten liegt das Werkzeug außerhalb, dort sperrt die AST-Prüfung für Teams wie bisher.
+Frage an die Inhaberin: Soll ein Eintrag in `[werkzeuge].vertraut` für Teams (a) dieselbe Unterbefehl-Liste bekommen oder
+(b) ganz gesperrt werden? Empfehlung: (b), denn die Freigabe galt Claude. Umsetzung: die Prüfung vor `_skript_gate` für alle
+Rollen, Teams bei Treffer → nein; Tests in `tests/test_werkzeuge.py` (Werkzeug im Projekt, Rolle mistral-team); v16 bzw. mit dem Hooks-Paket.
+Messung 22.11. (Stand v16 auf dem Branch): `python3 <werkzeug>` sperrt der Hotfix schon für alle Rollen (nein). Der direkte
+Aufruf mit verbotenem Unterbefehl geht für mistral-team durch (ja), und zwar im eigenen Projekt **und** wenn das Werkzeug unter
+`[pfade].lesbar_extern` liegt. `python3 -m`/`-c import`: siehe V15b Punkt 1.
 
 ### A2. agy-Freigaben: Nacharbeiten
 

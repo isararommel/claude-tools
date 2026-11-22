@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests für Normen v15: Schreibweise von Pfaden (#74), `python -m` und Projekt-Importe (#71), Sitzungsprobe (#66),
+"""Tests für Normen v16: Schreibweise von Pfaden (#74), `python -m` und Projekt-Importe (#71), Sitzungsprobe (#66),
 G9 bei Testlöschung samt Altcode (#61), Stufen-Label in `melden` (#75). Startet nie echte Agenten."""
 import json
 import os

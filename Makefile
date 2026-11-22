@@ -5,5 +5,6 @@ test:
 	python3 tests/test_selbsttest.py
 	python3 tests/test_guardrails.py
 	python3 tests/test_hook_luecken.py
+	python3 tests/test_werkzeuge.py
 
 .PHONY: test

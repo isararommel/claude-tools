@@ -4,7 +4,10 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
-## v15 – Schreibweise von Pfaden, `python -m`, Sitzungsprobe, Testlöschung samt Altcode – 2026-11-20
+## v16 – Schreibweise von Pfaden, `python -m`, Sitzungsprobe, Testlöschung samt Altcode – 2026-11-22
+
+Entstanden als „v15“ auf dem Branch `paket-v15-hooks` (20.11.); nach dem Hotfix v15 (vertraute Werkzeuge) auf main
+zusammengeführt und zu v16 umbenannt.
 
 **Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren` (bzw. `einrichten.sh`), danach die Claude-Sitzung
 im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (muss gesperrt werden) und
@@ -50,6 +53,39 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   des Projekts schon am fehlenden Ordner scheitert. Der normale Selbsttest sagt jetzt dazu, dass er neu gestartete Läufe
   prüft und nicht die laufende Sitzung. `einrichten.sh` und `NEUES-REPOSITORY.md` (Schritt 7) verlangen, die Sitzung im
   Projekt erneut zu starten.
+
+---
+
+## v15 – Vertraute Werkzeuge im S06-Hook, Befehle über Variablen – 2026-11-21
+
+**Aktualisieren nötig:** ja – `python3 normen/normen.py aktualisieren`. Wer ein Werkzeug freigeben will, trägt es
+(nach Zustimmung der Inhaberin) in die eigene `normen/projekt.toml` ein; die Datei gehört dem Projekt und wird nicht ersetzt:
+
+    [werkzeuge]
+    vertraut = [{pfad = "~/Projekte/mein-werkzeug/bin/werkzeug", unterbefehle = ["status", "holen"]}]
+
+### Neu
+- **`[werkzeuge].vertraut` (Rückmeldung „S06 sperrt freigegebenes Werkzeug“):** Ein gepflegtes Werkzeug außerhalb des
+  Projekts, das wie ein Wegwerf-Skript per AST geprüft und deshalb immer gesperrt wurde (Netz, Schlüsselbund, `os.replace`),
+  wird für die Rolle claude als Befehl bewertet: direkter Aufruf (Pfad, auch relativ nach `cd`, Variable oder Name aus `$PATH`)
+  mit einem freigegebenen Unterbefehl (erstes Wort, wörtlich) → erlaubt; jeder andere, fehlende, als Option (`-…`) oder über
+  Variable angegebene Unterbefehl → nein, auch unter `lesbar_extern`. Übrige Teilbefehle und Schreibziele werden weiter geprüft;
+  wird das Werkzeug im selben Befehl geschrieben → fragen. `python3|bash|source <werkzeug>` → nein (nur direkt aufrufen).
+  Andere Rollen: wie bisher.
+  Fehlerhafter Eintrag → der Hook sperrt mit Meldung. S06-Normtext um einen Satz ergänzt.
+
+### Geändert
+- **Befehl über Variable (`B=/x/werkzeug; $B …`):** Das Befehlswort wird aufgelöst (Zuweisungen davor, dann Umgebung) und
+  wie geschrieben geprüft; vorher ging ein Aufruf ohne `/` im Befehlswort ungeprüft durch. Nicht auflösbar oder mehrfach
+  zugewiesen → fragen (Verschärfung für alle Projekte).
+
+### Grenzen
+- Das „nein“ schützt vor Versehen, nicht vor Absicht. Nicht erkannt (gemessen 21.11., galt schon vorher für jedes Skript
+  außerhalb des Projekts): Befehlsersetzung in Anführungszeichen (`echo "$(werkzeug …)"`), `exec werkzeug …`,
+  `xargs werkzeug …`, Alias, Shell-Funktion, `eval`. Ein Name ohne Pfad wird über den `PATH` des Hooks aufgelöst, nicht den
+  der Shell (`PATH=…:$PATH werkzeug` im selben Befehl wird nicht erkannt).
+- Heredoc-Rümpfe, die keine reinen Daten sind (`cat <<EOF` ohne Umleitung), werden weiter zeilenweise geprüft: eine Zeile, die mit
+  einer unbekannten `$NAME` beginnt, ergibt dort jetzt „fragen“ (`cat > datei <<EOF` und Text in `"$(cat <<EOF …)"` nicht).
 
 ---
 
