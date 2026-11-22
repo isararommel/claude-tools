@@ -144,14 +144,29 @@ with tempfile.TemporaryDirectory() as t:
         (f"(D={repo}); cd \"$D\"; {imp}", "fragen"),            # Zuweisung in der Subshell
         (f"D={repo} | true; cd \"$D\"; {imp}", "fragen"),       # Zuweisung in der Pipeline
         (f"cd \"$(mktemp -d)\" && {imp}", "fragen"),
+        # Wert über eine zweite Variable aus einer bedingten Zuweisung (Advisor 22.11.)
+        (f"cd {schatten}; false && X={repo}; D=$X; cd \"$D\"; {imp}", "fragen"),
+        # Variable ändert sich ohne NAME=
+        (f"cd {schatten}; D={repo}; unset D; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; D={repo}; eval 'D={schatten}'; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; D={repo}; . ./setzen.sh; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; D={repo}; source ./setzen.sh; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; D={repo}; printf -v D %s {schatten}; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; D={repo}; read D < /dev/null; cd \"$D\"; {imp}", "fragen"),
+        (f"cd {schatten}; cat <<EOF\nD={repo}\nEOF\ncd \"$D\"; {imp}", "fragen"),
+        # ${NAME} im Wert schaltet die Lockerung nicht ab
+        (f"T={t}; D=${{T}}/leer; cd \"$D\" && {imp}", "ja"),
     ]:
         s, g = hook(repo, B(befehl))
         check(f"cd $D: {befehl.replace(str(t), '<t>')} → {soll}", s == soll, f"ist {s}: {g[:200]}")
     s, g = hook(repo, B(f"D={schatten}; cd \"$D\" && {imp}"))
     check("cd $D: Schatten-Fall fragt wegen des Schatten-Moduls", "Schatten-Modul" in g, g[:200])
     # Gegenprobe an der echten Shell: wo die Shell nach den Fällen „fragen“ wirklich steht
+    (schatten / "setzen.sh").write_text(f"D={schatten}\n")
     for befehl in (f"D={leer} cd \"$D\"; pwd", f"false && D={leer}; cd \"$D\"; pwd", f"(D={leer}); cd \"$D\"; pwd",
-                   f"D={leer} | true; cd \"$D\"; pwd"):
+                   f"D={leer} | true; cd \"$D\"; pwd", f"false && X={leer}; D=$X; cd \"$D\"; pwd",
+                   f"cd {schatten}; D={leer}; . ./setzen.sh; cd \"$D\"; pwd",
+                   f"cd {schatten}; D={leer}; eval 'D={schatten}'; cd \"$D\"; pwd"):
         r = sh("bash", "-c", befehl, cwd=repo, env={k: v for k, v in os.environ.items() if k != "D"})
         check(f"Shell: {befehl.replace(str(t), '<t>')} bleibt nicht in leer", r.stdout.strip() != str(leer), r.stdout)
     r = sh("bash", "-c", f"D={leer}; cd \"$D\"; pwd", cwd=repo)

@@ -778,24 +778,28 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             unsicher = _unsichere_namen(cmd)  # v11: mehrfach zugewiesene Namen nie auflösen (if/for/read …)
             zuweisungen: dict[str, str] = {n: _UNSICHER for n in unsicher}  # G5: Zuweisungen aus vorangehenden Teilbefehlen
             # V15b: für `cd "$D"` nur Zuweisungen, die sicher laufen – eigener Teilbefehl nach Anfang/;/Zeilenumbruch, nicht in
-            # einer Pipeline oder im Hintergrund, keine Steuerstrukturen/Subshells im Befehl; sonst bleibt der Basisordner unbekannt
+            # einer Pipeline oder im Hintergrund, keine Steuerstrukturen/Subshells/Heredocs im Befehl und nichts, was Variablen
+            # ohne NAME= ändert (unset, eval, source/., read, printf -v …); sonst bleibt der Basisordner unbekannt
             segs = _segmente_pos(cmd)
             trenner = [""] + [cmd[p + len(s):segs[k + 1][0]].strip() for k, (p, s) in enumerate(segs[:-1])] + [""]
-            schlicht = not re.search(r"\b(if|then|else|elif|fi|while|until|do|done|case|esac|for|select|function)\b|[(){}`]",
-                                     _maskiert(cmd))
+            schlicht = not re.search(
+                r"\b(if|then|else|elif|fi|while|until|do|done|case|esac|for|select|function|unset|eval|source|read|"
+                r"readarray|mapfile|printf|declare|typeset|local|let|getopts|exec)\b|[(){}`]|<<|(^|[;&|\n])\s*\.(\s|$)",
+                _maskiert(re.sub(r"\$\{[A-Za-z_]\w*\}", "$V", cmd)))  # ${NAME} ist keine Klammer-Struktur
             cd_zuw: dict[str, str] = dict(zuweisungen)
             for k, (pos, seg) in enumerate(segs):  # Trenner in Anführungszeichen bleiben im Teilbefehl
                 # V15b: $PWD/$OLDPWD gelten an dieser Stelle (nach cd), nicht aus der Umgebung des Hooks
                 zuweisungen.update(PWD=basis if basis is not None else _UNSICHER, OLDPWD=_UNSICHER)
+                cd_zuw.update(PWD=zuweisungen["PWD"], OLDPWD=_UNSICHER)
                 gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
                 gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
                 # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
-                neu = {n: _sichere_zuweisung(n, _var_ersetzen(v, zuweisungen), unsicher)
-                       for n, v in _zuweisungen_aus_seg(seg).items()}
-                zuweisungen.update(neu)
+                roh = _zuweisungen_aus_seg(seg)
+                zuweisungen.update({n: _sichere_zuweisung(n, _var_ersetzen(v, zuweisungen), unsicher) for n, v in roh.items()})
+                # für cd nur aus sicher bekannten Werten auflösen (`false && X=/p; D=$X` → D unbekannt)
                 sicher = schlicht and trenner[k] in ("", ";") and trenner[k + 1] not in ("|", "&")
-                cd_zuw.update(neu if sicher else {n: _UNSICHER for n in neu})
-                cd_zuw.update(PWD=zuweisungen["PWD"], OLDPWD=_UNSICHER)
+                cd_zuw.update({n: _sichere_zuweisung(n, _var_ersetzen(v, cd_zuw), unsicher) if sicher else _UNSICHER
+                               for n, v in roh.items()})
                 basis = _cd_basis(seg, basis, cd_zuw)
 
     for p in pfade:

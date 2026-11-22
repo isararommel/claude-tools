@@ -74,8 +74,10 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   Offen: Der Stop-Hook wiederholt bekannte Befunde.
 - **`cd "$D"` mit bekannter Zuweisung:** `D=/x; cd "$D" && python3 -c 'import json'` kennt jetzt den Basisordner (vorher
   unbekannt → fragen). Gilt nur für Zuweisungen, die sicher laufen: eigener Teilbefehl am Anfang oder nach `;`/Zeilenumbruch,
-  nicht in Pipeline oder Hintergrund, keine Steuerstrukturen, Subshells oder Backticks im Befehl. `D=/x cd "$D"`,
-  `false && D=/x; cd "$D"`, `(D=/x); cd "$D"` bleiben unbekannt (fragen), gegen die Shell gemessen.
+  nicht in Pipeline oder Hintergrund, Wert nur aus ebenso sicheren Zuweisungen; im Befehl keine Steuerstrukturen, Subshells,
+  Backticks, Heredocs und nichts, was Variablen ohne `NAME=` ändert (`unset`, `eval`, `source`/`.`, `read`, `printf -v` …).
+  `D=/x cd "$D"`, `false && D=/x; cd "$D"`, `false && X=/x; D=$X; cd "$D"`, `(D=/x); cd "$D"` bleiben unbekannt (fragen),
+  gegen die Shell gemessen.
 - **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,
   und die Meldung nennt die fehlenden Labels.
 
@@ -90,6 +92,9 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   lädt intern `_json`, `import datetime` lädt `_datetime`; liegt `_json.py` bzw. `_datetime.py` im Skriptordner oder
   Suchpfad, führt Python sie aus, ohne dass der Hook sie prüft.
   `python3 -c` innerhalb einer Subshell `( … )` ist nicht zerlegbar → nein (Fehlalarm in der sicheren Richtung).
+  **`cd`, das nicht wirkt** (gemessen 22.11., älter als v16): Der Basisordner folgt jedem `cd`, auch wenn die Shell es
+  nicht ausführt oder es scheitert (`false && cd <p>`, `cd <p> | true`, `cd /gibt/es/nicht`). Danach prüft der Hook im
+  falschen Ordner, ein Schatten-Modul im wirklichen Ordner bleibt unerkannt.
 - G9: Mehrzeilige Importe (`from x import (\n utils)`) belegen nicht → Fehler „Assert entfernt“ (sichere Richtung).
   Ein Import mit häufigem Stamm (`import utils`) belegt weiter nur schwach, deshalb Hinweis zum Review statt stiller Freigabe.
 - Sitzungsprobe: Beleg gegen Versehen (Sitzung ohne Hooks), nicht gegen Täuschung – wer Hooks umgeht, kann auch die Probe

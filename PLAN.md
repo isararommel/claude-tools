@@ -45,7 +45,12 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
   Groß-/Kleinschreibung, `_prompt_wort` mit `_echt` (Nr. 20); `cd "$D"` mit sicher bekannter Zuweisung (Notiz a, einzige
   Lockerung, gegen die Shell gemessen); CHANGELOG (`melden --stufe` → Geändert, Grenzen Nr. 10, 13–15, G9 mehrzeilig);
   Markierungen v15 (#61/#66/#71/#74/#75) → v16; Bericht `docs/reviews/…` mit Stand je Befund. Selbst umgesetzt: kleine
-  Korrekturen in sicherheitskritischer Hook-Logik, je wenige Zeilen.
+  Korrekturen in sicherheitskritischer Hook-Logik, je wenige Zeilen. Advisor vor „fertig“: Lücke in (a) (Wert über zweite
+  Variable, `unset`/`eval`/`printf -v`/Heredoc) gefunden, nachgestellt und geschlossen.
+  **Befund für ein späteres Paket (gemessen 22.11., älter als v16):** `_cd_basis` folgt jedem `cd`, auch wenn es nicht
+  wirkt (`cd <s>; false && cd <p>; python3 -c 'import json'`, `cd <p> | true`, `cd /gibt/es/nicht`) → ja, obwohl die Shell
+  in `<s>` bleibt (Schatten unerkannt). Vorschlag: nach `cd` hinter `&&`/`||`/`|`/`&` oder auf einen nicht vorhandenen Ordner
+  Basis = unbekannt. Im CHANGELOG v16 als Grenze.
   **Nächste Schritte:** Advisor vor „fertig“; PR #30 Text neu (v16, 9 Testdateien, Zahlen aus `make test`); prüfen, ob
   origin/main enthalten ist; `python3 normen/normen.py merge 30`; danach Issues #74/#71/#66/#61/#75 abgleichen
   (#61 offen wegen Stop-Hook), Sitzungen informieren (Memory „Versionsschritt“).
