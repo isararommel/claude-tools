@@ -34,6 +34,7 @@ nein = []
 [werkzeuge]
 # Vertraute Werkzeuge außerhalb des Projekts (S06, nur Rolle claude): Ein direkter Aufruf (Pfad, Variable oder Name aus $PATH)
 # mit einem der Unterbefehle (erstes Wort) wird als Befehl erlaubt statt per AST geprüft; jeder andere Unterbefehl → nein.
+# Andere Rollen (Teams): jeder Aufruf → nein, auch im eigenen Projekt; `python3 -m`/Import des Werkzeugs → nein für alle.
 # Nur mit Zustimmung von {inhaberin}. Beispiel:
 # vertraut = [{pfad = "~/Projekte/mein-werkzeug/bin/werkzeug", unterbefehle = ["status", "holen"]}]
 vertraut = []

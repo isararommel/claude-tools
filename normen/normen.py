@@ -1704,14 +1704,16 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             stufe, gruende = code_pruefen(cfg, code, None, cwd, f"Inline-Code ({prog} {art})",
                                           ordner if isinstance(ordner, list) else None)
             aus = [] if stufe == "ja" else [(stufe, g) for g in gruende]
-            if isinstance(ordner, list):  # V15b (Nr. 1): importiertes Modul im selben Befehl geschrieben
-                try:
-                    koepfe = [n.split(".")[0] for k in ast.walk(ast.parse(code)) if isinstance(k, (ast.Import, ast.ImportFrom))
-                              for n in ([a.name for a in k.names] if isinstance(k, ast.Import) else [k.module or ""]) if n]
-                except (SyntaxError, ValueError):
-                    koepfe = []  # Syntaxfehler meldet code_pruefen („nein“)
-                if g := _py_kandidat_geschrieben(cfg, koepfe, ordner, cmd, cwd):
-                    aus.append(g)
+            try:
+                koepfe = [n.split(".")[0] for k in ast.walk(ast.parse(code)) if isinstance(k, (ast.Import, ast.ImportFrom))
+                          for n in ([a.name for a in k.names] if isinstance(k, ast.Import) else [k.module or ""]) if n]
+            except (SyntaxError, ValueError):
+                koepfe = []  # Syntaxfehler meldet code_pruefen („nein“)
+            if not isinstance(ordner, list):  # V15b: ohne Suchpfad keine Schatten-Prüfung – wie bei -m nicht prüfbar
+                if koepfe:
+                    aus.append(("fragen", f"S06-CODE-MODE: {prog} {art} mit Import: {ordner} – nicht prüfbar"))
+            elif g := _py_kandidat_geschrieben(cfg, koepfe, ordner, cmd, cwd):  # V15b (Nr. 1): im selben Befehl geschrieben
+                aus.append(g)
             return aus
 
         def heredoc(art: str) -> list[tuple[str, str]]:

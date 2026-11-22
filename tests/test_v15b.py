@@ -125,6 +125,9 @@ with tempfile.TemporaryDirectory() as t:
         # Nr. 6 und Advisor: Schatten-Modul einer Positivlisten-Bibliothek
         (f"cd {schatten} && python3 -c 'import json'", "fragen"),
         (f"PYTHONPATH={schatten} python3 -c 'import json'", "fragen"),
+        (f"D={schatten}; cd \"$D\" && python3 -c 'import json'", "fragen"),
+        ("PYTHONPATH=$X python3 -c 'import json'", "fragen"),
+        ("cd \"$(mktemp -d)\" && python3 -c 'print(1)'", "ja"),
         (f"cd {schatten} && python3 -m nutzt", "fragen"),
         # Namespace und `from ns import x`
         (f"PYTHONPATH={lauf} python3 -c 'from ns import boese'", "fragen"),  # Untermodul außerhalb, nicht prüfbar
@@ -143,6 +146,7 @@ with tempfile.TemporaryDirectory() as t:
         ("python3 -m pytest -q", "ja"),
         ("python3 -m pytest -q > pytest.log", "ja"),
         (f"LOG={lauf}/p.log; python3 -m pytest -q > \"$LOG\"", "ja"),
+        ("python3 -m pytest -q > \"$LOG\"", "ja"),  # wörtlich aus dem Plan (LOG unbekannt, Suchordner nur das Projekt)
         ("python3 -m pip install -r requirements.txt", "ja"),
         ("python3 -m venv .venv", "ja"),
         (f"cd {lauf} && python3 -m harmlos", "ja"),
@@ -196,6 +200,16 @@ with tempfile.TemporaryDirectory() as t:
         for rolle, soll in (("claude", soll_claude), ("mistral-team", soll_team), ("gemini-analyst", soll_team)):
             s, g = hook(repo, befehl, rolle)
             check(f"10: {rolle}: {befehl} → {soll}", s == soll, f"ist {s}: {g[:200]}")
+
+    # 10. derselbe Weg, den mistral-team wirklich nimmt: Vibe-Hook (fragen → nein)
+    def vibe(befehl):
+        data = {"tool_name": "bash", "tool_input": {"command": befehl}, "cwd": str(repo)}
+        aus = sh(sys.executable, "normen/normen.py", "hook", "--rolle", "mistral-team", "--werkzeug", "vibe", cwd=repo,
+                 eingabe=json.dumps(data)).stdout
+        return "nein" if aus.strip() and json.loads(aus.splitlines()[0])["decision"] == "deny" else "ja"
+    for befehl, soll in (("./wp.py status", "nein"), ("python3 -m wp status", "nein"), (f"{ext}/wz.py status", "nein"),
+                         ("git status --short", "ja"), ("python3 -m pytest -q", "ja")):
+        check(f"10: vibe mistral-team: {befehl} → {soll}", vibe(befehl) == soll)
 
 print(f"{OK} ok, {FAIL} Fehler")
 sys.exit(1 if FAIL else 0)

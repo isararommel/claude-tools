@@ -44,7 +44,12 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
 - **Vertraute Werkzeuge nur für Claude (Entscheidung der Inhaberin 22.11.):** Ein Aufruf eines Werkzeugs aus
   `[werkzeuge].vertraut` ergibt für jede andere Rolle „nein“, auch im eigenen Projekt und unter `lesbar_extern` (vorher
   für Teams ungeprüft). `python3 -m <werkzeug>` und `python3 -c 'import <werkzeug>'` → nein für alle Rollen (nur direkt
-  aufrufen). Pfadvergleich in der Schreibweise der Platte (`./WP.py` = `wp.py`).
+  aufrufen). Pfadvergleich in der Schreibweise der Platte (`./WP.py` = `wp.py`). Folge: Im Projekt, dem das Werkzeug
+  gehört, kann mistral-team es beim Entwickeln nicht mehr direkt starten.
+  S06-Normtext ergänzt: „…, auch nicht per `python3 -m` oder Import. Die Freigabe gilt nur dir: Teams rufen vertraute
+  Werkzeuge nie auf, Aufträge an Teams nennen sie nicht.“ (Der agy-Weg hat keinen Hook; dort gilt nur die Anweisung.)
+- **`python3 -c` mit Import bei unbekanntem Suchpfad** (unaufgelöster PYTHONPATH, `cd "$D"`) → fragen wie bei `-m`, weil
+  die Schatten-Prüfung sonst entfiele. `python3 -c` ohne Import bleibt erlaubt.
 
 ### Geändert
 - **Projekt-Importe in `python3 -c`:** Ein Import, der (Suchreihenfolge wie Python) auf eine Datei im Projekt auflöst, gilt wie
@@ -64,6 +69,10 @@ im Projekt-Stammverzeichnis erneut starten, `touch .normen/normen-koeder.txt` (m
   fremden Code aus, den der Hook nicht prüft; die Liste der Code-Starter ist nie vollständig. Nicht modelliert: Optionen
   `-E`/`-I`/`-P`, `PYTHONHOME`, `.pth`-Dateien, Bytecode in `__pycache__`, Schatten-Module über den PYTHONPATH bei
   `python3 <datei>.py` (geprüft wird nur der Skriptordner), geschriebene Module bei unbekanntem Basisordner.
+  **Transitive Schatten** (gemessen 22.11.): Aufgelöst werden nur Importe, die im geprüften Code stehen. `import json`
+  lädt intern `_json`, `import datetime` lädt `_datetime`; liegt `_json.py` bzw. `_datetime.py` im Skriptordner oder
+  Suchpfad, führt Python sie aus, ohne dass der Hook sie prüft.
+  `python3 -c` innerhalb einer Subshell `( … )` ist nicht zerlegbar → nein (Fehlalarm in der sicheren Richtung).
 - G9: Jede gelöschte Nicht-Testdatei, deren Stamm in der Testdatei vorkommt, gilt als Beleg. Häufige Stämme (`utils`, `main`,
   `README`) belegen nur schwach, deshalb gibt es einen Hinweis zum Review statt einer stillen Freigabe.
 - **`melden --stufe`** setzt zusätzlich das Label `stufe:<stufe>`. Fehlen Labels im Ziel, wird das Issue ohne Labels angelegt,

@@ -4,8 +4,8 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 22.11.2026 (main in `paket-v15-hooks` zusammengeführt, dort jetzt v16; nächstes Paket: V15b, dann R; D2 nach
-Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
+*Stand: 22.11.2026 (Branch `paket-v15-hooks` = v16; V15b-1 erledigt; nächstes Paket: **V15b-2** (Punkte 5–9), dann Merge
+von PR #30, dann R; D2 nach Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
 
@@ -38,6 +38,19 @@ Entscheidung der Inhaberin, sonst E; offen: A2 Punkte 4–6, G, H)*
   nicht `main`. Projekte nur aktualisieren lassen, wenn hier `main` (oder ein gemergter Stand) ausgecheckt ist.
 
 ## Erledigt (letzte Schritte)
+
+- ✅ 22.11. **V15b-1** (V15b Punkte 1–4 und 10, Branch `paket-v15-hooks`): gemeinsamer Modul-Auflöser
+  `_py_modul_aufloesen` (Suchreihenfolge gegen den Interpreter getestet) für `-m`, `-c`-Importe und `python3 <datei>.py`
+  (Schatten im Skriptordner); geschriebene Modul-Kandidaten → fragen; `.so`/`.pyc`/zip außerhalb → fragen; Code-Starter →
+  fragen; `$PWD` aus dem Basisordner (Skriptprüfung, `_cd_basis`, `_schreibziele`); `-c` mit Import bei unbekanntem
+  Suchpfad → fragen; vertraute Werkzeuge für Teams → nein (auch über den Vibe-Hook getestet), `-m`/Import des Werkzeugs →
+  nein für alle; `_echt` beim Werkzeug-Vergleich (`./WP.py`). S06-Normtext ergänzt (Wortlaut im CHANGELOG v16; Advisor
+  geprüft, **Bestätigung der Inhaberin für den Zusatz zu `-m`/Import steht aus – vor `normen.py merge 30` nötig**).
+  Neue Testdatei `tests/test_v15b.py` (95 Prüfungen, vorher 56 rot), `make test` grün (8 Dateien), `pruefen --diff` 0 Fehler.
+  Befunde: transitive Schatten (`_json.py`, `_datetime.py` im Skriptordner) wirken und sind nicht geprüft → Grenze im
+  CHANGELOG (Option: Dateinamen aus `sys.stdlib_module_names` in fremden Suchordnern → fragen); `python3 -c` in einer
+  Subshell `( … )` → nein (Fehlalarm, Grenze). Zählung von `tests/test_v4.py` schwankt mit der Zahl untracked Dateien
+  (Dateien × private Begriffe, `tests/test_v4.py:206`), harmlos.
 
 - ✅ 22.11. **main in `paket-v15-hooks` zusammengeführt, dort v16** (Merge statt Rebase, kein Force-Push für PR #30):
   CHANGELOG-Abschnitt des Branches heißt jetzt v16 (über v15 „vertraute Werkzeuge“), `normen.toml` 16, `tests/test_v4.py`
