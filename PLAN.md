@@ -342,7 +342,8 @@ Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu p
 (PR-Label `meilenstein` oder neue Normen-Version der Quelle) brauchen zusätzlich einen Review-Bericht
 `docs/reviews/<datum>-<branch>.md` mit `Mergereif: ja`; Ablauf `docs/multi-ki-ablauf.md`, Abschnitt „Review“.“
 (2) Keine reine Zeilenschwelle: maßgeblich sind **sinnvolle Änderungen** – eine geänderte Beschreibung oder ein Prompt kann
-400 Diff-Zeilen haben und ist trotzdem klein. Entwurf (Claude 23.11., im Bau vom Advisor zu prüfen):
+400 Diff-Zeilen haben und ist trotzdem klein. Entwurf (Claude 23.11.; **N11-Wortlaut, dieser Entwurf und die Reihenfolge
+R2 → P von der Inhaberin am 23.11. bestätigt** – im Bau nur noch Advisor-Prüfung der Umsetzung):
 - **Gewichtete Größe statt Diff-Zeilen.** `merge` zählt nur Zeilen in **Code** (Endungen aus neuer Liste
   `projekt.toml [review].code`, Vorgabe `*.py, *.sh, *.js, *.ts, Makefile, *.json`); Markdown, Prompts, Vorlagen, Doku,
   `CHANGELOG`, `PLAN.md` zählen nicht. Tests zählen nicht (`[pfade].tests`) – sie wachsen mit dem Code mit.
