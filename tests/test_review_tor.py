@@ -33,7 +33,7 @@ def commit(repo, text):
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def neues_repo(t, name, projekt_zusatz=""):
+def neues_repo(t, name, versionsdateien=""):
     repo = t / name
     repo.mkdir()
     sh("git", "init", "-q", "-b", "main", cwd=repo)
@@ -41,9 +41,11 @@ def neues_repo(t, name, projekt_zusatz=""):
     sh("git", "config", "user.name", "Test", cwd=repo)
     r = sh("bash", str(VORLAGE / "einrichten.sh"), str(repo), "--test", "echo ok", "--sperre", "geheim/")
     check(f"einrichten {name}", r.returncode == 0, r.stdout + r.stderr)
-    if projekt_zusatz:
+    if versionsdateien:  # die Vorlage hat [review] schon – Zeile ersetzen, nicht zweiten Abschnitt anhängen
         pt = repo / "normen" / "projekt.toml"
-        pt.write_text(pt.read_text(encoding="utf-8") + projekt_zusatz, encoding="utf-8")
+        s = pt.read_text(encoding="utf-8")
+        check(f"vorlage {name}: versionsdateien leer", "\nversionsdateien = []\n" in s)
+        pt.write_text(s.replace("\nversionsdateien = []\n", f"\nversionsdateien = {versionsdateien}\n"), encoding="utf-8")
     (repo / "app.py").write_text("x = 1\n")
     commit(repo, "start")
     sh("git", "switch", "-q", "-c", "arbeit/r2", cwd=repo)
@@ -191,8 +193,7 @@ def test_tor(t):
 
 
 def test_sammeln(t):
-    zusatz = '\n[review]\nversionsdateien = ["quelle/normen.toml"]\n'
-    repo = neues_repo(t, "sammeln", zusatz)
+    repo = neues_repo(t, "sammeln", '["quelle/normen.toml"]')
     sh("git", "switch", "-q", "main", cwd=repo)
     (repo / "quelle").mkdir()
     (repo / "quelle" / "normen.toml").write_text("[meta]\nversion = 16\n")

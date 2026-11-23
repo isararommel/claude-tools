@@ -6,6 +6,7 @@
   python3 normen/normen.py stop --werkzeug claude                             (Claude-Stop-Hook: Test + Diff-Prüfung)
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
+  python3 normen/normen.py review [--basis REF] [--gruppe NAME=GLOB,…]…       (Review-Läufe vorbereiten: Ordner, Diff, Pflichtblock – startet keine Teams)
   python3 normen/normen.py skript --pruefen DATEI                              (Code-Mode-Skript prüfen wie der Hook, S06)
   python3 normen/normen.py selbsttest [--werkzeug claude|vibe] [--weg bash|write|write_file|edit] | --sitzung   (Hooks live prüfen; --sitzung: diese Sitzung)
   python3 normen/normen.py aktualisieren [--quelle PFAD]                      (Normen aus der Quelle neu einspielen)
@@ -2780,6 +2781,139 @@ def cmd_sync(a) -> int:
     return 0
 
 
+# v17 (Paket R2): Review-Läufe vorbereiten – Ordner, Diff, Pflichtblock; startet keine Agenten, ruft kein Netz.
+def cmd_review(a) -> int:
+    """Review-Läufe vorbereiten: je Gruppe und Team einen Ordner unter $TMPDIR/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/
+    mit diff.patch, pflicht.txt (mistral zusätzlich bericht.md) anlegen. Der Datenschutz-Filter (gesperrt, Geheimnisse,
+    Forschungsdaten, Umbenennungen) ist die einzige Sperre vor Gemini – der Hook prüft nur die Prompt-Datei, nicht diff.patch."""
+    cfg = laden()
+    pf = cfg["projekt"].get("pfade", {})
+
+    def git(*args) -> str:
+        return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, errors="replace",
+                              check=True).stdout
+
+    r = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", f"{a.basis}^{{commit}}"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"Unbekannte Basis: {a.basis} (`git rev-parse --verify -q {a.basis}^{{commit}}` schlägt fehl).", file=sys.stderr)
+        return 2
+    try:
+        mb = git("merge-base", a.basis, "HEAD").strip()
+        branch = re.sub(r"[^A-Za-z0-9._-]", "-", git("rev-parse", "--abbrev-ref", "HEAD").strip())
+        paare = []  # Umbenennungen (alt, neu) per -M; ist eine Seite gefiltert, fallen beide heraus
+        teile = git("diff", "--name-status", "-z", "-M", f"{mb}..HEAD").split("\0")
+        k = 0
+        while k < len(teile) and teile[k]:
+            if teile[k][0] in "RC" and k + 2 < len(teile):
+                paare.append((teile[k + 1], teile[k + 2]))
+                k += 3
+            else:
+                k += 2
+        alle = [p for p in git("diff", "--name-only", "-z", "--no-renames", f"{mb}..HEAD").split("\0") if p]
+        if not alle:
+            print(f"Leerer Diff ({mb}..HEAD) – keine geänderten Dateien.", file=sys.stderr)
+            return 1
+        inhalt: dict[str, str] = {}
+
+        def diff_datei(pfad: str) -> str:
+            if pfad not in inhalt:
+                inhalt[pfad] = git("diff", "--no-renames", f"{mb}..HEAD", "--", f":(literal){pfad}")
+            return inhalt[pfad]
+
+        def grund(pfad: str) -> str | None:
+            """Erster Treffer ist der Grund (None = nicht gefiltert); immer ohne Groß-/Kleinschreibung (casefold)."""
+            p = pfad.casefold()
+            for s in pf.get("gesperrt", []):
+                if s and s.casefold() in p:  # wie der Hook: s.casefold() in Befehl/Pfad
+                    return f"gesperrt ({s})"
+            if _geheim(Path(pfad).name, pf):
+                return "Geheimnis-Muster"
+            for e in pf.get("forschungsdaten", []):
+                if not e:
+                    continue
+                if "/" in e or "*" in e:  # Pfad-Glob (Eintrag mit / oder *)
+                    if fnmatch.fnmatchcase(p, e.casefold()):
+                        return f"Forschungsdaten ({e})"
+                    praefix = e.casefold().split("*", 1)[0].rstrip("/")
+                    if praefix and p.startswith(praefix + "/"):
+                        return f"Forschungsdaten ({e})"
+                elif e.casefold() in diff_datei(pfad).casefold():  # Textmarker im Diff-Inhalt dieser Datei
+                    return f"Forschungsdaten ({e})"
+            return None
+
+        gefiltert: dict[str, str] = {}
+        for alt, neu in paare:
+            if grund(alt) or grund(neu):
+                gefiltert[alt] = f"umbenannt nach {neu}"
+                gefiltert[neu] = f"umbenannt aus {alt}"
+        for pfad in alle:
+            if pfad not in gefiltert:
+                g = grund(pfad)
+                if g:
+                    gefiltert[pfad] = g
+
+        gruppen: list[tuple[str, list[str]]] = []
+        if a.gruppe:
+            for eintrag in a.gruppe:
+                name, trenn, globs = eintrag.partition("=")
+                gl = globs.split(",") if trenn else []
+                if not re.fullmatch(r"[A-Za-z0-9_-]+", name) or not trenn or not globs or any(not g for g in gl):
+                    print(f"Ungültige Gruppe {eintrag!r} – erwartet NAME=GLOB[,GLOB…] "
+                          "(NAME nur [A-Za-z0-9_-]+, GLOB nicht leer).", file=sys.stderr)
+                    return 64
+                gruppen.append((name, gl))
+        else:
+            gruppen = [("alles", ["*"])]
+        zuordnung: dict[str, str] = {}
+        ohne: list[str] = []
+        for pfad in alle:
+            if pfad in gefiltert:
+                continue
+            for name, gl in gruppen:  # erste passende Gruppe gewinnt
+                if any(passt(pfad, g) for g in gl):
+                    zuordnung[pfad] = name
+                    break
+            else:
+                ohne.append(pfad)
+
+        lauf = Path(os.environ.get("TMPDIR") or "/tmp") / "review-runs" / (time.strftime("%Y%m%d-%H%M") + "-" + branch)
+        if lauf.exists():
+            lauf = Path(f"{lauf}-{time.strftime('%H%M%S')}")  # nie etwas überschreiben
+        lauf.mkdir(parents=True)
+        lauf = lauf.resolve()
+
+        print(f"Review-Ordner: {lauf}")
+        for name, _gl in gruppen:
+            dateien = sorted(p for p, g in zuordnung.items() if g == name)
+            for rolle, rollenname in (("mistral", "mistral-team"), ("gemini", "gemini-analyst")):
+                ordner = (lauf / name / rolle).resolve()
+                ordner.mkdir(parents=True, exist_ok=True)
+                patch = git("diff", "--no-renames", f"{mb}..HEAD", "--",
+                            *(f":(literal){p}" for p in dateien)) if dateien else ""
+                (ordner / "diff.patch").write_text(patch, encoding="utf-8")
+                (ordner / "pflicht.txt").write_text("\n".join(auftrag_zeilen(cfg, rollenname, [])) + "\n", encoding="utf-8")
+                if rolle == "mistral":
+                    (ordner / "bericht.md").write_text("", encoding="utf-8")
+                zeilen = len(patch.splitlines())
+                print(f"{name}/{rolle}: {len(dateien)} Dateien, {zeilen} Diff-Zeilen → {ordner}")
+                if zeilen >= 150:
+                    print("  Hinweis: ≥ 150 Diff-Zeilen – ungemessen, Gruppe teilen (--gruppe)")
+        for pfad in alle:
+            if pfad in gefiltert:
+                print(f"gefiltert (mistral, gemini): {pfad} – {gefiltert[pfad]}")
+        for pfad in ohne:
+            print(f"ohne Gruppe: {pfad}")
+        print("prompt.md schreibt Claude (Write-Werkzeug); Teams starten über die Agent-Schnittstelle.")
+        return 0
+    except subprocess.CalledProcessError as e:
+        print(f"git {' '.join(e.cmd[3:])} schlägt fehl:\n{e.stderr}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"Review-Ordner bzw. git nicht nutzbar: {e}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Agenten-Normen")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2800,6 +2934,11 @@ def main() -> int:
     p.add_argument("--klein", default=None, metavar="GRUND",
                    help="Review-Halt (Code-Zeilen/kritische Stellen) mit Begründung übergehen – nicht bei großen Meilensteinen")
     p.set_defaults(f=cmd_merge)
+    p = sub.add_parser("review", help="Review-Läufe vorbereiten (Ordner, Diff, Pflichtblock) – startet keine Teams")
+    p.add_argument("--basis", default="origin/main", help="Basis-Ref für den Diff (Standard: origin/main)")
+    p.add_argument("--gruppe", action="append", default=None, metavar="NAME=GLOB[,GLOB…]",
+                   help="Gruppe mit Globs für die Aufteilung; ohne --gruppe eine Gruppe „alles“")
+    p.set_defaults(f=cmd_review)
     p = sub.add_parser("auftrag")
     p.add_argument("--rolle", default="mistral-team")
     p.add_argument("--dateien", nargs="+")

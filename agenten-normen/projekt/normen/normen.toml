@@ -12,8 +12,8 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 16
-stand = "2026-11-22"
+version = 17
+stand = "2026-11-23"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
   "Recherche 14.11.2026: Fehlermuster Claude Code / Mistral Vibe / Gemini CLI + Antigravity (ImpossibleBench, System Cards, GitHub-Issues, Vorfälle)",
@@ -277,9 +277,9 @@ faehigkeiten = ["git-commit", "git-push", "einstellungen"]
 id = "N11-ARBEITSZWEIG"
 stufe = "muss"
 titel = "Auf eigenem Branch arbeiten; main nur bei Meilensteinen"
-prompt = "Arbeite nie direkt auf main/master, sondern auf einem eigenen Branch (commit und push dort). Nach main nur per PR und `python3 normen/normen.py merge <PR>`: das Prüftor mergt nur, wenn der Stand committet ist, origin/main enthält, der Testbefehl grün ist und `pruefen --diff origin/main` keine Fehler meldet; vorher den Diff selbst lesen. Direktes `git push … main` oder `gh pr merge` nur nach Rückfrage ({inhaberin})."
-begruendung = "main bleibt jederzeit lauffähig; Zwischenstände und Fehlversuche bleiben auf dem Branch und lassen sich ohne Eingriff in main verwerfen."
-quellen = ["Vorgabe der Inhaberin, 14.11.2026", "Automatischer Merge bei grünem Prüftor: Freigabe der Inhaberin 14.11.2026"]
+prompt = "Arbeite nie direkt auf main/master, sondern auf einem eigenen Branch (commit und push dort). Nach main nur per PR und `python3 normen/normen.py merge <PR>`: das Prüftor mergt nur, wenn der Stand committet ist, origin/main enthält, der Testbefehl grün ist und `pruefen --diff origin/main` keine Fehler meldet; vorher den Diff selbst lesen. Große Meilensteine (PR-Label `meilenstein` oder neue Normen-Version der Quelle) brauchen zusätzlich einen Review-Bericht `docs/reviews/<datum>-<branch>.md` mit `Mergereif: ja`; Ablauf `docs/multi-ki-ablauf.md`, Abschnitt „Review“. Direktes `git push … main` oder `gh pr merge` nur nach Rückfrage ({inhaberin})."
+begruendung = "main bleibt jederzeit lauffähig; Zwischenstände und Fehlversuche bleiben auf dem Branch und lassen sich ohne Eingriff in main verwerfen. Große Änderungen bekommen vorher ein unabhängiges Review (v17)."
+quellen = ["Vorgabe der Inhaberin, 14.11.2026", "Automatischer Merge bei grünem Prüftor: Freigabe der Inhaberin 14.11.2026", "Review-Tor für große Meilensteine: Freigabe der Inhaberin 23.11.2026"]
 durchsetzung = ["hook", "pruefen", "review"]
 faehigkeiten = ["main"]
   [[norm.muster]]

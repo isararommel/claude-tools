@@ -4,6 +4,45 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v17 – Review-Tor beim Merge, `normen.py review`, normen.py für Teams gesperrt – 2026-11-23
+
+**Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (normen.py, normen.toml); in `normen/projekt.toml` den neuen
+Abschnitt `[review]` aus der Vorlage übernehmen (fehlt er, gelten die Vorgaben: Code-Endungen wie unten, keine kritischen
+Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/multi-ki-ablauf.md` per `multi-ki/einrichten.sh`
+(kommt als `.vorlage`).
+
+### Neu
+- **Review-Tor in `normen.py merge` (N11):** Große Meilensteine – PR-Label `meilenstein` oder neue `[meta].version` in einer
+  Datei aus `[review].versionsdateien` – mergen nur, wenn der PR `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügt oder ändert
+  (`/` im Branch → `-`, Name exakt) und der Bericht genau eine Zeile `Mergereif: ja` hat. Versionsdatei an der Basis fehlend
+  oder unlesbar zählt als neue Version.
+- **Halt mit Begründungspflicht:** ab 150 Code-Zeilen (hinzugefügt + gelöscht in Dateien aus `[review].code`, Vorgabe
+  `*.py, *.sh, *.js, *.ts, Makefile, *.json`; Tests aus `[pfade].tests` und eingespielte Kopien `normen/normen.py`,
+  `normen/*.toml` außer `projekt.toml`, `.claude/settings.json`, `.vibe/`, `.githooks/` zählen nicht) oder bei jeder Änderung an
+  `[review].kritisch` hält `merge` an. Weiter mit Label oder `normen.py merge <PR> --klein "<Grund>"` (Grund im Merge-Commit;
+  ohne Grund Fehler, vor jedem Netzaufruf).
+- **`normen.py review [--basis] [--gruppe NAME=GLOB,…]`:** bereitet Review-Läufe vor (Ordner je Gruppe und Team, `diff.patch`,
+  `pflicht.txt`, bei Mistral `bericht.md`), startet keine Teams. Filtert aus jedem Diff `[pfade].gesperrt`, Geheimnis-Muster
+  und Forschungsdaten (Pfad-Globs und Textmarker im Diff-Inhalt, ohne Groß-/Kleinschreibung); bei Umbenennungen fallen alter und
+  neuer Pfad heraus, wenn eine Seite gefiltert ist. `[pruefen].ausschliessen` gilt hier bewusst nicht.
+- Vorlage `review-bericht.md`: Abschnitt „Ergebnis“ mit `Mergereif: <ja|nein>`.
+
+### Geändert
+- **Teams rufen von `normen.py` nur `pruefen` und `kurz` auf (Hook):** Vorher ließ der Hook für mistral-team, gemini-analyst und
+  lokal jeden Unterbefehl zu – auch `auftrag --dateien '**'`, das die eigene Auftragsliste samt Siegel erweiterte, und
+  `auftrag --ende`, `merge`, `aktualisieren`, `melden`. Unbekannte Unterbefehle (`"$X"`) sperrt er ebenfalls.
+- `review` steht in der Liste der in Code-Mode-Skripten verbotenen Unterbefehle.
+
+### Bekannte Grenzen
+- Das Label `meilenstein` vergibt und entfernt Claude selbst; `--klein` begründet Claude selbst. Das Tor schützt gegen Vergessen,
+  nicht gegen Absicht.
+- Das Tor liest `[review]` aus dem Stand, der gemergt wird: Eine Änderung an `normen/projekt.toml` kann die eigene Prüfung
+  abschwächen. Deshalb steht `normen/projekt.toml` hier unter `kritisch` (Halt, sichtbar).
+- Die Sperre für Teams erkennt `normen.py`/`normen.normen` im Befehlstext; Aufrufe über umbenannte Kopien oder Variablen für
+  den Programmnamen sieht sie nicht (andere Hook-Regeln greifen dort teilweise).
+
+---
+
 ## Review-Aufträge (Multi-KI, kein neuer Normtext) – 2026-11-22
 
 **Aktualisieren nötig:** nur für Reviews – `multi-ki/einrichten.sh <projekt> --test "<testbefehl>"` legt die neuen Vorlagen an
