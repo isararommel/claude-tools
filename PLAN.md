@@ -302,7 +302,27 @@ Offen:
    `einrichten.sh`/`aktualisieren` spielen nur von sauberem `main` ein (sonst Abbruch mit Hinweis) und `herkunft.toml`
    speichert den Commit der Quelle; `aktualisieren` meldet „gleiche Version, anderer Stand“. Kandidat für die nächste Version.
 
-### R2. `normen.py review` und Review-Tor beim Merge (Normen v17) *(nächstes Paket; Freigabe der Inhaberin 23.11.)*
+### R2. `normen.py review` und Review-Tor beim Merge (Normen v17) *(läuft, Branch `paket-r2-review-tor`; Freigabe der Inhaberin 23.11.)*
+
+**Stand 23.11. (Commits 133ca18, 556aa0f; `make test` grün, `pruefen --diff` 0 Fehler):** Punkte 1–4 umgesetzt.
+- Tor (Claude): `review_daten` (git, `--no-renames -z`) + reine `review_entscheidung`; Prüfung in `cmd_merge` nach der
+  Vorprüfung, vor dem Testbefehl; `--klein` leer → Fehler vor jedem Netzaufruf; Grund per `gh pr merge --body`.
+  Kopien fest im Code (`normen/normen.py`, `normen/*.toml` außer projekt.toml, `normen/herkunft.toml`, `normen/kurz.md`,
+  `.claude/settings.json`, `.vibe/`, `.githooks/`) – **enger als der Entwurf** (ohne `docs/`, nur `settings.json` aus
+  `.claude/`), weil Markdown ohnehin nicht zählt. `normen/projekt.toml` steht hier unter `kritisch` (Advisor).
+- `review` (mistral-team): Lauf 1 gescheitert (Smart-Approve lehnte den Testlauf mit `einrichten.sh` ab, `deadline` nach
+  30 Schritten, keine Änderung); Lauf 2 `--resume` „keine Tests ausführen“: `finished`, 8 Schritte, +139 Zeilen, Abnahme
+  durch Claude. **Lehre:** Aufträge, deren Tests `einrichten.sh`/Temp-Repos anlegen, an Vibe gleich mit „keine Tests
+  ausführen, Abnahme durch Claude“ geben. Abweichung vom Entwurf: `[pruefen].ausschliessen` filtert `review` nicht
+  (enthält hier die Normen-Quelle); Forschungsdaten fallen auch aus dem Mistral-Diff (Advisor).
+- **Neuer Befund, mit behoben (älter als v17):** Der Hook ließ Teams jeden `normen.py`-Unterbefehl aufrufen, auch
+  `auftrag --dateien '**'` (erweitert die eigene Auftragsliste samt Siegel), `auftrag --ende`, `merge`. Jetzt nur
+  `pruefen`/`kurz` (`TEAM_NORMEN_ERLAUBT`), Tests in `tests/test_review_tor.py`.
+- Tests heißen `tests/test_review_tor.py` (N08 sperrt `test_v17.py`). `test_v4`: Prüfsummen vor dem Abgleich privater
+  Begriffe entfernt (Zufallstreffer in `herkunft.toml`).
+**Offen in R2:** Punkt 5 – Label `meilenstein` anlegen, Selbst-Review (v17 ist Meilenstein) mit `normen.py review`,
+zweiten Mistral-Schritt einmal erzwingen, Bericht `docs/reviews/2026-11-23-paket-r2-review-tor.md` mit `Mergereif: ja`,
+Advisor vor „fertig“, PR, `normen.py merge`, Sitzungen informieren.
 
 Entscheidung der Inhaberin 23.11.: beides ja (Frage 2 unter R). Normänderung (N11-Text, `meta.version` 17) → Advisor vor dem
 Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu prüfen):
