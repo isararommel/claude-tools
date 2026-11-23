@@ -750,6 +750,12 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
+        if rinfo.get("auftrag_pflicht"):
+            # v17: Teams rufen von normen.py nur pruefen/kurz auf – `auftrag --dateien` erweiterte samt Siegel die eigenen
+            # Rechte, `auftrag --ende`/merge/review/aktualisieren/melden sind Sache von Claude (vorher ungeprüft).
+            for unter in _NORMEN_UNTER_RX.findall(cmd):
+                if unter not in TEAM_NORMEN_ERLAUBT:
+                    gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {unter}` ruft nur Claude auf"))
         for norm in cfg["normen"]:
             for m in norm.get("muster", []):
                 if m["ziel"] != "befehl":
@@ -1009,7 +1015,9 @@ GIT_VERBOTEN = {"commit", "push", "merge", "tag", "add", "rebase", "reset", "che
 GIT_LESEN = {"status", "diff", "log", "show", "rev-parse", "ls-files"}
 BRANCH_VERBOTEN = {"-d", "-D", "-m", "-M", "-c", "-C", "-f", "--delete", "--move", "--copy", "--force"}
 GH_API_VERBOTEN = re.compile(r"^(-X|--method|-f|-F|--field|--raw-field|--input)(=|$)|^-X\w")
-NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren"}
+NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren", "review"}
+TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist für Teams gesperrt (Hook)
+_NORMEN_UNTER_RX = re.compile(r"normen(?:\.py|\.normen)\b['\"]?\s+['\"]?([^\s;&|'\"]+)")  # unbekannt ($X …) → gesperrt
 PYTHON = re.compile(r"python3?(\.\d+)?$")
 
 
@@ -2528,15 +2536,115 @@ def cmd_stop(a) -> int:
     return 0
 
 
+# v17 (Paket R2): Review-Tor. Gezählt werden nur Code-Zeilen der Quelle – eingespielte Kopien (einrichten.sh) und Tests nicht.
+REVIEW_KOPIEN = ("normen/normen.py", "normen/normen.toml", "normen/rollen.toml", "normen/herkunft.toml", "normen/kurz.md",
+                 ".claude/settings.json", ".vibe/", ".githooks/")
+REVIEW_CODE = ["*.py", "*.sh", "*.js", "*.ts", "Makefile", "*.json"]
+REVIEW_SCHWELLE = 150  # Code-Zeilen (hinzugefügt + gelöscht) ≈ gemessene Gruppengröße aus Paket R
+REVIEW_LABEL = "meilenstein"
+_MERGEREIF_RX = re.compile(r"^\s*Mergereif:\s*(.*?)\s*$", re.MULTILINE)
+
+
+def _review_werte(cfg: dict) -> dict:
+    rv = cfg["projekt"].get("review", {})
+    return {"code": rv.get("code", REVIEW_CODE), "kritisch": rv.get("kritisch", []),
+            "versionsdateien": rv.get("versionsdateien", [])}
+
+
+def _toml_version(text: str | None):
+    """[meta].version aus einem TOML-Text; None = Datei fehlt, "?" = nicht lesbar (zählt als Änderung)."""
+    if text is None:
+        return None
+    try:
+        return tomllib.loads(text).get("meta", {}).get("version", "?")
+    except tomllib.TOMLDecodeError:
+        return "?"
+
+
+def review_daten(cfg: dict, basis: str) -> dict:
+    """Sammelt für das Review-Tor aus git (Diff `basis...HEAD`, ohne Umbenennungen, damit alter und neuer Pfad zählen):
+    numstat [(hinzu|None, weg|None, pfad)], status [(A|M|D|…, pfad)], versionen {datei: (alt, neu)}, berichte {pfad: text}."""
+    mb = _git("merge-base", basis, "HEAD").strip()
+    numstat, status = [], []
+    for eintrag in _git("diff", "--numstat", "-z", "--no-renames", f"{mb}..HEAD").split("\0"):
+        if eintrag:
+            hinzu, weg, pfad = eintrag.split("\t", 2)
+            numstat.append((None if hinzu == "-" else int(hinzu), None if weg == "-" else int(weg), pfad))
+    teile = _git("diff", "--name-status", "-z", "--no-renames", f"{mb}..HEAD").split("\0")
+    for k in range(0, len(teile) - 1, 2):
+        status.append((teile[k], teile[k + 1]))
+
+    def zeigen(rev: str, pfad: str) -> str | None:
+        r = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{pfad}"], capture_output=True, text=True)
+        return r.stdout if r.returncode == 0 else None
+
+    versionen = {d: (_toml_version(zeigen(mb, d)), _toml_version(zeigen("HEAD", d)))
+                 for d in _review_werte(cfg)["versionsdateien"]}
+    berichte = {p: zeigen("HEAD", p) or "" for s, p in status
+                if s[0] in "AM" and p.startswith("docs/reviews/") and p.endswith(".md")}
+    return {"numstat": numstat, "status": status, "versionen": versionen, "berichte": berichte}
+
+
+def review_entscheidung(cfg: dict, daten: dict, labels: list[str], branch: str, klein: str | None) -> tuple[bool, str]:
+    """Review-Tor (N11, v17) als reine Funktion: (weiter?, Meldung).
+    1. Großer Meilenstein (Label `meilenstein` oder neue [meta].version in [review].versionsdateien): im PR-Diff hinzugefügter
+       oder geänderter Bericht `docs/reviews/<JJJJ-MM-TT>-<branch, / → ->.md` mit genau `Mergereif: ja` – sonst stopp;
+       `--klein` hebt das nicht auf.
+    2. Sonst Halt bei ≥ REVIEW_SCHWELLE Code-Zeilen oder einer Änderung an [review].kritisch – weiter nur mit `--klein`.
+    3. Sonst weiter."""
+    rv = _review_werte(cfg)
+    tests = cfg["projekt"].get("pfade", {}).get("tests", [])
+    gruende = []
+    if REVIEW_LABEL in labels:
+        gruende.append(f"Label `{REVIEW_LABEL}`")
+    for datei, (alt, neu) in sorted(daten["versionen"].items()):
+        if alt != neu:
+            gruende.append(f"{datei}: Version {alt} → {neu}")
+    if gruende:
+        name = branch.replace("/", "-")
+        rx = re.compile(r"docs/reviews/\d{4}-\d{2}-\d{2}-" + re.escape(name) + r"\.md")
+        berichte = sorted(p for s, p in daten["status"] if s[0] in "AM" and rx.fullmatch(p))
+        soll = f"docs/reviews/<JJJJ-MM-TT>-{name}.md"
+        if not berichte:
+            return False, (f"Meilenstein ({'; '.join(gruende)}) ohne Review-Bericht {soll} im PR – Review nach "
+                           "docs/multi-ki-ablauf.md, Abschnitt „Review“; der Bericht braucht die Zeile `Mergereif: ja`.")
+        bericht = berichte[-1]
+        werte = _MERGEREIF_RX.findall(daten["berichte"].get(bericht, ""))
+        if werte != ["ja"]:
+            gefunden = ", ".join(f"`Mergereif: {w}`" for w in werte) or "keine Zeile `Mergereif:`"
+            return False, f"Meilenstein ({'; '.join(gruende)}): Bericht {bericht} sagt nicht genau `Mergereif: ja` ({gefunden})."
+        return True, f"Review-Tor: Meilenstein ({'; '.join(gruende)}), Bericht {bericht} mergereif."
+    zeilen = 0
+    for hinzu, weg, pfad in daten["numstat"]:
+        if pfad.startswith(REVIEW_KOPIEN) or any(passt(pfad, g) for g in tests):
+            continue
+        if any(passt(pfad, g) for g in rv["code"]):
+            zeilen += (hinzu or 0) + (weg or 0)
+    kritisch = sorted({p for _, p in daten["status"] if any(passt(p.casefold(), g.casefold()) for g in rv["kritisch"])})
+    if zeilen >= REVIEW_SCHWELLE or kritisch:
+        anlass = " / ".join(([f"{zeilen} Code-Zeilen"] if zeilen >= REVIEW_SCHWELLE else [])
+                            + ([f"kritisch: {', '.join(kritisch)}"] if kritisch else []))
+        if klein:
+            return True, f"Review-Tor: {anlass} – ohne Review gemergt (--klein): {klein}"
+        return False, (f"Review empfohlen: {anlass} – Label `{REVIEW_LABEL}` setzen (dann Review-Bericht Pflicht) "
+                       f"oder `normen.py merge <PR> --klein \"<Grund>\"`.")
+    return True, f"Review-Tor: {zeilen} Code-Zeilen, nichts Kritisches" + (f" (--klein: {klein})" if klein else "") + "."
+
+
 def cmd_merge(a) -> int:
-    """PR nach main mergen – nur mit grünem Prüftor (N11): sauberer Stand = PR-Kopf, enthält origin/main,
-    Testbefehl grün, `pruefen --diff origin/<basis>` ohne Fehler. Danach lokalen main aktualisieren."""
+    """PR nach main mergen – nur mit grünem Prüftor (N11): sauberer Stand = PR-Kopf, enthält origin/main, Review-Tor
+    (v17), Testbefehl grün, `pruefen --diff origin/<basis>` ohne Fehler. Danach lokalen main aktualisieren."""
     cfg = laden()
 
     def stopp(text: str) -> int:
         print(f"Nicht gemergt: {text}", file=sys.stderr)
         return 1
 
+    klein = None
+    if a.klein is not None:
+        klein = " ".join(a.klein.split())
+        if not klein:
+            return stopp("`--klein` braucht einen Grund (er steht im Merge-Commit).")
     if AUFTRAG.exists():
         return stopp("laufender Team-Auftrag (.normen-auftrag) – erst `python3 normen/normen.py auftrag --ende`.")
     try:
@@ -2545,7 +2653,8 @@ def cmd_merge(a) -> int:
         _git("fetch", "-q", "origin")
         kopf = _git("rev-parse", "HEAD").strip()
         for versuch in range(4):  # direkt nach `git push` kennt GitHub den neuen PR-Kopf manchmal erst nach Sekunden
-            pr = json.loads(subprocess.run(["gh", "pr", "view", str(a.pr), "--json", "state,baseRefName,headRefName,headRefOid"],
+            pr = json.loads(subprocess.run(["gh", "pr", "view", str(a.pr), "--json",
+                                            "state,baseRefName,headRefName,headRefOid,labels"],
                                            cwd=ROOT, capture_output=True, text=True, check=True).stdout)
             if pr["headRefOid"] == kopf or pr["state"] != "OPEN" or versuch == 3:
                 break
@@ -2558,8 +2667,13 @@ def cmd_merge(a) -> int:
                          "auschecken bzw. pushen.")
         if subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", f"origin/{basis}", "HEAD"]).returncode:
             return stopp(f"origin/{basis} ist nicht enthalten – erst `git merge origin/{basis}`, testen, pushen.")
-    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+        weiter, meldung = review_entscheidung(cfg, review_daten(cfg, f"origin/{basis}"),
+                                              [l["name"] for l in pr["labels"]], pr["headRefName"], klein)
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError, KeyError, ValueError) as e:
         return stopp(f"Vorprüfung fehlgeschlagen ({type(e).__name__}: {e}).")
+    if not weiter:
+        return stopp(meldung)
+    print(meldung, flush=True)
     test = cfg["projekt"]["projekt"]["testbefehl"]
     print(f"Prüftor: {test} …", flush=True)
     r = subprocess.run(test, shell=True, cwd=ROOT, capture_output=True, text=True, timeout=1200)  # normen-ausnahme: N09-SICHERE-MUSTER – Testbefehl aus projekt.toml
@@ -2572,7 +2686,8 @@ def cmd_merge(a) -> int:
     if (ROOT / "PLAN.md").exists() and not subprocess.run(
             ["git", "-C", str(ROOT), "diff", "--quiet", f"origin/{basis}...HEAD", "--", "PLAN.md"]).returncode:
         print("Hinweis: PLAN.md im PR unverändert – erledigte Aufgabe abhaken?", flush=True)
-    m = subprocess.run(["gh", "pr", "merge", str(a.pr), "--merge"], cwd=ROOT, capture_output=True, text=True)
+    m = subprocess.run(["gh", "pr", "merge", str(a.pr), "--merge"] + (["--body", meldung] if klein else []),
+                       cwd=ROOT, capture_output=True, text=True)
     if m.returncode != 0:
         return stopp(f"gh pr merge fehlgeschlagen:\n{m.stdout}{m.stderr}")
     try:
@@ -2682,6 +2797,8 @@ def main() -> int:
     p.set_defaults(f=cmd_stop)
     p = sub.add_parser("merge", help="PR nach main mergen, nur mit grünem Prüftor")
     p.add_argument("pr", type=int)
+    p.add_argument("--klein", default=None, metavar="GRUND",
+                   help="Review-Halt (Code-Zeilen/kritische Stellen) mit Begründung übergehen – nicht bei großen Meilensteinen")
     p.set_defaults(f=cmd_merge)
     p = sub.add_parser("auftrag")
     p.add_argument("--rolle", default="mistral-team")

@@ -30,6 +30,17 @@ ausschliessen = [".git/", ".venv/", "node_modules/", "dist/", "normen/", "agente
 diff_max_dateien = 12
 diff_max_zeilen = 400
 
+[review]
+# Review-Tor in `normen.py merge` (N11, v17) – Erklärung in der Vorlage agenten-normen/projekt/normen/projekt.toml.
+code = ["*.py", "*.sh", "*.js", "*.ts", "Makefile", "*.json"]
+# Rechte, Sperrpfade, Hooks: jede Änderung hält an. normen/projekt.toml steuert das Tor selbst (liegt unter normen/, ist
+# aber keine eingespielte Kopie).
+kritisch = ["agenten-normen/projekt/normen/normen.py", "agenten-normen/projekt/normen/normen.toml",
+  "agenten-normen/projekt/normen/rollen.toml", "agenten-normen/projekt/normen/projekt.toml",
+  "agenten-normen/projekt/.claude/settings.json", "agenten-normen/projekt/.vibe/**", "agenten-normen/projekt/.githooks/**",
+  "normen/projekt.toml"]
+versionsdateien = ["agenten-normen/projekt/normen/normen.toml"]
+
 [quelle]
 # Quelle für Aktualisierung (wird von einrichten.sh gesetzt).
 pfad = "~/Documents/Projekte/claude-tools"

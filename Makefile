@@ -8,5 +8,6 @@ test:
 	python3 tests/test_werkzeuge.py
 	python3 tests/test_v15b.py
 	python3 tests/test_v15b2.py
+	python3 tests/test_review_tor.py
 
 .PHONY: test
