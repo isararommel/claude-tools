@@ -396,6 +396,15 @@ R2 → P von der Inhaberin am 23.11. bestätigt** – im Bau nur noch Advisor-Pr
 
 ### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(nächstes Paket; Wunsch der Inhaberin 23.11.)*
 
+**Schritt 0 (Entscheidung der Inhaberin 23.11., mit v18 ausliefern):** „Forschungsdaten dürfen an Mistral“ – bei Reviews
+filtert `normen.py review` Forschungsdaten (Pfad-Globs und Textmarker, samt Kopien/Umbenennungen/gleichem Blob) **nur noch
+aus dem Gemini-Diff**; der Mistral-Diff enthält sie. Gesperrte Pfade und Geheimnisse bleiben für beide Teams gefiltert.
+Umsetzung (Claude, Datenschutzfilter = heikel): Gründe in `cmd_review` je Rolle führen (`grund()` liefert Art + Text; Paare
+und Blob-Abgleich je Rolle), Ausgabe `gefiltert (gemini): …` bzw. `(mistral, gemini)`. Tests in `tests/test_review_tor.py`
+umstellen (Forschungspfad/Marker/Kopie: im Mistral-Diff **vorhanden**, im Gemini-Diff nicht; Sperrpfad/Geheimnis: in keinem).
+Doku: CHANGELOG v18, Ablauf „Review“, Vorlage `review-auftrag.md`, `CLAUDE.md` dieses Projekts („an mistral-team nur nach
+Freigabe“ → bei Reviews freigegeben). Der Hook fragt bei Forschungsdaten im **Prompt** an vibe weiter nach (unverändert).
+
 **Lehren aus R2 für P:** Testdatei nicht `test_v18.py` nennen (N08 sperrt Versionszusätze) – z. B. `tests/test_protokoll.py`.
 Neue Unterbefehle (`hook-nach`, `protokoll`) in `NORMEN_UNTERBEFEHLE` eintragen (ein Test vergleicht mit argparse); ob Teams
 sie aufrufen dürfen, entscheidet `TEAM_NORMEN_ERLAUBT` (Vorschlag: nein). Vibe-Aufträge, deren Tests `einrichten.sh`/Temp-Repos
