@@ -14,7 +14,7 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
 ### Neu
 - **Review-Tor in `normen.py merge` (N11):** Große Meilensteine – PR-Label `meilenstein` oder neue `[meta].version` in einer
   Datei aus `[review].versionsdateien` – mergen nur, wenn der PR `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügt oder ändert
-  (`/` im Branch → `-`, Name exakt) und der Bericht genau eine Zeile `Mergereif: ja` hat. Versionsdatei an der Basis fehlend
+  (jedes Zeichen außer `[A-Za-z0-9._-]` im Branch → `-`, Name exakt) und der Bericht genau eine Zeile `Mergereif: ja` hat. Versionsdatei an der Basis fehlend
   oder unlesbar zählt als neue Version.
 - **Halt mit Begründungspflicht:** ab 150 Code-Zeilen (hinzugefügt + gelöscht in Dateien aus `[review].code`, Vorgabe
   `*.py, *.sh, *.js, *.ts, Makefile, *.json`; Tests aus `[pfade].tests` und eingespielte Kopien `normen/normen.py`,
@@ -24,7 +24,8 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
 - **`normen.py review [--basis] [--gruppe NAME=GLOB,…]`:** bereitet Review-Läufe vor (Ordner je Gruppe und Team, `diff.patch`,
   `pflicht.txt`, bei Mistral `bericht.md`), startet keine Teams. Filtert aus jedem Diff `[pfade].gesperrt`, Geheimnis-Muster
   und Forschungsdaten (Pfad-Globs und Textmarker im Diff-Inhalt, ohne Groß-/Kleinschreibung); bei Umbenennungen und Kopien
-  fallen beide Pfade heraus, wenn eine Seite gefiltert ist. `[pruefen].ausschliessen` gilt hier bewusst nicht. `bericht.md`
+  fallen beide Pfade heraus, wenn eine Seite gefiltert ist. Dateien mit Schlüsseln/Tokens im Diff-Inhalt (dieselben Muster wie
+  die Prompt-Prüfung des Hooks) fallen ebenfalls heraus. `[pruefen].ausschliessen` gilt hier bewusst nicht. `bericht.md`
   enthält den Text für den zweiten Mistral-Schritt. Das Label zählt ohne Groß-/Kleinschreibung.
 - Vorlage `review-bericht.md`: Abschnitt „Ergebnis“ mit `Mergereif: <ja|nein>`.
 
@@ -41,9 +42,12 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
   abschwächen. Deshalb steht `normen/projekt.toml` hier unter `kritisch` (Halt, sichtbar).
 - Die Sperre für Teams greift, wenn „normen“ im Befehl steht: dann sperrt jedes Wort, das ein Unterbefehl außer
   `pruefen`/`kurz` ist (auch in Anführungszeichen oder hinter `$(…)`), und jeder nicht lesbare Unterbefehl (`$X`). Eine Kopie
-  unter anderem Namen oder ein Glob im Programmpfad (`norme?.py`) mit einem zusammengesetzten Unterbefehl sieht sie nicht.
+  von normen.py unter anderem Namen mit zusammengesetztem Unterbefehl (`${A}${B}`) sieht diese Regel nicht; Skripte außerhalb
+  des Projekts prüft dann S06 vor dem Lauf.
 - `review` erkennt Kopien und Umbenennungen aus Sperr-/Forschungspfaden ab 30 % Ähnlichkeit (`-M30% -C30%
   --find-copies-harder`). Ganz neu geschriebener Inhalt aus solchen Dateien unter neuem Pfad fällt nur über Textmarker heraus.
+- Geheimnisse im Inhalt erkennt `review` nur an festen Mustern (private Schlüssel, GitHub-, AWS-, Slack-, Google-Tokens,
+  `sk-…`); ein Passwort in Klartext ohne solches Muster gelangt in den Diff. Es ist kein vollständiger Geheimnis-Scanner.
 - Mehrere passende Berichte im PR: Es gilt der neueste (Datum im Namen); ein früherer „nein“ vor der Nachbesserung ist
   der übliche Verlauf.
 

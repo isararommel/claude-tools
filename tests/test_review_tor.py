@@ -154,6 +154,10 @@ def test_tor(t):
     andere = "docs/reviews/2026-11-23-arbeit-r2-alt.md"
     ok, _ = E(cfg, daten([(5, 0, andere)], [("A", andere)], berichte={andere: BERICHT_JA}), ["meilenstein"], B, None)
     check("tor: Bericht mit Zusatz im Namen stopp", not ok)
+    # Branchname wie bei `review` abgebildet (Gemini Nr. 1): jedes Zeichen außer [A-Za-z0-9._-] → -
+    raute = "docs/reviews/2026-11-23-feat-42.md"
+    ok, _ = E(cfg, daten([(5, 0, raute)], [("A", raute)], berichte={raute: BERICHT_JA}), ["meilenstein"], "feat#42", None)
+    check("tor: Branch feat#42 → feat-42", ok)
     falsch = "docs/reviews/23-11-2026-arbeit-r2.md"
     ok, _ = E(cfg, daten([(5, 0, falsch)], [("A", falsch)], berichte={falsch: BERICHT_JA}), ["meilenstein"], B, None)
     check("tor: Bericht ohne ISO-Datum stopp", not ok)
@@ -320,6 +324,8 @@ def test_review(t):
     (repo / "daten" / "roh" / "m.csv").write_text("1,2\n")                # Forschungsdaten (Pfad)
     # Review 23.11. (Mistral Nr. 2): unveränderte Kopie und stark umgebaute Umbenennung aus Forschungsdaten heraus
     (repo / "kopie.csv").write_text((repo / "daten" / "roh" / "basis.csv").read_text())
+    # Review 23.11. (Gemini Nr. 7): Geheimnis im Inhalt einer harmlos benannten Datei (Text zusammengesetzt, nicht im Test selbst)
+    (repo / "src" / "client.py").write_text("SCHLUESSEL = '''" + "-----BEGIN " + "RSA PRIVATE KEY-----" + "\nabc'''\n")
     sh("git", "mv", "daten/roh/umbau.csv", "src/umbau.csv", cwd=repo)
     (repo / "src" / "umbau.csv").write_text("".join(f"wert {i},{i * 3}\n" for i in range(8))
                                             + "".join(f"neu {i}\n" for i in range(12)))
@@ -357,6 +363,7 @@ def test_review(t):
         check(f"review {name}: Marker-Datei fehlt", "proband-0042" not in d.lower(), d)
         check(f"review {name}: Kopie aus Forschungsdaten fehlt", "kopie.csv" not in d and "messung 3" not in d, d)
         check(f"review {name}: umgebaute Umbenennung fehlt", "src/umbau.csv" not in d and "wert 3" not in d, d)
+        check(f"review {name}: Geheimnis-Inhalt fehlt", "src/client.py" not in d and "PRIVATE KEY" not in d, d)
     check("review: Ausgabe nennt Gefiltertes", "gefiltert" in r.stdout and "daten/roh/m.csv" in r.stdout
           and "src/liste.py" in r.stdout and "frei.txt" in r.stdout, r.stdout)
     check("review: Ausgabe nennt Ordner und Zeilen", str(g) in r.stdout or "alles" in r.stdout, r.stdout)

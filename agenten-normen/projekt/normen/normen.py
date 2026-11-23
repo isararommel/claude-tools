@@ -2553,6 +2553,11 @@ REVIEW_ZWEITER_SCHRITT = ("Lies keine weiteren Dateien und rufe keine Werkzeuge 
 _MERGEREIF_RX = re.compile(r"^\s*Mergereif:\s*(.*?)\s*$", re.MULTILINE)
 
 
+def _review_branch(branch: str) -> str:
+    """Branchname für Review-Ordner und Berichtsnamen: jedes Zeichen außer [A-Za-z0-9._-] → `-` (`arbeit/r2` → `arbeit-r2`)."""
+    return re.sub(r"[^A-Za-z0-9._-]", "-", branch)
+
+
 def _review_werte(cfg: dict) -> dict:
     rv = cfg["projekt"].get("review", {})
     return {"code": rv.get("code", REVIEW_CODE), "kritisch": rv.get("kritisch", []),
@@ -2609,7 +2614,7 @@ def review_entscheidung(cfg: dict, daten: dict, labels: list[str], branch: str, 
         if alt != neu:
             gruende.append(f"{datei}: Version {alt} → {neu}")
     if gruende:
-        name = branch.replace("/", "-")
+        name = _review_branch(branch)
         rx = re.compile(r"docs/reviews/\d{4}-\d{2}-\d{2}-" + re.escape(name) + r"\.md")
         berichte = sorted(p for s, p in daten["status"] if s[0] in "AM" and rx.fullmatch(p))
         soll = f"docs/reviews/<JJJJ-MM-TT>-{name}.md"
@@ -2807,7 +2812,7 @@ def cmd_review(a) -> int:
         return 2
     try:
         mb = git("merge-base", a.basis, "HEAD").strip()
-        branch = re.sub(r"[^A-Za-z0-9._-]", "-", git("rev-parse", "--abbrev-ref", "HEAD").strip())
+        branch = _review_branch(git("rev-parse", "--abbrev-ref", "HEAD").strip())
         # Umbenennungen und Kopien (alt, neu); ist eine Seite gefiltert, fallen beide heraus. Niedrige Schwelle und
         # --find-copies-harder (Review 23.11.): sonst kamen unveränderte Kopien und stark umgebaute Umbenennungen aus
         # Sperr-/Forschungspfaden ungefiltert in den Diff. Ganz neu geschriebene Inhalte erkennt git nicht (Grenze).
@@ -2839,6 +2844,9 @@ def cmd_review(a) -> int:
                     return f"gesperrt ({s})"
             if _geheim(Path(pfad).name, pf):
                 return "Geheimnis-Muster"
+            for rx, art in _GEHEIM_INHALT:  # Review 23.11. (Gemini Nr. 7): Schlüssel/Tokens im Inhalt, wie der Prompt-Hook
+                if rx.search(diff_datei(pfad)):
+                    return f"Geheimnis-Inhalt ({art})"
             for e in pf.get("forschungsdaten", []):
                 if not e:
                     continue

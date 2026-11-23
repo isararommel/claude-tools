@@ -198,7 +198,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 
 **Wann (N11, v17 – `normen.py merge` prüft es):**
 - **Großer Meilenstein** = PR-Label `meilenstein` oder neue `[meta].version` in einer Datei aus `projekt.toml
-  [review].versionsdateien`: Der PR muss `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügen oder ändern (`/` im Branch → `-`),
+  [review].versionsdateien`: Der PR muss `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügen oder ändern (jedes Zeichen außer `[A-Za-z0-9._-]` im Branch → `-`, also `/` → `-`),
   mit der Zeile `Mergereif: ja`. Sonst „Nicht gemergt“. `--klein` hilft hier nicht.
 - **Sonst Halt mit Begründungspflicht:** ab 150 Code-Zeilen (Endungen aus `[review].code`; Tests, Markdown und eingespielte
   Kopien zählen nicht) oder bei jeder Änderung an `[review].kritisch` hält `merge` an. Weiter mit Label `meilenstein` (dann
@@ -216,7 +216,8 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
    `pflicht.txt` (Pflichtsätze der Rolle), bei Mistral eine leere `bericht.md` für den zweiten Schritt. Es filtert
    `[pfade].gesperrt`, Geheimnis-Muster und Forschungsdaten (Pfade und Textmarker im Diff) aus jedem Diff – das ist die einzige
    Sperre vor Gemini, der Hook prüft nur die Prompt-Datei – und nennt Gefiltertes und Dateien ohne Gruppe. Große Diffs in Gruppen
-   nach Thema schneiden (Hinweis ab 150 Diff-Zeilen); jede Gruppe geht an beide Teams. Gemessen (22.11.2026): 141 Diff-Zeilen
+   nach Thema schneiden (Hinweis ab 150 Zeilen in `diff.patch` samt Kontext – Maß für den Lauf der Teams, nicht die
+   Code-Zeilen-Schwelle von `merge`); jede Gruppe geht an beide Teams. Gemessen (22.11.2026): 141 Diff-Zeilen
    plus rund 450 Zeilen Dateibereiche kosteten Mistral ≈ 340 von 540 s, agy ≈ 6–7 von 9 min. Größere Gruppen sind ungemessen.
    Eingespielte Kopien (z. B. `normen/`) nicht doppelt prüfen, sondern per `cmp` gegen die Quelle belegen.
 2. **Auftrag:** `docs/review-auftrag.md` ausfüllen und als `prompt.md` (Write-Werkzeug) in den Rollen-Ordner legen; eigene

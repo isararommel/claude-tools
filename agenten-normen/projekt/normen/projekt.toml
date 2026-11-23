@@ -50,8 +50,8 @@ diff_max_zeilen = 400
 # Review-Tor in `normen.py merge` (N11, v17). Großer Meilenstein = PR-Label `meilenstein` oder neue [meta].version in einer
 # der versionsdateien → Review-Bericht docs/reviews/<JJJJ-MM-TT>-<branch>.md mit `Mergereif: ja` Pflicht.
 # Sonst Halt (weiter mit Label oder `--klein "<Grund>"`) ab 150 Code-Zeilen oder bei jeder Änderung an kritisch.
-# Gezählt werden nur Dateien aus code; Tests ([pfade].tests) und eingespielte Kopien (normen/, .claude/settings.json,
-# .vibe/, .githooks/) nicht. In Projekten bleiben versionsdateien leer (sonst wäre jeder `aktualisieren`-PR ein Meilenstein).
+# Gezählt werden nur Dateien aus code; Tests ([pfade].tests) und eingespielte Kopien (normen/normen.py, normen/normen.toml,
+# normen/rollen.toml, normen/herkunft.toml, normen/kurz.md, .claude/settings.json, .vibe/, .githooks/) nicht. In Projekten bleiben versionsdateien leer (sonst wäre jeder `aktualisieren`-PR ein Meilenstein).
 code = ["*.py", "*.sh", "*.js", "*.ts", "Makefile", "*.json"]
 kritisch = []        # Globs, z. B. Rechte, Sperrpfade, Hooks: ["normen/projekt.toml", "app/rechte.py"]
 versionsdateien = []
