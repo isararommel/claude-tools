@@ -3,6 +3,8 @@
 
   python3 normen/normen.py pruefen [--diff [BASIS] | --staged] [--nur-melden]
   python3 normen/normen.py hook --rolle ROLLE --werkzeug claude|vibe|gemini   (stdin: JSON des Werkzeugs)
+  python3 normen/normen.py hook-nach --werkzeug claude                         (PostToolUse/PostToolUseFailure: Ausgang nachtragen – immer Exit 0, keine Ausgabe)
+  python3 normen/normen.py protokoll [--alle|--seit JJJJ-MM-TT] [--gelesen] [--faellig]   (Normen-Protokoll auswerten; --faellig: SessionStart-Hook)
   python3 normen/normen.py stop --werkzeug claude                             (Claude-Stop-Hook: Test + Diff-Prüfung)
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
@@ -31,6 +33,7 @@ import tempfile
 import time
 import tomllib
 from collections import Counter
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -74,6 +77,8 @@ SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v16 (#66): session_ids, deren Hoo
 # (make test setzt es, damit Testläufe nicht ins echte Protokoll schreiben).
 PROTOKOLL_STANDARD = "~/.config/claude-tools/normen-protokoll.jsonl"
 PROTOKOLL_KUERZE = 300
+PROTOKOLL_FAELLIG_TAGE = 7
+PROTOKOLL_FAELLIG_ANZAHL = 30
 # Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
 SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
 SELBSTTEST_TEXTE = {
@@ -1063,8 +1068,8 @@ BRANCH_VERBOTEN = {"-d", "-D", "-m", "-M", "-c", "-C", "-f", "--delete", "--move
 GH_API_VERBOTEN = re.compile(r"^(-X|--method|-f|-F|--field|--raw-field|--input)(=|$)|^-X\w")
 NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren", "review"}
 TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist für Teams gesperrt (Hook)
-NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "stop", "merge", "auftrag", "skript", "selbsttest", "kurz", "sync",
-                       "aktualisieren", "melden", "review"}
+NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "hook-nach", "protokoll", "stop", "merge", "auftrag", "skript", "selbsttest",
+                       "kurz", "sync", "aktualisieren", "melden", "review"}
 _NORMEN_PFAD_RX = re.compile(r"(?<![\w.-])normen(?:\.py|\.normen)\b", re.IGNORECASE)  # nicht test_normen.py
 
 
@@ -2543,6 +2548,206 @@ def _protokoll_eintrag(cfg, rolle: str, werkzeug: str, data: dict, tool: str, ei
             "permission_mode": data.get("permission_mode")}
 
 
+def _protokoll_marke() -> datetime | None:
+    """Marke (zuletzt ausgewertet) als ISO-Zeitstempel mit Zeitzone; fehlt oder kaputt → None (wie „keine Marke“)."""
+    marke = _protokoll_pfad().with_suffix(".marke")
+    if not marke.is_file():
+        return None
+    try:
+        return datetime.fromisoformat(marke.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _protokoll_marke_setzen() -> None:
+    """Marke auf jetzt setzen (Datei anlegen/überschreiben, Rechte 600)."""
+    marke = _protokoll_pfad().with_suffix(".marke")
+    marke.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(marke, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, (datetime.now().astimezone().isoformat(timespec="seconds") + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _protokoll_zeilen() -> tuple[list[dict], int]:
+    """Alle Protokoll-Zeilen als Dicts plus Anzahl unlesbarer Zeilen; Datei fehlt → leer, 0."""
+    pfad = _protokoll_pfad()
+    if not pfad.is_file():
+        return [], 0
+    eintraege, unlesbar = [], 0
+    with open(pfad, "r", encoding="utf-8", errors="replace") as f:
+        for zeile in f:
+            zeile = zeile.strip()
+            if not zeile:
+                continue
+            try:
+                e = json.loads(zeile)
+            except json.JSONDecodeError:
+                unlesbar += 1
+                continue
+            if isinstance(e, dict):
+                eintraege.append(e)
+            else:
+                unlesbar += 1
+    return eintraege, unlesbar
+
+
+def _protokoll_zeit(e: dict) -> datetime | None:
+    """zeit-Feld als aware datetime (ohne Offset: lokal annehmen); unlesbar → None."""
+    try:
+        dt = datetime.fromisoformat(str(e.get("zeit") or ""))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else dt.astimezone()
+
+
+def cmd_hook_nach(a) -> int:
+    """v18: PostToolUse/PostToolUseFailure – Ausgang zu einem protokollierten fragen-Eintrag nachtragen.
+    Liest nur das Dateiende (letzte 64 KiB, davon die letzten 200 vollständigen Zeilen). Immer Exit 0, nie Ausgabe
+    auf stdout; Fehler als eine Zeile auf stderr."""
+    try:
+        roh = sys.stdin.read()
+        data = json.loads(roh) if roh.strip() else {}
+        if not isinstance(data, dict):
+            return 0
+        event = str(data.get("hook_event_name") or "")
+        tid = str(data.get("tool_use_id") or "")
+        if event not in ("PostToolUse", "PostToolUseFailure") or not tid:
+            return 0
+        pfad = _protokoll_pfad()
+        with open(pfad, "rb") as f:
+            f.seek(0, 2)
+            n = f.tell()
+            f.seek(max(0, n - 65536))
+            roh_datei = f.read()
+        zeilen = roh_datei.decode("utf-8", "replace").splitlines()
+        if n > 65536 and zeilen:
+            zeilen = zeilen[1:]  # erste, evtl. angeschnittene Zeile verwerfen
+        fragen = schon = False
+        for zeile in zeilen[-200:]:
+            try:
+                e = json.loads(zeile)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(e, dict) or e.get("tool_use_id") != tid:
+                continue
+            if e.get("stufe") == "fragen":
+                fragen = True
+            if "ausgang" in e:
+                schon = True
+        if fragen and not schon:
+            _protokoll_anhaengen({"zeit": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "tool_use_id": tid,
+                                  "session_id": data.get("session_id"),
+                                  "ausgang": "ausgefuehrt" if event == "PostToolUse" else "fehlgeschlagen"})
+    except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Nach-Hook darf den Werkzeuglauf nie stören
+        print(f"Normen-Protokoll hook-nach nicht geschrieben ({type(e).__name__}: {e})", file=sys.stderr)
+    return 0
+
+
+def _protokoll_faellig() -> int:
+    """v18: SessionStart-Hinweis – genau eine Zeile mit Anzahl + Datum, nie Inhalte/Projekte/Gründe; Schwellen
+    PROTOKOLL_FAELLIG_TAGE (Marke bzw. ältester Eintrag mindestens so alt) und PROTOKOLL_FAELLIG_ANZAHL."""
+    eintraege, _unlesbar = _protokoll_zeilen()
+    marke = _protokoll_marke()
+    neu = []
+    for e in eintraege:
+        if "ausgang" in e:
+            continue
+        dt = _protokoll_zeit(e)
+        if dt is None or (marke is not None and dt < marke):
+            continue
+        neu.append(dt)
+    n = len(neu)
+    if n == 0:
+        return 0
+    jetzt = datetime.now().astimezone()
+    if marke is not None:
+        alt_genug = (jetzt - marke) >= timedelta(days=PROTOKOLL_FAELLIG_TAGE)
+        datum = marke.date().isoformat()
+    else:
+        aeltestes = min(neu)
+        alt_genug = (jetzt - aeltestes) >= timedelta(days=PROTOKOLL_FAELLIG_TAGE)
+        datum = aeltestes.date().isoformat()
+    if alt_genug or n >= PROTOKOLL_FAELLIG_ANZAHL:
+        print(f"Normen-Protokoll: {n} neue Einträge seit {datum} – in claude-tools auswerten (`normen.py protokoll`)")
+    return 0
+
+
+def cmd_protokoll(a) -> int:
+    """v18: Auswertung des Normen-Protokolls – Tabelle je (Norm, Projekt) seit Marke/--seit/--alle; --gelesen setzt
+    die Marke. --faellig (SessionStart-Hook): keine Tabelle, nur Anzahl + Datum ab den Schwellen."""
+    try:
+        if a.faellig:
+            return _protokoll_faellig()
+        eintraege, unlesbar = _protokoll_zeilen()
+        seit, seit_text = None, "Beginn"
+        if a.seit is not None:
+            try:
+                seit = datetime.strptime(a.seit, "%Y-%m-%d").astimezone()
+            except ValueError:
+                print(f"--seit erwartet ein Datum JJJJ-MM-TT, nicht {a.seit!r}", file=sys.stderr)
+                return 2
+            seit_text = a.seit
+        elif not a.alle:
+            marke = _protokoll_marke()
+            if marke is not None:
+                seit, seit_text = marke, marke.date().isoformat()
+        ausgaenge = {e.get("tool_use_id"): e.get("ausgang") for e in eintraege if "ausgang" in e and e.get("tool_use_id")}
+        gewaehlt = []
+        for e in eintraege:
+            if "ausgang" in e:
+                continue
+            dt = _protokoll_zeit(e)
+            if dt is None:
+                unlesbar += 1
+            elif seit is None or dt >= seit:
+                gewaehlt.append(e)
+        print(f"Normen-Protokoll: {len(gewaehlt)} Einträge seit {seit_text}")
+        if unlesbar:
+            print(f"{unlesbar} unlesbare Zeilen")
+        gruppen: dict = {}
+        gruende: Counter = Counter()
+        beispiele: dict = {}
+        for e in gewaehlt:
+            projekt = str(e.get("projekt") or "")
+            normen = [str(x) for x in (e.get("normen") or [])] or ["(ohne Norm)"]
+            for grund in e.get("gruende") or []:  # je Eintrag einmal, nicht je Norm
+                gruende[str(grund)] += 1
+            for norm in normen:
+                g = gruppen.setdefault((norm, projekt), [0, 0, 0, 0, 0])  # fragen, ausgeführt, fehlgeschlagen, kein Beleg, nein
+                if e.get("stufe") == "nein":
+                    g[4] += 1
+                else:
+                    g[0] += 1
+                    aus = ausgaenge.get(e.get("tool_use_id"))
+                    if aus == "ausgefuehrt":
+                        g[1] += 1
+                    elif aus == "fehlgeschlagen":
+                        g[2] += 1
+                    else:
+                        g[3] += 1
+                inhalt = str(e.get("inhalt") or "")
+                if inhalt and inhalt not in beispiele.setdefault(norm, []):
+                    beispiele[norm].append(inhalt)
+        for (norm, projekt), g in sorted(gruppen.items()):
+            print(f"{norm} {projekt}: fragen {g[0]} (ausgeführt {g[1]}, fehlgeschlagen {g[2]}, kein Beleg {g[3]}), nein {g[4]}")
+        print("Häufigste Gründe:")
+        for grund, anzahl in gruende.most_common(10):
+            print(f"  {anzahl} {grund}")
+        print("Beispiele:")
+        for norm in sorted(beispiele):
+            print(f"  {norm}:")
+            for inhalt in beispiele[norm][:3]:
+                print(f"    {inhalt[:120]}")
+        if a.gelesen:
+            _protokoll_marke_setzen()
+        return 0
+    except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Auswertung darf den Hook-Lauf nie stören
+        print(f"Normen-Protokoll nicht ausgewertet ({type(e).__name__}: {e})", file=sys.stderr)
+        return 0 if a.faellig else 1
+
+
 def _datenschutz_funde(cfg, text: str) -> list[str]:
     funde = []
     muster = _datenschutz_muster(cfg)
@@ -3083,6 +3288,15 @@ def main() -> int:
     p.add_argument("--rolle", required=True)
     p.add_argument("--werkzeug", choices=["claude", "vibe", "gemini"], required=True)
     p.set_defaults(f=cmd_hook)
+    p = sub.add_parser("hook-nach", help="PostToolUse/PostToolUseFailure: Ausgang zum fragen-Eintrag nachtragen (immer Exit 0, keine Ausgabe)")
+    p.add_argument("--werkzeug", choices=["claude"], required=True)
+    p.set_defaults(f=cmd_hook_nach)
+    p = sub.add_parser("protokoll", help="Normen-Protokoll auswerten (Tabelle; --faellig für den SessionStart-Hook)")
+    p.add_argument("--alle", action="store_true")
+    p.add_argument("--seit", default=None, metavar="JJJJ-MM-TT")
+    p.add_argument("--gelesen", action="store_true")
+    p.add_argument("--faellig", action="store_true")
+    p.set_defaults(f=cmd_protokoll)
     p = sub.add_parser("stop")
     p.add_argument("--werkzeug", choices=["claude"], default="claude")
     p.set_defaults(f=cmd_stop)

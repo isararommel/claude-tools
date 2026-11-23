@@ -214,10 +214,10 @@ def test_hook_nach(t):
                eingabe=json.dumps({"hook_event_name": "PostToolUse", "tool_use_id": tid, "session_id": "s-1"}))
         check(f"hook-nach groß {tid}: Exit 0", r.returncode == 0, r.stderr)
     z = zeilen(gross)
-    check("hook-nach groß: frischer Eintrag gefunden", z[-2].get("ausgang") == "ausgefuehrt"
-          and z[-2].get("tool_use_id") == "toolu_spaet", str(z[-2:]))
-    check("hook-nach groß: alter Eintrag nicht mehr", z[-1].get("tool_use_id") != "toolu_frueh" or "ausgang" not in z[-1],
-          str(z[-1:]))
+    check("hook-nach groß: frischer Eintrag gefunden", z[-1].get("ausgang") == "ausgefuehrt"
+          and z[-1].get("tool_use_id") == "toolu_spaet", str(z[-2:]))
+    check("hook-nach groß: alter Eintrag nicht mehr", not any("ausgang" in e and e.get("tool_use_id") == "toolu_frueh"
+                                                           for e in z[-3:]), str(z[-3:]))
 
     # Fehler (Protokoll fehlt, kaputtes JSON, Pfad ist Ordner): Exit 0, keine Ausgabe auf stdout
     for name, p, ein in (("fehlt", t / "nach" / "gibt-es-nicht.jsonl", '{"tool_use_id": "x"}'),
