@@ -1,15 +1,17 @@
 # Review-Auftrag (Vorlage)
 
-Claude füllt die Felder aus, setzt die Pflichtsätze aus `python3 normen/normen.py auftrag --rolle <team>` ein und schreibt die Datei
-mit dem Write-Werkzeug als `prompt.md` in den Lauf-Ordner (`${TMPDIR}/review-runs/<zeit>-<branch>/<team>/`; für Reviews statt
-`vibe-runs/` bzw. `agy-runs/`). `gemini-analyst` und `mistral-team` bekommen denselben Inhalt, aber je Team eigene Pfade (eigener
-Lauf-Ordner) und eigene Pflichtsätze (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).
+Vorher legt `python3 normen/normen.py review [--gruppe NAME=GLOB,…]` je Gruppe und Team einen Lauf-Ordner an
+(`${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/`, Pfade aufgelöst) mit `diff.patch` (gefiltert: Sperrpfade,
+Geheimnisse, Forschungsdaten), `pflicht.txt` (Pflichtsätze der Rolle) und bei Mistral `bericht.md` (zweiter Schritt).
+Claude füllt die Felder aus, übernimmt `pflicht.txt` wörtlich in den Abschnitt „Pflichtsätze“ und schreibt die Datei mit dem
+Write-Werkzeug als `prompt.md` in den Rollen-Ordner. `gemini-analyst` und `mistral-team` bekommen denselben Inhalt, aber je
+Team eigene Pfade und eigene Pflichtsätze (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).
 
-Vorher legt Claude den Diff der Gruppe als `diff.patch` in den Lauf-Ordner **des jeweiligen Teams** (agy liest nur dort, wo
-seine Freigabe gilt). Ist der geprüfte Branch ausgecheckt, nennt der Auftrag die geänderten Dateien im Projekt; sonst kommen
-sie per `git show <commit>:<pfad>` ebenfalls in den Lauf-Ordner. Alle Pfade im Auftrag sind **absolut und aufgelöst**
-(`cd "$R" && pwd -P`, unter macOS `/private/var/…`) – agy lehnt relative Pfade ab. Vibe im Lese-Modus liest außerhalb des
-Projekts nur mit `--add-dir <lauf-ordner>` (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).
+**Dateistände für agy immer in den Lauf-Ordner** (`git show <commit>:<pfad> > "<gemini-ordner>/<datei>"`): agy liest nur
+dort, eine Datei aus dem Projekt bricht den Lauf nach Sekunden ab („auto-denied“, gemessen 23.11.). Nur Dateien kopieren, die
+`review` nicht gefiltert hat. Vibe liest Projektdateien im Lese-Modus direkt, außerhalb des Projekts nur mit
+`--add-dir <lauf-ordner>`. Alle Pfade im Auftrag sind **absolut und aufgelöst** (unter macOS `/private/var/…`) – agy lehnt
+relative Pfade ab.
 
 ---
 
@@ -58,7 +60,7 @@ Lies keine anderen als die genannten Dateien und sieh dich nicht in anderen Ordn
 Ohne Befund: die Tabelle mit „keine“ und unter „Nicht geprüft“ ehrlich, was nicht gelesen wurde.
 
 ## Pflichtsätze
-<Ausgabe von `python3 normen/normen.py auftrag --rolle <team>` hier einfügen – ohne `--dateien`: Review ändert nichts>
+<Inhalt von `pflicht.txt` aus dem Rollen-Ordner hier einfügen (entspricht `normen.py auftrag --rolle <team>` ohne `--dateien`)>
 
 Für diesen Review-Auftrag gilt zusätzlich: keine Test-, Build- oder Prüfbefehle ausführen; eine „Abnahme“-Zeile im Block oben
 gilt hier nicht – das Ergebnis ist allein die Antwort im Berichtsformat.
@@ -67,7 +69,9 @@ gilt hier nicht – das Ergebnis ist allein die Antwort im Berichtsformat.
 
 ## Zweiter Schritt (nur Mistral, wenn der erste Lauf ohne Bericht endet)
 
-Prompt-Datei `bericht.md` im selben Lauf-Ordner, Aufruf mit `--resume <session_id>` aus `out/export.json` (nicht `-c`):
+Prompt-Datei `bericht.md` im selben Lauf-Ordner (legt `normen.py review` mit diesem Text an), Aufruf mit
+`--resume <session_id>` aus `out/export.json` (nicht `-c`). Gemessen 23.11.: liefert einen Bericht; bei 344 Diff-Zeilen plus
+Dateibereichen reichten 540 s für beide Schritte nicht (`deadline`) – für Gruppen dieser Größe `--time-limit 1200`.
 
 ```
 Lies keine weiteren Dateien und rufe keine Werkzeuge auf. Schreibe jetzt den Bericht im Format aus dem Auftrag

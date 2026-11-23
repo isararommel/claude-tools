@@ -751,14 +751,12 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
-        if rinfo.get("auftrag_pflicht") and "normen" in cmd.casefold():
-            # v17: Teams rufen von normen.py nur pruefen/kurz auf – `auftrag --dateien` erweiterte samt Siegel die eigenen
-            # Rechte, `auftrag --ende`/merge/review/aktualisieren/melden sind Sache von Claude (vorher ungeprüft).
-            # Ohne Anführungszeichen/Backslash (`""auftrag`), dazu jedes Wort, das ein gesperrter Unterbefehl ist
-            # (`$(echo normen/normen.py) auftrag`, exec(open(…)) – Review 23.11.); sichere Richtung.
+        if rinfo.get("auftrag_pflicht") and _NORMEN_DYNAMISCH_RX.search(cmd) and _NORMEN_PFAD_RX.search(cmd):
+            # v17: Teams rufen von normen.py nur pruefen/kurz auf (Hauptprüfung in _skript_im_befehl: aufgelöster
+            # Skriptpfad + Unterbefehl). Hier nur der Rückfall für dynamische Befehle (`$(echo normen/normen.py) auftrag`,
+            # exec(open(…)), Backticks, eval – Review 23.11.): jedes Wort, das ein gesperrter Unterbefehl ist; sichere Richtung.
             flach = re.sub(r"[\"'\\]", "", cmd)
-            unter = set(_NORMEN_UNTER_RX.findall(flach)) | (set(re.findall(r"[A-Za-z_-]+", flach)) & NORMEN_UNTERBEFEHLE)
-            for u in sorted(unter - TEAM_NORMEN_ERLAUBT):
+            for u in sorted((set(re.findall(r"[A-Za-z_-]+", flach)) & NORMEN_UNTERBEFEHLE) - TEAM_NORMEN_ERLAUBT):
                 gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {u}` ruft nur Claude auf"))
         for norm in cfg["normen"]:
             for m in norm.get("muster", []):
@@ -1023,7 +1021,18 @@ NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren", "review"}
 TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist für Teams gesperrt (Hook)
 NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "stop", "merge", "auftrag", "skript", "selbsttest", "kurz", "sync",
                        "aktualisieren", "melden", "review"}
-_NORMEN_UNTER_RX = re.compile(r"normen(?:\.py|\.normen)\b\s+([^\s;&|]+)", re.IGNORECASE)  # unbekannt ($X …) → gesperrt
+_NORMEN_PFAD_RX = re.compile(r"(?<![\w.-])normen(?:\.py|\.normen)\b", re.IGNORECASE)  # nicht test_normen.py
+_NORMEN_DYNAMISCH_RX = re.compile(r"\$\(|`|\bexec\b|\beval\b")
+
+
+def _team_normen(cfg: dict, rolle: str, unter: str | None) -> list[tuple[str, str]]:
+    """v17: Aufruf von normen.py durch ein Team (auftrag_pflicht) – nur pruefen/kurz; nicht lesbarer Unterbefehl → nein.
+    Vorher ließ der Hook jeden Unterbefehl zu, auch `auftrag --dateien` (erweiterte die eigene Auftragsliste samt Siegel)."""
+    if not cfg["rollen"].get(rolle, {}).get("auftrag_pflicht") or unter is None:
+        return []  # Claude/Inhaberin; ohne Unterbefehl bricht argparse ab
+    if "$" in unter or "`" in unter or unter not in TEAM_NORMEN_ERLAUBT:
+        return [("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {unter}` ruft nur Claude auf")]
+    return []
 PYTHON = re.compile(r"python3?(\.\d+)?$")
 
 
@@ -1721,6 +1730,8 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return zuw.get(name, os.environ.get(name, ersatz or m.group(0)))
         return _VAR_RX.sub(wert, code)
     rest = w[i + 1:]
+    if prog.casefold() == "normen.py" and (t := _team_normen(cfg, rolle, variablen(rest[0], None) if rest else None)):
+        return t  # v17: `./normen/normen.py auftrag` durch ein Team
     vorher = _maskiert(cmd)[:pos].rstrip()
     aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`
 
@@ -1772,6 +1783,10 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                 if c == "m":
                     modul = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else "")
                     modul = variablen(modul, None)
+                    if modul.casefold() in ("normen.normen", "normen"):  # v17: `python3 -m normen.normen auftrag`
+                        nach = rest[j + (1 if a[k + 1:] else 2):]
+                        if t := _team_normen(cfg, rolle, variablen(nach[0], None) if nach else None):
+                            return t
                     if not re.fullmatch(r"[A-Za-z_][\w.]*", modul):
                         return [("fragen", f"S06-CODE-MODE: python3 -m mit unklarem Modulnamen ({modul or 'leer'}) – nicht prüfbar")]
                     return _python_m(cfg, modul, cmd, cwd, basis, zuw)
@@ -1795,6 +1810,9 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return heredoc("<<Heredoc")  # `python3 <<PY` / `python3 /dev/stdin <<PY`: Rumpf ist Code wie bei `-`
         if (b := stdin(j)) is not None:
             return b
+        if variablen(rest[j], None).rsplit("/", 1)[-1].casefold() == "normen.py":  # v17: Team ruft normen.py auf
+            if t := _team_normen(cfg, rolle, variablen(rest[j + 1], None) if j + 1 < len(rest) else None):
+                return t
         return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuweisungen)
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
@@ -2817,7 +2835,9 @@ def cmd_review(a) -> int:
         # --find-copies-harder (Review 23.11.): sonst kamen unveränderte Kopien und stark umgebaute Umbenennungen aus
         # Sperr-/Forschungspfaden ungefiltert in den Diff. Ganz neu geschriebene Inhalte erkennt git nicht (Grenze).
         paare = []
-        teile = git("diff", "--name-status", "-z", "-M30%", "-C30%", "--find-copies-harder", f"{mb}..HEAD").split("\0")
+        # -l0: ohne Grenze – sonst entfällt die Suche ab diff.renameLimit (1000) Dateien stillschweigend
+        teile = git("diff", "--name-status", "-z", "-M30%", "-C30%", "--find-copies-harder", "-l0",
+                    f"{mb}..HEAD").split("\0")
         k = 0
         while k < len(teile) and teile[k]:
             if teile[k][0] in "RC" and k + 2 < len(teile):
@@ -2870,6 +2890,17 @@ def cmd_review(a) -> int:
                 g = grund(pfad)
                 if g:
                     gefiltert[pfad] = g
+        # Kopien, deren Quelle selbst neu im Branch ist, sieht git nicht als Kopie (Quellen nur aus der Basis):
+        # gleicher Inhalt (Blob) wie eine gefilterte Datei → ebenfalls heraus (Advisor 23.11.)
+        blob: dict[str, str] = {}
+        for z in git("ls-tree", "-r", "-z", "HEAD").split("\0"):
+            if z:
+                kopf, pfad = z.split("\t", 1)
+                blob[pfad] = kopf.split()[2]
+        gefilterte_blobs = {blob[p]: p for p in gefiltert if p in blob}
+        for pfad in alle:
+            if pfad not in gefiltert and blob.get(pfad) in gefilterte_blobs:
+                gefiltert[pfad] = f"gleicher Inhalt wie {gefilterte_blobs[blob[pfad]]}"
 
         gruppen: list[tuple[str, list[str]]] = []
         if a.gruppe:

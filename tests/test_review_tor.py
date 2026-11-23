@@ -260,14 +260,22 @@ def test_merge_cli(t):
                    "python3 $(echo normen/normen.py) auftrag --ende", "python3 NORMEN/Normen.py auftrag --ende",
                    # normen-ausnahme: N09-SICHERE-MUSTER – Befehlstext als Hook-Eingabe, wird nie ausgeführt
                    "python3 -c \"exec(open('normen/normen.py').read())\" auftrag --ende",
-                   "X=auf; python3 normen/normen.py ${X}trag --ende"):
+                   "X=auf; python3 normen/normen.py ${X}trag --ende",
+                   # Advisor 23.11.: Programmpfad über Variable, Unterbefehl mit leerer Befehlsersetzung
+                   "P=normen/normen.py; python3 $P auf$()trag --ende", "P=normen/normen.py; python3 $P auftrag --ende",
+                   "./normen/normen.py auftrag --ende", "python3 -I normen/normen.py merge 4"):
         check(f"hook: vibe `{befehl}` nein", hook(repo, "mistral-team", "vibe", V(befehl)) == "nein")
         check(f"hook: agy `{befehl}` nein", hook(repo, "gemini-analyst", "gemini", G(befehl)) == "nein")
+    (repo / "tests").mkdir(exist_ok=True)
+    (repo / "tests" / "test_normen.py").write_text("print('ok')\n")  # sonst sperrt S06 („Skript nicht gefunden“)
     hilfe = sh(sys.executable, "normen/normen.py", "-h", cwd=repo).stdout
     wahl = set(hilfe.split("{", 1)[1].split("}", 1)[0].split(",")) if "{" in hilfe else set()
     check("NORMEN_UNTERBEFEHLE = argparse-Unterbefehle", wahl == modul(repo).NORMEN_UNTERBEFEHLE, f"{wahl}")
     for befehl in ("python3 normen/normen.py pruefen --diff", "python3 normen/normen.py kurz", "make test",
-                   "grep -n 'def cmd_merge' normen/normen.py"):
+                   "grep -n 'def cmd_merge' normen/normen.py",
+                   # Advisor 23.11.: keine Fehlalarme bei Tests mit „normen“ im Namen und beim Lesen der Datei
+                   "python3 tests/test_normen.py 2>&1 | tail -3", "grep -n x normen/normen.py CHANGELOG.md",
+                   "grep -n review agenten-normen/projekt/normen/normen.toml", "python3 normen/normen.py pruefen --diff origin/main"):
         check(f"hook: vibe `{befehl}` ja", hook(repo, "mistral-team", "vibe", V(befehl)) == "ja")
     lauf = t / "skripte"
     lauf.mkdir()
@@ -275,6 +283,58 @@ def test_merge_cli(t):
     s.write_text('import subprocess, sys\nsubprocess.run([sys.executable, "normen/normen.py", "review"])\n')
     r = sh(sys.executable, "normen/normen.py", "skript", "--pruefen", str(s), cwd=repo)
     check("skript: normen.py review verboten", r.returncode == 2, r.stdout + r.stderr)
+
+
+GH_ATTRAPPE = """#!/bin/sh
+# Attrappe für gh (nur Tests): pr view → JSON aus $GH_JSON, pr merge → Argumente nach $GH_LOG
+if [ "$1 $2" = "pr view" ]; then cat "$GH_JSON"; exit 0; fi
+if [ "$1 $2" = "pr merge" ]; then printf '%s\\n' "$*" >> "$GH_LOG"; exit 0; fi
+echo "gh-Attrappe: unbekannt: $*" >&2; exit 1
+"""
+
+
+def merge_fall(t, name, dateien, labels, *zusatz):
+    """Repository mit bare origin, Branch mit `dateien`, gh-Attrappe vorn im PATH; ruft `normen.py merge 4 …` auf."""
+    origin = t / f"{name}-origin.git"
+    sh("git", "init", "-q", "--bare", "-b", "main", str(origin))
+    repo = neues_repo(t, name)
+    sh("git", "remote", "add", "origin", str(origin), cwd=repo)
+    sh("git", "push", "-q", "origin", "main", cwd=repo)
+    for pfad, inhalt in dateien.items():
+        (repo / pfad).parent.mkdir(parents=True, exist_ok=True)
+        (repo / pfad).write_text(inhalt)
+    commit(repo, "arbeit")
+    sh("git", "push", "-q", "-u", "origin", "arbeit/r2", cwd=repo)
+    kopf = sh("git", "rev-parse", "HEAD", cwd=repo).stdout.strip()
+    bin_ = t / f"{name}-bin"
+    bin_.mkdir()
+    (bin_ / "gh").write_text(GH_ATTRAPPE)
+    (bin_ / "gh").chmod(0o755)
+    (t / f"{name}.json").write_text(json.dumps({"state": "OPEN", "baseRefName": "main", "headRefName": "arbeit/r2",
+                                                "headRefOid": kopf, "labels": [{"name": l} for l in labels]}))
+    log = t / f"{name}.log"
+    env = dict(os.environ, PATH=f"{bin_}{os.pathsep}{os.environ['PATH']}", GH_JSON=str(t / f"{name}.json"), GH_LOG=str(log))
+    r = sh(sys.executable, "normen/normen.py", "merge", "4", *zusatz, cwd=repo, env=env)
+    return r, (log.read_text() if log.exists() else "")
+
+
+def test_merge_attrappe(t):
+    """cmd_merge als Ganzes (Advisor 23.11.): Verdrahtung von Labels, Review-Tor, --klein und gh pr merge."""
+    gross = {"src/gross.py": "".join(f"z{i} = {i}\n" for i in range(160))}
+    r, log = merge_fall(t, "m-label", {"app.py": "x = 2\n"}, ["meilenstein"])
+    check("merge: Label ohne Bericht stopp", r.returncode == 1 and "ohne Review-Bericht" in r.stderr and not log,
+          r.stdout + r.stderr + log)
+    r, log = merge_fall(t, "m-gross", gross, [])
+    check("merge: 160 Zeilen .py Halt", r.returncode == 1 and "Review empfohlen" in r.stderr and not log, r.stdout + r.stderr + log)
+    r, log = merge_fall(t, "m-klein", gross, [], "--klein", "nur erzeugte Tabelle")
+    check("merge: --klein mergt mit Grund im Commit", r.returncode == 0 and "pr merge 4 --merge --body" in log
+          and "nur erzeugte Tabelle" in log, r.stdout + r.stderr + log)
+    r, log = merge_fall(t, "m-ok", {"app.py": "x = 2\n"}, [])
+    check("merge: kleine Änderung ohne --body", r.returncode == 0 and log.strip() == "pr merge 4 --merge", r.stdout + r.stderr + log)
+    bericht = {"app.py": "x = 2\n", "docs/reviews/2026-11-23-arbeit-r2.md": BERICHT_JA}
+    r, log = merge_fall(t, "m-bericht", bericht, ["meilenstein"])
+    check("merge: Label mit Bericht mergt", r.returncode == 0 and "pr merge 4 --merge" in log and "mergereif" in r.stdout,
+          r.stdout + r.stderr + log)
 
 
 def review(repo, tmp, *args):
@@ -324,6 +384,9 @@ def test_review(t):
     (repo / "daten" / "roh" / "m.csv").write_text("1,2\n")                # Forschungsdaten (Pfad)
     # Review 23.11. (Mistral Nr. 2): unveränderte Kopie und stark umgebaute Umbenennung aus Forschungsdaten heraus
     (repo / "kopie.csv").write_text((repo / "daten" / "roh" / "basis.csv").read_text())
+    # Advisor 23.11.: Forschungsdatei und Kopie beide neu im Branch (git nimmt nur Dateien der Basis als Kopierquelle)
+    (repo / "daten" / "roh" / "neu.csv").write_text("".join(f"probe {i},{i * 11}\n" for i in range(10)))
+    (repo / "doppel.csv").write_text((repo / "daten" / "roh" / "neu.csv").read_text())
     # Review 23.11. (Gemini Nr. 7): Geheimnis im Inhalt einer harmlos benannten Datei (Text zusammengesetzt, nicht im Test selbst)
     (repo / "src" / "client.py").write_text("SCHLUESSEL = '''" + "-----BEGIN " + "RSA PRIVATE KEY-----" + "\nabc'''\n")
     sh("git", "mv", "daten/roh/umbau.csv", "src/umbau.csv", cwd=repo)
@@ -362,6 +425,7 @@ def test_review(t):
         check(f"review {name}: Forschungspfad fehlt", "daten/roh/m.csv" not in d, d)
         check(f"review {name}: Marker-Datei fehlt", "proband-0042" not in d.lower(), d)
         check(f"review {name}: Kopie aus Forschungsdaten fehlt", "kopie.csv" not in d and "messung 3" not in d, d)
+        check(f"review {name}: Kopie einer neuen Forschungsdatei fehlt", "doppel.csv" not in d and "probe 3" not in d, d)
         check(f"review {name}: umgebaute Umbenennung fehlt", "src/umbau.csv" not in d and "wert 3" not in d, d)
         check(f"review {name}: Geheimnis-Inhalt fehlt", "src/client.py" not in d and "PRIVATE KEY" not in d, d)
     check("review: Ausgabe nennt Gefiltertes", "gefiltert" in r.stdout and "daten/roh/m.csv" in r.stdout
@@ -399,7 +463,7 @@ def test_review(t):
 def main():
     with tempfile.TemporaryDirectory() as d:
         t = Path(d)
-        for f in (test_tor, test_sammeln, test_merge_cli, test_review):
+        for f in (test_tor, test_sammeln, test_merge_cli, test_merge_attrappe, test_review):
             try:
                 f(t)
             except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – wird als FAIL gezählt, nicht verschluckt

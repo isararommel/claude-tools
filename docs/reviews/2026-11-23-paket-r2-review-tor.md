@@ -40,8 +40,16 @@ im CHANGELOG.
 | 12 | Hook | `normen.py` ohne Unterbefehl nicht gesperrt | `python3 normen/normen.py` | Gemini 5 | **verworfen**: argparse bricht ohne Unterbefehl ab (`required=True`), keine Wirkung |
 | 13 | `review_daten` | mehrere Merge-Basen | Criss-Cross-Merge | Gemini 6 | **verworfen**: `git merge-base` ohne `--all` gibt genau eine Basis aus |
 | 14 | Hook | Glob im Programmpfad | `python3 normen/norme?.py auftrag`, `python3 n*/n*.py auftrag` | Claude | **verworfen** (gemessen): ersten sperrt die Wortprüfung, zweiten S06 („Skript nicht gefunden – nicht prüfbar“) |
+| 15 | Hook (Fassung nach Nr. 1) | Wortprüfung über den ganzen Befehl: Fehlalarme und Umgehung | `python3 tests/test_normen.py`, `grep … normen/normen.py CHANGELOG.md` → nein; `P=normen/normen.py; python3 $P auf$()trag` → ja | Advisor | **bestätigt** (gemessen), behoben: Prüfung jetzt strukturell in `_skript_im_befehl` (aufgelöster Skriptpfad/`-m`/direkter Aufruf + Unterbefehl), Wortprüfung nur noch als Rückfall bei `$(`, Backticks, `exec`, `eval`; Tests |
+| 16 | `cmd_review` | Kopie-Suche entfällt ab `diff.renameLimit` (1000) stillschweigend | großes Repository | Advisor | **bestätigt** (Doku `git diff -l`), behoben: `-l0` |
+| 17 | `cmd_review` | Kopie einer im Branch neuen Forschungsdatei | git nimmt nur Basis-Dateien als Kopierquelle | Advisor | **bestätigt** (Test rot), behoben: gleiche Blob-ID wie eine gefilterte Datei → gefiltert; Test |
+| 18 | `cmd_merge` | Verdrahtung ungetestet (nur reine Funktionen) | – | Advisor | **bestätigt**, Tests mit `gh`-Attrappe (Label ohne/mit Bericht, Halt, `--klein` → `--body`, kleine Änderung) |
+| 19 | `review-auftrag.md` | Vorlage beschrieb den alten Weg (Dateien im Projekt nennen) | agy bricht ab | Advisor | **bestätigt**, Vorlage und Ablauf umgestellt |
 
 ## Nicht geprüft
+- **Kein Team hat die Korrekturen nach 46e515c gesehen** (Nr. 1, 2, 5–8, 15–17: strukturelle Team-Sperre im Hook,
+  Kopie-/Umbenennungs-Erkennung mit `-l0` und Blob-Abgleich, Geheimnis-Inhalt, `_review_branch`). Geprüft sind sie durch
+  Tests (rot vorher, grün nachher) und die Advisor-Prüfung vor dem Merge.
 - Tests (`tests/test_review_tor.py`) prüfte nur Claude; kein Team.
 - Mistral: Bericht nach Nr. 4 abgebrochen, „Nicht geprüft“ fehlt (Zeitlimit).
 - Laufzeitverhalten mit echtem `gh pr view`/`gh pr merge` – das prüft der Merge dieses PR selbst (erster Einsatz des Tors).
@@ -60,6 +68,6 @@ im CHANGELOG.
 ## Ergebnis
 Mergereif: ja
 
-Alle bestätigten Befunde (Nr. 1, 2, 5–10) sind auf dem Branch behoben, jeweils mit Test in `tests/test_review_tor.py`
-(135 Prüfungen grün, `make test` grün). Grenzen (Nr. 2 Rest, 7 Rest, Label/`--klein` durch Claude) stehen im
+Alle bestätigten Befunde (Nr. 1, 2, 5–10, 15–19) sind auf dem Branch behoben – Code-Befunde mit Test in
+`tests/test_review_tor.py`, Nr. 9, 10 und 19 als reine Doku-Änderungen ohne Test. Grenzen (Nr. 2 Rest, 7 Rest, Label/`--klein` durch Claude) stehen im
 CHANGELOG v17.

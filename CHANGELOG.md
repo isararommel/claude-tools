@@ -32,7 +32,11 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
 ### Geändert
 - **Teams rufen von `normen.py` nur `pruefen` und `kurz` auf (Hook):** Vorher ließ der Hook für mistral-team, gemini-analyst und
   lokal jeden Unterbefehl zu – auch `auftrag --dateien '**'`, das die eigene Auftragsliste samt Siegel erweiterte, und
-  `auftrag --ende`, `merge`, `aktualisieren`, `melden`. Unbekannte Unterbefehle (`"$X"`) sperrt er ebenfalls.
+  `auftrag --ende`, `merge`, `aktualisieren`, `melden`. Geprüft wird dort, wo S06 den Aufruf ohnehin auflöst
+  (`python3 <skript>` samt Variablen, `python3 -m normen.normen`, `./normen/normen.py`): Skript `normen.py` → Unterbefehl muss
+  lesbar sein und `pruefen` oder `kurz` heißen. Bei dynamischen Befehlen (`$(…)`, Backticks, `exec`, `eval`) mit `normen.py`
+  als Pfadwort sperrt zusätzlich jedes Wort, das ein anderer Unterbefehl ist. Lesen der Datei (`grep … normen/normen.py`)
+  und Tests mit „normen“ im Namen bleiben frei.
 - `review` steht in der Liste der in Code-Mode-Skripten verbotenen Unterbefehle.
 
 ### Bekannte Grenzen
@@ -40,12 +44,12 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
   nicht gegen Absicht.
 - Das Tor liest `[review]` aus dem Stand, der gemergt wird: Eine Änderung an `normen/projekt.toml` kann die eigene Prüfung
   abschwächen. Deshalb steht `normen/projekt.toml` hier unter `kritisch` (Halt, sichtbar).
-- Die Sperre für Teams greift, wenn „normen“ im Befehl steht: dann sperrt jedes Wort, das ein Unterbefehl außer
-  `pruefen`/`kurz` ist (auch in Anführungszeichen oder hinter `$(…)`), und jeder nicht lesbare Unterbefehl (`$X`). Eine Kopie
-  von normen.py unter anderem Namen mit zusammengesetztem Unterbefehl (`${A}${B}`) sieht diese Regel nicht; Skripte außerhalb
-  des Projekts prüft dann S06 vor dem Lauf.
+- Die Sperre für Teams erkennt normen.py am Dateinamen. Eine Kopie unter anderem Namen im Projekt (nur mit passendem
+  `.normen-auftrag` schreibbar) sieht sie nicht; Kopien außerhalb des Projekts prüft S06 vor dem Lauf per AST.
 - `review` erkennt Kopien und Umbenennungen aus Sperr-/Forschungspfaden ab 30 % Ähnlichkeit (`-M30% -C30%
-  --find-copies-harder`). Ganz neu geschriebener Inhalt aus solchen Dateien unter neuem Pfad fällt nur über Textmarker heraus.
+  --find-copies-harder -l0`) und Dateien mit gleichem Inhalt (Blob) wie eine gefilterte Datei, auch wenn beide neu im
+  Branch sind. Ganz neu geschriebener oder teilweise kopierter Inhalt aus solchen Dateien unter neuem Pfad fällt nur über
+  Textmarker heraus.
 - Geheimnisse im Inhalt erkennt `review` nur an festen Mustern (private Schlüssel, GitHub-, AWS-, Slack-, Google-Tokens,
   `sk-…`); ein Passwort in Klartext ohne solches Muster gelangt in den Diff. Es ist kein vollständiger Geheimnis-Scanner.
 - Mehrere passende Berichte im PR: Es gilt der neueste (Datum im Namen); ein früherer „nein“ vor der Nachbesserung ist
