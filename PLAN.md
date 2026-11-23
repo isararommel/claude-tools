@@ -320,9 +320,14 @@ Offen:
   `pruefen`/`kurz` (`TEAM_NORMEN_ERLAUBT`), Tests in `tests/test_review_tor.py`.
 - Tests heißen `tests/test_review_tor.py` (N08 sperrt `test_v17.py`). `test_v4`: Prüfsummen vor dem Abgleich privater
   Begriffe entfernt (Zufallstreffer in `herkunft.toml`).
-**Offen in R2:** Punkt 5 – Label `meilenstein` anlegen, Selbst-Review (v17 ist Meilenstein) mit `normen.py review`,
-zweiten Mistral-Schritt einmal erzwingen, Bericht `docs/reviews/2026-11-23-paket-r2-review-tor.md` mit `Mergereif: ja`,
-Advisor vor „fertig“, PR, `normen.py merge`, Sitzungen informieren.
+- **Selbst-Review erledigt** (Bericht `docs/reviews/2026-11-23-paket-r2-review-tor.md`, `Mergereif: ja`): 14 Befunde, 8
+  bestätigt und behoben (u. a. Umgehung der Team-Sperre mit `""auftrag`/`$(…)`, Kopien aus Sperrpfaden, Geheimnis-Inhalt),
+  6 verworfen. **Messungen:** agy liest keine Projektdateien (Abbruch 21 s) → Material immer in den Lauf-Ordner kopieren;
+  zweiter Mistral-Schritt (`--resume` + `bericht.md`) liefert, aber 540 s sind für 344 Diff-Zeilen zu knapp (`deadline`).
+**Offen in R2:** Advisor vor „fertig“, PR mit Label `meilenstein` (Label anlegen), `normen.py merge` (erster Einsatz des
+Tors), Sitzungen informieren.
+**Kandidaten für später (aus R2):** Vibe-Zeitlimit für Reviews auf 1200 s in Ablauf/`mistral-team.md`; `review` könnte
+für Gemini die geänderten Dateien gleich mitkopieren (`git show`), weil agy das Projekt nicht liest.
 
 Entscheidung der Inhaberin 23.11.: beides ja (Frage 2 unter R). Normänderung (N11-Text, `meta.version` 17) → Advisor vor dem
 Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu prüfen):
