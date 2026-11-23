@@ -45,10 +45,12 @@ im CHANGELOG.
 | 17 | `cmd_review` | Kopie einer im Branch neuen Forschungsdatei | git nimmt nur Basis-Dateien als Kopierquelle | Advisor | **bestätigt** (Test rot), behoben: gleiche Blob-ID wie eine gefilterte Datei → gefiltert; Test |
 | 18 | `cmd_merge` | Verdrahtung ungetestet (nur reine Funktionen) | – | Advisor | **bestätigt**, Tests mit `gh`-Attrappe (Label ohne/mit Bericht, Halt, `--klein` → `--body`, kleine Änderung) |
 | 19 | `review-auftrag.md` | Vorlage beschrieb den alten Weg (Dateien im Projekt nennen) | agy bricht ab | Advisor | **bestätigt**, Vorlage und Ablauf umgestellt |
+| 20 | Hook (Fassung nach Nr. 15) | nicht zerlegte Formen umgehen die Team-Sperre | `(python3 normen/normen.py auftrag --ende)`, `case … ) python3 normen/normen.py auftrag;; esac`, `echo auftrag \| xargs python3 normen/normen.py` → ja (gemessen; `if`, `timeout`, `-m cProfile`, Import per `-c` sperrten schon) | Advisor | **bestätigt**, behoben: Rückfall-Wortprüfung immer, wenn `normen.py` als Pfadwort steht; Tests. Preis (`grep merge normen/normen.py` → nein) und Rest als Grenze; danach bewusst nicht weiter gehärtet (vierte Fassung, S03) |
+| 21 | `cmd_review` | Marker/Geheimnis außerhalb der geänderten Zeilen | Datei mit Marker in unveränderter Zeile, Änderung woanders → nicht gefiltert, als Dateistand an agy kopierbar | Advisor | **bestätigt** (Test rot), behoben: Prüfung auch gegen den ganzen Stand bei HEAD; Test |
 
 ## Nicht geprüft
-- **Kein Team hat die Korrekturen nach 46e515c gesehen** (Nr. 1, 2, 5–8, 15–17: strukturelle Team-Sperre im Hook,
-  Kopie-/Umbenennungs-Erkennung mit `-l0` und Blob-Abgleich, Geheimnis-Inhalt, `_review_branch`). Geprüft sind sie durch
+- **Kein Team hat die Korrekturen nach 46e515c gesehen** (Nr. 1, 2, 5–8, 15–17, 20, 21: strukturelle Team-Sperre im Hook,
+  Kopie-/Umbenennungs-Erkennung mit `-l0` und Blob-Abgleich, Geheimnis-Inhalt im Diff und Dateistand, `_review_branch`). Geprüft sind sie durch
   Tests (rot vorher, grün nachher) und die Advisor-Prüfung vor dem Merge.
 - Tests (`tests/test_review_tor.py`) prüfte nur Claude; kein Team.
 - Mistral: Bericht nach Nr. 4 abgebrochen, „Nicht geprüft“ fehlt (Zeitlimit).
@@ -68,6 +70,6 @@ im CHANGELOG.
 ## Ergebnis
 Mergereif: ja
 
-Alle bestätigten Befunde (Nr. 1, 2, 5–10, 15–19) sind auf dem Branch behoben – Code-Befunde mit Test in
-`tests/test_review_tor.py`, Nr. 9, 10 und 19 als reine Doku-Änderungen ohne Test. Grenzen (Nr. 2 Rest, 7 Rest, Label/`--klein` durch Claude) stehen im
+Alle 15 bestätigten Befunde (Nr. 1, 2, 5–10, 15–21) sind auf dem Branch behoben – Code-Befunde mit Test in
+`tests/test_review_tor.py`, Nr. 9, 10 und 19 als reine Doku-Änderungen ohne Test. Grenzen (Nr. 2 Rest, 7 Rest, 20 Rest, Label/`--klein` durch Claude) stehen im
 CHANGELOG v17.

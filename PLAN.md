@@ -43,7 +43,7 @@ wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) au
 - ✅ 23.11. **Paket R2 / Normen v17** (Branch `paket-r2-review-tor`): Review-Tor in `normen.py merge` (großer Meilenstein →
   Bericht mit `Mergereif: ja`; sonst Halt ab 150 Code-Zeilen/kritisch, weiter mit `--klein "<Grund>"`), `normen.py review`
   (Ordner, gefilterter Diff, Pflichtblock), N11-Zusatz; neuer Befund mit behoben: Teams durften jeden `normen.py`-Unterbefehl
-  aufrufen (`auftrag --dateien` erweiterte die eigenen Rechte). Selbst-Review mit beiden Teams + Advisor: 19 Befunde, 14
+  aufrufen (`auftrag --dateien` erweiterte die eigenen Rechte). Selbst-Review mit beiden Teams + Advisor: 21 Befunde, 15
   bestätigt und behoben (`docs/reviews/2026-11-23-paket-r2-review-tor.md`). Einzelheiten und Messungen: Abschnitt R2 unten.
 
 - ✅ 22.11. **Paket R** (Branch `paket-r-review`): eigenes Review-Verfahren als Vorlagen + Ablauf (kein neuer Normtext),

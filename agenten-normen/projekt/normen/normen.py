@@ -751,11 +751,12 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
-        if rinfo.get("auftrag_pflicht") and _NORMEN_DYNAMISCH_RX.search(cmd) and _NORMEN_PFAD_RX.search(cmd):
+        flach = re.sub(r"[\"'\\]", "", cmd)
+        if rinfo.get("auftrag_pflicht") and _NORMEN_PFAD_RX.search(flach):
             # v17: Teams rufen von normen.py nur pruefen/kurz auf (Hauptprüfung in _skript_im_befehl: aufgelöster
-            # Skriptpfad + Unterbefehl). Hier nur der Rückfall für dynamische Befehle (`$(echo normen/normen.py) auftrag`,
-            # exec(open(…)), Backticks, eval – Review 23.11.): jedes Wort, das ein gesperrter Unterbefehl ist; sichere Richtung.
-            flach = re.sub(r"[\"'\\]", "", cmd)
+            # Skriptpfad + Unterbefehl). Rückfall für alles, was der Hook nicht als Befehlswort zerlegt (Subshell, case,
+            # xargs, $(…), exec – Review/Advisor 23.11.): steht normen.py als Pfadwort im Befehl, sperrt jedes Wort, das ein
+            # anderer Unterbefehl ist. Preis: `grep merge normen/normen.py` sperrt auch (Grenze, sichere Richtung).
             for u in sorted((set(re.findall(r"[A-Za-z_-]+", flach)) & NORMEN_UNTERBEFEHLE) - TEAM_NORMEN_ERLAUBT):
                 gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {u}` ruft nur Claude auf"))
         for norm in cfg["normen"]:
@@ -1022,7 +1023,6 @@ TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist
 NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "stop", "merge", "auftrag", "skript", "selbsttest", "kurz", "sync",
                        "aktualisieren", "melden", "review"}
 _NORMEN_PFAD_RX = re.compile(r"(?<![\w.-])normen(?:\.py|\.normen)\b", re.IGNORECASE)  # nicht test_normen.py
-_NORMEN_DYNAMISCH_RX = re.compile(r"\$\(|`|\bexec\b|\beval\b")
 
 
 def _team_normen(cfg: dict, rolle: str, unter: str | None) -> list[tuple[str, str]]:
@@ -2852,8 +2852,13 @@ def cmd_review(a) -> int:
         inhalt: dict[str, str] = {}
 
         def diff_datei(pfad: str) -> str:
+            """Diff der Datei plus ihr ganzer Stand bei HEAD (falls vorhanden): Dateistände gehen als Kopie an agy, ein
+            Marker in einer unveränderten Zeile muss die Datei also auch filtern (Advisor 23.11.)."""
             if pfad not in inhalt:
-                inhalt[pfad] = git("diff", "--no-renames", f"{mb}..HEAD", "--", f":(literal){pfad}")
+                stand = subprocess.run(["git", "-C", str(ROOT), "show", f"HEAD:{pfad}"], capture_output=True, text=True,
+                                       errors="replace")
+                inhalt[pfad] = (git("diff", "--no-renames", f"{mb}..HEAD", "--", f":(literal){pfad}")
+                                + (stand.stdout if stand.returncode == 0 else ""))
             return inhalt[pfad]
 
         def grund(pfad: str) -> str | None:

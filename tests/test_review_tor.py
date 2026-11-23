@@ -263,7 +263,17 @@ def test_merge_cli(t):
                    "X=auf; python3 normen/normen.py ${X}trag --ende",
                    # Advisor 23.11.: Programmpfad über Variable, Unterbefehl mit leerer Befehlsersetzung
                    "P=normen/normen.py; python3 $P auf$()trag --ende", "P=normen/normen.py; python3 $P auftrag --ende",
-                   "./normen/normen.py auftrag --ende", "python3 -I normen/normen.py merge 4"):
+                   "./normen/normen.py auftrag --ende", "python3 -I normen/normen.py merge 4",
+                   # Advisor 23.11. (zweite Prüfung): Formen, die der Hook nicht als Befehlswort zerlegt
+                   "(python3 normen/normen.py auftrag --ende)",
+                   "if true; then python3 normen/normen.py auftrag --ende; fi",
+                   "case x in x) python3 normen/normen.py auftrag --ende;; esac",
+                   "timeout 60 python3 normen/normen.py auftrag --ende",
+                   "echo auftrag --ende | xargs python3 normen/normen.py",
+                   "python3 -m cProfile normen/normen.py auftrag --ende",
+                   "python3 -c \"import sys; sys.argv=['n','auftrag','--ende']; from normen import normen; normen.main()\"",
+                   # Preis der Wortprüfung (Grenze im CHANGELOG): Lesen mit einem Unterbefehl als Suchwort
+                   "grep -n merge normen/normen.py"):
         check(f"hook: vibe `{befehl}` nein", hook(repo, "mistral-team", "vibe", V(befehl)) == "nein")
         check(f"hook: agy `{befehl}` nein", hook(repo, "gemini-analyst", "gemini", G(befehl)) == "nein")
     (repo / "tests").mkdir(exist_ok=True)
@@ -361,6 +371,10 @@ def test_review(t):
     (repo / "daten" / "roh").mkdir(parents=True)
     (repo / "daten" / "roh" / "basis.csv").write_text("".join(f"messung {i},{i * 7}\n" for i in range(20)))
     (repo / "daten" / "roh" / "umbau.csv").write_text("".join(f"wert {i},{i * 3}\n" for i in range(20)))
+    # Advisor 23.11.: Marker in einer unveränderten Zeile – die ganze Datei ginge sonst als Dateistand an agy
+    (repo / "src").mkdir(exist_ok=True)
+    (repo / "src" / "auswahl.py").write_text("ERSTE = 1\n" + "".join(f"# zeile {i}\n" for i in range(10))
+                                             + "TEILNEHMER = ['PROBAND-0099']\n")
     commit(repo, "basis")
     sh("git", "switch", "-q", "arbeit/r2", cwd=repo)
     sh("git", "merge", "-q", "main", cwd=repo)
@@ -372,7 +386,7 @@ def test_review(t):
     r = sh(sys.executable, "normen/normen.py", "review", "--basis", "gibt-es-nicht", cwd=repo, env=dict(os.environ, TMPDIR=str(tmp)))
     check("review: unbekannte Basis Exit ≠ 0", r.returncode != 0, r.stdout + r.stderr)
 
-    (repo / "src").mkdir()
+    (repo / "src").mkdir(exist_ok=True)
     (repo / "src" / "a.py").write_text("def a():\n    return 1\n")
     (repo / "docs").mkdir(exist_ok=True)
     (repo / "docs" / "text.md").write_text("Beschreibung\n")
@@ -384,6 +398,8 @@ def test_review(t):
     (repo / "daten" / "roh" / "m.csv").write_text("1,2\n")                # Forschungsdaten (Pfad)
     # Review 23.11. (Mistral Nr. 2): unveränderte Kopie und stark umgebaute Umbenennung aus Forschungsdaten heraus
     (repo / "kopie.csv").write_text((repo / "daten" / "roh" / "basis.csv").read_text())
+    s = (repo / "src" / "auswahl.py").read_text()
+    (repo / "src" / "auswahl.py").write_text(s.replace("ERSTE = 1", "ERSTE = 2"))  # Änderung weit weg vom Marker
     # Advisor 23.11.: Forschungsdatei und Kopie beide neu im Branch (git nimmt nur Dateien der Basis als Kopierquelle)
     (repo / "daten" / "roh" / "neu.csv").write_text("".join(f"probe {i},{i * 11}\n" for i in range(10)))
     (repo / "doppel.csv").write_text((repo / "daten" / "roh" / "neu.csv").read_text())
@@ -427,6 +443,7 @@ def test_review(t):
         check(f"review {name}: Kopie aus Forschungsdaten fehlt", "kopie.csv" not in d and "messung 3" not in d, d)
         check(f"review {name}: Kopie einer neuen Forschungsdatei fehlt", "doppel.csv" not in d and "probe 3" not in d, d)
         check(f"review {name}: umgebaute Umbenennung fehlt", "src/umbau.csv" not in d and "wert 3" not in d, d)
+        check(f"review {name}: Marker außerhalb des Diffs filtert Datei", "src/auswahl.py" not in d, d)
         check(f"review {name}: Geheimnis-Inhalt fehlt", "src/client.py" not in d and "PRIVATE KEY" not in d, d)
     check("review: Ausgabe nennt Gefiltertes", "gefiltert" in r.stdout and "daten/roh/m.csv" in r.stdout
           and "src/liste.py" in r.stdout and "frei.txt" in r.stdout, r.stdout)
