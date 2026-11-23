@@ -35,4 +35,9 @@ Doppelte Befunde stehen einmal, mit allen Quellen.
 <was am Ablauf hakte (Zeitlimit, Freigaben, Format); gemessene Werte für spätere Läufe>
 
 ## Ergebnis
-<mergereif ja/nein; welche bestätigten Befunde vor dem Merge behoben werden (mit Test) und wo (Paket, PLAN.md)>
+Mergereif: <ja|nein>
+
+<welche bestätigten Befunde vor dem Merge behoben werden (mit Test) und wo (Paket, PLAN.md)>
+
+Die Zeile `Mergereif: ja` (genau so, eigene Zeile, nur einmal) prüft `normen.py merge` bei großen Meilensteinen (N11, v17);
+erst setzen, wenn alle bestätigten Befunde behoben sind.

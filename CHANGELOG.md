@@ -4,6 +4,66 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v17 – Review-Tor beim Merge, `normen.py review`, normen.py für Teams gesperrt – 2026-11-23
+
+**Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (normen.py, normen.toml); in `normen/projekt.toml` den neuen
+Abschnitt `[review]` aus der Vorlage übernehmen (fehlt er, gelten die Vorgaben: Code-Endungen wie unten, keine kritischen
+Stellen, keine Versionsdateien). Vorlagen `docs/review-auftrag.md`, `docs/review-bericht.md` und `docs/multi-ki-ablauf.md` per
+`multi-ki/einrichten.sh` (kommen als `.vorlage`). Je Repository einmal das Label anlegen:
+`gh label create meilenstein --description "Großer Meilenstein: Review-Bericht nötig (N11)"` – sonst läuft der Hinweis des
+Halts ins Leere.
+
+### Neu
+- **Review-Tor in `normen.py merge` (N11):** Große Meilensteine – PR-Label `meilenstein` oder neue `[meta].version` in einer
+  Datei aus `[review].versionsdateien` – mergen nur, wenn der PR `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügt oder ändert
+  (jedes Zeichen außer `[A-Za-z0-9._-]` im Branch → `-`, Name exakt) und der Bericht genau eine Zeile `Mergereif: ja` hat. Versionsdatei an der Basis fehlend
+  oder unlesbar zählt als neue Version.
+- **Halt mit Begründungspflicht:** ab 150 Code-Zeilen (hinzugefügt + gelöscht in Dateien aus `[review].code`, Vorgabe
+  `*.py, *.sh, *.js, *.ts, Makefile, *.json`; Tests aus `[pfade].tests` und eingespielte Kopien `normen/normen.py`,
+  `normen/*.toml` außer `projekt.toml`, `.claude/settings.json`, `.vibe/`, `.githooks/` zählen nicht) oder bei jeder Änderung an
+  `[review].kritisch` hält `merge` an. Weiter mit Label oder `normen.py merge <PR> --klein "<Grund>"` (Grund im Merge-Commit;
+  ohne Grund Fehler, vor jedem Netzaufruf).
+- **`normen.py review [--basis] [--gruppe NAME=GLOB,…]`:** bereitet Review-Läufe vor (Ordner je Gruppe und Team, `diff.patch`,
+  `pflicht.txt`, bei Mistral `bericht.md`), startet keine Teams. Filtert aus jedem Diff `[pfade].gesperrt`, Geheimnis-Muster
+  und Forschungsdaten (Pfad-Globs und Textmarker im Diff-Inhalt, ohne Groß-/Kleinschreibung); bei Umbenennungen und Kopien
+  fallen beide Pfade heraus, wenn eine Seite gefiltert ist. Dateien mit Schlüsseln/Tokens im Diff-Inhalt (dieselben Muster wie
+  die Prompt-Prüfung des Hooks) fallen ebenfalls heraus. `[pruefen].ausschliessen` gilt hier bewusst nicht. `bericht.md`
+  enthält den Text für den zweiten Mistral-Schritt. Das Label zählt ohne Groß-/Kleinschreibung.
+- Vorlage `review-bericht.md`: Abschnitt „Ergebnis“ mit `Mergereif: <ja|nein>`.
+
+### Geändert
+- **Teams rufen von `normen.py` nur `pruefen` und `kurz` auf (Hook):** Vorher ließ der Hook für mistral-team, gemini-analyst und
+  lokal jeden Unterbefehl zu – auch `auftrag --dateien '**'`, das die eigene Auftragsliste samt Siegel erweiterte, und
+  `auftrag --ende`, `merge`, `aktualisieren`, `melden`. Geprüft wird dort, wo S06 den Aufruf ohnehin auflöst
+  (`python3 <skript>` samt Variablen, `python3 -m normen.normen`, `./normen/normen.py`): Skript `normen.py` → Unterbefehl muss
+  lesbar sein und `pruefen` oder `kurz` heißen. Rückfall für Formen, die der Hook nicht zerlegt (Subshell, `case`, `xargs`,
+  `$(…)`, `exec`): Steht `normen.py` als Pfadwort im Befehl, sperrt jedes Wort, das ein anderer Unterbefehl ist. Tests mit
+  „normen“ im Namen (`test_normen.py`) bleiben frei.
+- `review` steht in der Liste der in Code-Mode-Skripten verbotenen Unterbefehle.
+
+### Bekannte Grenzen
+- Das Label `meilenstein` vergibt und entfernt Claude selbst; `--klein` begründet Claude selbst. Das Tor schützt gegen Vergessen,
+  nicht gegen Absicht.
+- Das Tor liest `[review]` aus dem Stand, der gemergt wird: Eine Änderung an `normen/projekt.toml` kann die eigene Prüfung
+  abschwächen. Deshalb steht `normen/projekt.toml` hier unter `kritisch` (Halt, sichtbar).
+- Die Sperre für Teams erkennt normen.py am Dateinamen. Nicht erkannt: eine Kopie unter anderem Namen im Projekt (nur mit
+  passendem `.normen-auftrag` schreibbar), ein Projektskript, das `normen` importiert, und ein zusammengesetzter Unterbefehl
+  in einer Form, die der Hook nicht zerlegt. Kopien außerhalb des Projekts prüft S06 vor dem Lauf per AST. Rückhalt bleibt
+  Claudes Vergleich von `git status`/Diff nach jedem Lauf. Preis der Wortprüfung: Ein Team darf `normen.py` nicht mit einem
+  Unterbefehl als Suchwort durchsuchen (`grep merge normen/normen.py` → nein; Lesewerkzeug geht).
+- `review` sucht Textmarker und Geheimnis-Muster im Diff **und** im ganzen Stand der Datei bei HEAD (Dateistände gehen als
+  Kopie an agy). Folge: Testdateien mit Köder-Tokens fallen aus dem Review-Diff; die Ausgabe nennt sie unter „gefiltert“.
+- `review` erkennt Kopien und Umbenennungen aus Sperr-/Forschungspfaden ab 30 % Ähnlichkeit (`-M30% -C30%
+  --find-copies-harder -l0`) und Dateien mit gleichem Inhalt (Blob) wie eine gefilterte Datei, auch wenn beide neu im
+  Branch sind. Ganz neu geschriebener oder teilweise kopierter Inhalt aus solchen Dateien unter neuem Pfad fällt nur über
+  Textmarker heraus.
+- Geheimnisse im Inhalt erkennt `review` nur an festen Mustern (private Schlüssel, GitHub-, AWS-, Slack-, Google-Tokens,
+  `sk-…`); ein Passwort in Klartext ohne solches Muster gelangt in den Diff. Es ist kein vollständiger Geheimnis-Scanner.
+- Mehrere passende Berichte im PR: Es gilt der neueste (Datum im Namen); ein früherer „nein“ vor der Nachbesserung ist
+  der übliche Verlauf.
+
+---
+
 ## Review-Aufträge (Multi-KI, kein neuer Normtext) – 2026-11-22
 
 **Aktualisieren nötig:** nur für Reviews – `multi-ki/einrichten.sh <projekt> --test "<testbefehl>"` legt die neuen Vorlagen an

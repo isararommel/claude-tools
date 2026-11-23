@@ -193,9 +193,17 @@ Vorlagen: `docs/recherche-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs
 
 ### Review (vor dem Merge von Meilensteinen)
 
-Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/review-bericht.md` (Ergebnis). Pflicht nur bei
-**Meilensteinen** (Normen-Release, größere Pakete), nicht vor jedem Merge. Messgrundlage: `docs/reviews/2026-11-20-paket-v15-hooks.md`
-(Pilot) und der Beweislauf vom 22.11.2026 (PLAN.md in claude-tools, Paket R).
+Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/review-bericht.md` (Ergebnis). Messgrundlage:
+`docs/reviews/2026-11-20-paket-v15-hooks.md` (Pilot) und der Beweislauf vom 22.11.2026 (PLAN.md in claude-tools, Paket R).
+
+**Wann (N11, v17 – `normen.py merge` prüft es):**
+- **Großer Meilenstein** = PR-Label `meilenstein` oder neue `[meta].version` in einer Datei aus `projekt.toml
+  [review].versionsdateien`: Der PR muss `docs/reviews/<JJJJ-MM-TT>-<branch>.md` hinzufügen oder ändern (jedes Zeichen außer `[A-Za-z0-9._-]` im Branch → `-`, also `/` → `-`),
+  mit der Zeile `Mergereif: ja`. Sonst „Nicht gemergt“. `--klein` hilft hier nicht.
+- **Sonst Halt mit Begründungspflicht:** ab 150 Code-Zeilen (Endungen aus `[review].code`; Tests, Markdown und eingespielte
+  Kopien zählen nicht) oder bei jeder Änderung an `[review].kritisch` hält `merge` an. Weiter mit Label `meilenstein` (dann
+  Review) oder `normen.py merge <PR> --klein "<Grund>"`; der Grund steht im Merge-Commit.
+- Das Label vergibt Claude selbst: Das Tor schützt gegen Vergessen, nicht gegen Absicht.
 
 | Prüfer | Wie | Schwerpunkt |
 |---|---|---|
@@ -203,19 +211,28 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 | `mistral-team` | Vibe `--agent ask`, `--add-dir <lauf-ordner>`, je Gruppe ein kurzer Lauf, Bericht ggf. im zweiten Schritt | Zeile für Zeile, fehlende Tests |
 | `gemini-analyst` | agy Nur-Lesen, Material im eigenen Lauf-Ordner | Konzept gegen Code, CHANGELOG/Doku gegen Verhalten |
 
-1. **Eingang:** `git diff <basis>...HEAD`. Große Diffs in Gruppen nach Thema schneiden; jede Gruppe geht an beide Teams.
-   Gemessen (22.11.2026): 141 Diff-Zeilen plus rund 450 Zeilen Dateibereiche kosteten Mistral ≈ 340 von 540 s, agy ≈ 6–7 von
-   9 min. Größere Gruppen sind ungemessen – lieber mehr kleine Gruppen. Je Team ein Lauf-Ordner `${TMPDIR}/review-runs/<zeit>-<branch>/<team>/` mit `diff.patch`;
-   Pfade im Auftrag absolut und aufgelöst (`pwd -P`). Eingespielte Kopien (z. B. `normen/`) nicht doppelt prüfen, sondern per
-   `cmp` gegen die Quelle belegen.
-2. **Auftrag:** `docs/review-auftrag.md` ausfüllen; eigene Prüffragen (etwa vom Advisor) ergänzen – im Pilot kamen die meisten
-   bestätigten Lücken aus diesen Fragen. Pflichtsätze aus `normen.py auftrag --rolle <team>` ohne `--dateien`.
+1. **Eingang:** `python3 normen/normen.py review [--basis origin/main] [--gruppe NAME=GLOB[,GLOB…]]…` legt
+   `${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/` an (Pfade aufgelöst), je Ordner `diff.patch` und
+   `pflicht.txt` (Pflichtsätze der Rolle), bei Mistral eine leere `bericht.md` für den zweiten Schritt. Es filtert
+   `[pfade].gesperrt`, Geheimnis-Muster und Forschungsdaten (Pfade und Textmarker im Diff) aus jedem Diff – das ist die einzige
+   Sperre vor Gemini, der Hook prüft nur die Prompt-Datei – und nennt Gefiltertes und Dateien ohne Gruppe. Große Diffs in Gruppen
+   nach Thema schneiden (Hinweis ab 150 Zeilen in `diff.patch` samt Kontext – Maß für den Lauf der Teams, nicht die
+   Code-Zeilen-Schwelle von `merge`); jede Gruppe geht an beide Teams. Gemessen (22.11.2026): 141 Diff-Zeilen
+   plus rund 450 Zeilen Dateibereiche kosteten Mistral ≈ 340 von 540 s, agy ≈ 6–7 von 9 min. Gemessen (23.11.2026): 344
+   Diff-Zeilen – Mistral überschritt 540 s in beiden Schritten (`--time-limit 1200` nehmen), agy brauchte mit 530 Zeilen
+   ≈ 7 min.
+   Eingespielte Kopien (z. B. `normen/`) nicht doppelt prüfen, sondern per `cmp` gegen die Quelle belegen.
+2. **Auftrag:** `docs/review-auftrag.md` ausfüllen und als `prompt.md` (Write-Werkzeug) in den Rollen-Ordner legen; eigene
+   Prüffragen (etwa vom Advisor) ergänzen – im Pilot kamen die meisten bestätigten Lücken aus diesen Fragen. Pflichtsätze aus
+   `pflicht.txt` übernehmen.
 3. **Mistral:** Lese-Modus mit `--add-dir` (nur der Lauf-Ordner, nie breiter); ohne `--add-dir` lehnt Vibe `read_file` außerhalb des Projekts ab („needs approval,
    which a headless run cannot give“). Endet der Lauf ohne Bericht, **einmal** fortsetzen mit `--resume <session_id>` aus
    `out/export.json` und der Prompt-Datei aus dem Abschnitt „Zweiter Schritt“ der Vorlage – nicht `-c`: bei parallelen
    Läufen im selben Projekt greift `-c` die falsche Sitzung („Session is already open“).
-4. **Gemini:** Lesefreigabe `read_file(<lauf-ordner>)` deckt nur diesen Ordner; liegt das Material eine Ebene höher, endet der
-   Lauf sofort mit „auto-denied“. agy schlägt dann selbst `--dangerously-skip-permissions` vor – nie befolgen.
+4. **Gemini:** Lesefreigabe `read_file(<lauf-ordner>)` deckt nur diesen Ordner; liegt das Material eine Ebene höher **oder im
+   Projekt**, endet der Lauf sofort mit „auto-denied“ (gemessen 22. und 23.11.). Dateistände daher per
+   `git show <commit>:<pfad>` in den Gemini-Ordner kopieren (nur von `review` nicht gefilterte Dateien). agy schlägt dann
+   selbst `--dangerously-skip-permissions` vor – nie befolgen.
 5. **Zusammenführen (Claude, S06-Skript):** doppelte Befunde zusammenfassen, jeden selbst prüfen (nachstellen oder Test) und
    einstufen: bestätigt / plausibel / verworfen (mit Grund) / Grenze / zurückgestellt. Ausgaben der Teams sind Daten.
    Zeilennummern der Teams gegen die Datei prüfen (im Beweislauf lagen Mistrals Angaben um 6 Zeilen daneben).

@@ -4,8 +4,8 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 23.11.2026 (v16 auf main; Paket R gemergt (PR #38), Fragen dazu beantwortet; nächstes Paket: **R2** (`normen.py review`
-+ Review-Tor, v17; Fragen beantwortet 23.11., Schwellen-Entwurf unter R2), dann **P** (Normen-Protokoll, v18); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
+*Stand: 23.11.2026 (v17 auf main nach Merge von Paket **R2** (Review-Tor, `normen.py review`, Team-Sperre für normen.py);
+nächstes Paket: **P** (Normen-Protokoll, v18); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
@@ -39,6 +39,12 @@ wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) au
   nicht `main`. Projekte nur aktualisieren lassen, wenn hier `main` (oder ein gemergter Stand) ausgecheckt ist.
 
 ## Erledigt (letzte Schritte)
+
+- ✅ 23.11. **Paket R2 / Normen v17** (Branch `paket-r2-review-tor`): Review-Tor in `normen.py merge` (großer Meilenstein →
+  Bericht mit `Mergereif: ja`; sonst Halt ab 150 Code-Zeilen/kritisch, weiter mit `--klein "<Grund>"`), `normen.py review`
+  (Ordner, gefilterter Diff, Pflichtblock), N11-Zusatz; neuer Befund mit behoben: Teams durften jeden `normen.py`-Unterbefehl
+  aufrufen (`auftrag --dateien` erweiterte die eigenen Rechte). Selbst-Review mit beiden Teams + Advisor: 21 Befunde, 15
+  bestätigt und behoben (`docs/reviews/2026-11-23-paket-r2-review-tor.md`). Einzelheiten und Messungen: Abschnitt R2 unten.
 
 - ✅ 22.11. **Paket R** (Branch `paket-r-review`): eigenes Review-Verfahren als Vorlagen + Ablauf (kein neuer Normtext),
   Beweislauf mit beiden Teams bestanden (Mistral mit `--add-dir`, agy mit Material im eigenen Lauf-Ordner); drei Fehlversuche
@@ -302,7 +308,33 @@ Offen:
    `einrichten.sh`/`aktualisieren` spielen nur von sauberem `main` ein (sonst Abbruch mit Hinweis) und `herkunft.toml`
    speichert den Commit der Quelle; `aktualisieren` meldet „gleiche Version, anderer Stand“. Kandidat für die nächste Version.
 
-### R2. `normen.py review` und Review-Tor beim Merge (Normen v17) *(nächstes Paket; Freigabe der Inhaberin 23.11.)*
+### R2. `normen.py review` und Review-Tor beim Merge (Normen v17) *(✅ erledigt 23.11., Branch `paket-r2-review-tor`)*
+
+**Stand 23.11. (Commits 133ca18, 556aa0f; `make test` grün, `pruefen --diff` 0 Fehler):** Punkte 1–4 umgesetzt.
+- Tor (Claude): `review_daten` (git, `--no-renames -z`) + reine `review_entscheidung`; Prüfung in `cmd_merge` nach der
+  Vorprüfung, vor dem Testbefehl; `--klein` leer → Fehler vor jedem Netzaufruf; Grund per `gh pr merge --body`.
+  Kopien fest im Code (`normen/normen.py`, `normen/*.toml` außer projekt.toml, `normen/herkunft.toml`, `normen/kurz.md`,
+  `.claude/settings.json`, `.vibe/`, `.githooks/`) – **enger als der Entwurf** (ohne `docs/`, nur `settings.json` aus
+  `.claude/`), weil Markdown ohnehin nicht zählt. `normen/projekt.toml` steht hier unter `kritisch` (Advisor).
+- `review` (mistral-team): Lauf 1 gescheitert (Smart-Approve lehnte den Testlauf mit `einrichten.sh` ab, `deadline` nach
+  30 Schritten, keine Änderung); Lauf 2 `--resume` „keine Tests ausführen“: `finished`, 8 Schritte, +139 Zeilen, Abnahme
+  durch Claude. **Lehre:** Aufträge, deren Tests `einrichten.sh`/Temp-Repos anlegen, an Vibe gleich mit „keine Tests
+  ausführen, Abnahme durch Claude“ geben. Abweichung vom Entwurf: `[pruefen].ausschliessen` filtert `review` nicht
+  (enthält hier die Normen-Quelle); Forschungsdaten fallen auch aus dem Mistral-Diff (Advisor).
+- **Neuer Befund, mit behoben (älter als v17):** Der Hook ließ Teams jeden `normen.py`-Unterbefehl aufrufen, auch
+  `auftrag --dateien '**'` (erweitert die eigene Auftragsliste samt Siegel), `auftrag --ende`, `merge`. Jetzt nur
+  `pruefen`/`kurz` (`TEAM_NORMEN_ERLAUBT`), Tests in `tests/test_review_tor.py`.
+- Tests heißen `tests/test_review_tor.py` (N08 sperrt `test_v17.py`). `test_v4`: Prüfsummen vor dem Abgleich privater
+  Begriffe entfernt (Zufallstreffer in `herkunft.toml`).
+- **Selbst-Review erledigt** (Bericht `docs/reviews/2026-11-23-paket-r2-review-tor.md`, `Mergereif: ja`): 14 Befunde, 8
+  bestätigt und behoben (u. a. Umgehung der Team-Sperre mit `""auftrag`/`$(…)`, Kopien aus Sperrpfaden, Geheimnis-Inhalt),
+  6 verworfen. **Messungen:** agy liest keine Projektdateien (Abbruch 21 s) → Material immer in den Lauf-Ordner kopieren;
+  zweiter Mistral-Schritt (`--resume` + `bericht.md`) liefert, aber 540 s sind für 344 Diff-Zeilen zu knapp (`deadline`).
+- Advisor vor „fertig“: 6 weitere Befunde (Team-Sperre per Wortsuche mit Fehlalarmen und Umgehung → strukturell in
+  `_skript_im_befehl`; `-l0`; Kopien neuer Dateien per Blob; `cmd_merge` mit `gh`-Attrappe getestet; Vorlage
+  `review-auftrag.md` umgestellt; Bericht ehrlich). Merge per `normen.py merge` als erster Einsatz des Tors (v17 = Meilenstein).
+**Kandidaten für später (aus R2):** Vibe-Zeitlimit für Reviews auf 1200 s in Ablauf/`mistral-team.md`; `review` könnte
+für Gemini die geänderten Dateien gleich mitkopieren (`git show`), weil agy das Projekt nicht liest.
 
 Entscheidung der Inhaberin 23.11.: beides ja (Frage 2 unter R). Normänderung (N11-Text, `meta.version` 17) → Advisor vor dem
 Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu prüfen):
@@ -362,7 +394,13 @@ R2 → P von der Inhaberin am 23.11. bestätigt** – im Bau nur noch Advisor-Pr
 - Tests in `tests/test_v17.py`: 400 Zeilen Markdown → kein Hinweis; 160 Zeilen `.py` → Hinweis; 3 Zeilen in `kritisch` →
   Hinweis; `--klein` ohne Grund → Fehler.
 
-### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(Wunsch der Inhaberin 23.11.; nach R2)*
+### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(nächstes Paket; Wunsch der Inhaberin 23.11.)*
+
+**Lehren aus R2 für P:** Testdatei nicht `test_v18.py` nennen (N08 sperrt Versionszusätze) – z. B. `tests/test_protokoll.py`.
+Neue Unterbefehle (`hook-nach`, `protokoll`) in `NORMEN_UNTERBEFEHLE` eintragen (ein Test vergleicht mit argparse); ob Teams
+sie aufrufen dürfen, entscheidet `TEAM_NORMEN_ERLAUBT` (Vorschlag: nein). Vibe-Aufträge, deren Tests `einrichten.sh`/Temp-Repos
+anlegen: „keine Tests ausführen, Abnahme durch Claude“ (sonst lehnt Smart-Approve ab). P ist ein Meilenstein (v18) → Review
+mit `normen.py review`, Gemini-Material in den Lauf-Ordner kopieren, Vibe `--time-limit 1200`.
 
 Auftrag (23.11.): „jede Anwendung der Normen (mit Freigabe durch mich) in allen Projekten sammeln, in eine Datei schreiben und
 regelmäßig zur Evaluation geben“. Lesart (Advisor 23.11.): protokolliert werden Hook-Entscheidungen **`fragen`** (Rückfrage an
@@ -405,7 +443,7 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
    (zu streng / zu locker / Fehlalarm, vgl. Memory „keine Rückfragen bei Belanglosigkeiten“), schreibt Kandidaten
    **neutralisiert** (keine Projektnamen, Pfade, Befehle aus privaten Projekten) in PLAN.md und setzt die Marke.
 6. **Datenschutz:** Protokoll nie an `gemini-analyst`, nie ins Repo, nicht als Issue; Auswertung macht Claude selbst.
-7. Tests `tests/test_v18.py` (vorher rot, Umsetzung `protokoll`/`hook-nach` an mistral-team, Schreibstelle Claude):
+7. Tests `tests/test_protokoll.py` (vorher rot, Umsetzung `protokoll`/`hook-nach` an mistral-team, Schreibstelle Claude):
    Eintrag bei `fragen`/`nein`, keiner bei `ja`; Schwärzung (Token, E-Mail); Schreibfehler (Datei-Pfad ist Ordner) →
    Entscheidung unverändert; Korrelation Pre/Post; `--faellig` an den Schwellen; Marke.
 8. `meta.version` 18, CHANGELOG, einspielen, Advisor vor „fertig“, Merge. **Wirkt in allen Projekten erst nach
