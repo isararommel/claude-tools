@@ -407,10 +407,14 @@ Freigabe“ → bei Reviews freigegeben). Der Hook fragt bei Forschungsdaten im 
 
 **Mit v18 mitnehmen (Befund aus einer Projektsitzung 23.11., hier nachgestellt):** `cp <lesbar_extern>/datei docs/` sperrt
 für Claude mit N06 („schreibt möglicherweise in … [pfade].lesbar_extern“), obwohl nur die **Quelle** dort liegt und das Ziel
-im Projekt. Vermutlich wertet `_bash_schreibt_extern` jedes Pfad-Argument von `cp` als Schreibziel; richtig wäre nur das
-letzte (bzw. `-t ZIEL`). Nicht nachgestellt: `git -C <lesbar_extern> log`/`status` gingen im Wegwerf-Projekt durch – die
-Projektsitzung meldete auch diese als gesperrt (evtl. mit Umleitung/Pipe); dort Befehl wörtlich erfragen. Test: `cp`
-Quelle extern → ja, Ziel extern → nein.
+im Projekt. **Ursache (Code gelesen, per Skript eingegrenzt):** `_bash_schreibt_extern` prüft die **ganze Kette** – steht
+der Ordner irgendwo im Befehl und kommt irgendwo `_SCHREIB_VERB` vor, wird gesperrt („Ganze Kette: … bewusst streng“).
+Kleinster gemeldeter Fall: `git branch --show-current && ls <lesbar_extern>/x/` → nein (`git branch` ist Schreibverb, `ls`
+nennt den Ordner); ebenso `… && git -C <lesbar_extern> log -3 main`. Vorschlag: je Teilbefehl prüfen (Ordner und
+Schreibverb im **selben** Glied bzw. nach `cd <ordner>` im selben Ablauf), und bei `cp`/`mv`/`rsync` nur das Ziel (letztes
+Argument bzw. `-t ZIEL`) als Schreibziel. Vorsicht: die Strenge war Absicht (Ketten wie `cd <ordner> && echo x > y`) –
+diese Fälle als Tests behalten. Tests: `git branch --show-current && ls <ext>/` → ja; `cp <ext>/a docs/` → ja;
+`cp docs/a <ext>/` → nein; `cd <ext> && touch x` → nein.
 
 **Lehren aus R2 für P:** Testdatei nicht `test_v18.py` nennen (N08 sperrt Versionszusätze) – z. B. `tests/test_protokoll.py`.
 Neue Unterbefehle (`hook-nach`, `protokoll`) in `NORMEN_UNTERBEFEHLE` eintragen (ein Test vergleicht mit argparse); ob Teams
