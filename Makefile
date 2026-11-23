@@ -1,3 +1,6 @@
+# v18: Hook-Aufrufe der Tests schreiben ins Test-Protokoll, nie ins echte (~/.config/claude-tools/)
+export NORMEN_PROTOKOLL := $(or $(TMPDIR),/tmp)/normen-test-protokoll.jsonl
+
 test:
 	python3 tests/test_normen.py
 	python3 tests/test_v4.py
@@ -9,5 +12,6 @@ test:
 	python3 tests/test_v15b.py
 	python3 tests/test_v15b2.py
 	python3 tests/test_review_tor.py
+	python3 tests/test_protokoll.py
 
 .PHONY: test

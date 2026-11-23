@@ -70,6 +70,10 @@ KOEDER = ".normen/normen-koeder.txt"
 KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
 KOEDER_BEFEHL = "touch " + KOEDER
 SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v16 (#66): session_ids, deren Hook den Köder gesperrt hat
+# v18: Normen-Protokoll (Hook-Entscheidungen fragen/nein aller Projekte), zentral und privat; NORMEN_PROTOKOLL lenkt um
+# (make test setzt es, damit Testläufe nicht ins echte Protokoll schreiben).
+PROTOKOLL_STANDARD = "~/.config/claude-tools/normen-protokoll.jsonl"
+PROTOKOLL_KUERZE = 300
 # Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
 SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
 SELBSTTEST_TEXTE = {
@@ -880,6 +884,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
 
 
 def cmd_hook(a) -> int:
+    cfg, data, tool, eingabe = None, {}, "", {}
     try:
         cfg = laden()
         roh = sys.stdin.read()
@@ -900,10 +905,19 @@ def cmd_hook(a) -> int:
             probe.write_text("\n".join([*alt, str(data["session_id"])]) + "\n", encoding="utf-8")
     except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Hook muss bei jedem Fehler sperren (fail-closed)
         entscheid, gruende = "nein", [f"Normen-Hook fehlerhaft ({type(e).__name__}: {e}) – gesperrt"]
+    stufe = entscheid
     if a.werkzeug != "claude" and entscheid == "fragen":
         entscheid = "nein"
     if entscheid == "ja":
         return 0
+    if not any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
+        try:  # v18: Normen-Protokoll; ohne cfg (laden() gescheitert) kein Schwärzen möglich → kein Eintrag
+            if cfg is None:
+                raise RuntimeError("Konfiguration nicht geladen")
+            _protokoll_anhaengen(_protokoll_eintrag(cfg, a.rolle, a.werkzeug, data if isinstance(data, dict) else {},
+                                                    tool, eingabe, stufe, entscheid, gruende))
+        except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Protokoll darf die Hook-Entscheidung nicht ändern
+            print(f"Normen-Protokoll nicht geschrieben ({type(e).__name__}: {e})", file=sys.stderr)
     grund = "Agenten-Normen: " + "; ".join(gruende) + (f" – bitte {inhaberin(cfg)} fragen." if entscheid == "fragen" else
                                                      " – nicht ausführen, im Bericht melden.")
     if a.werkzeug == "claude":
@@ -2477,11 +2491,61 @@ DATENSCHUTZ = [
 ]
 
 
-def _datenschutz_funde(cfg, text: str) -> list[str]:
-    funde = []
+def _datenschutz_muster(cfg) -> list[tuple[str, re.Pattern]]:
+    """N03-Inhaltsmuster und DATENSCHUTZ (E-Mail, IBAN, Telefon) – für melden (Funde) und das Protokoll (Schwärzen)."""
     muster = [(f"{n['id']}", m["_rx"]) for n in cfg["normen"] if n["id"].startswith("N03")
               for m in n.get("muster", []) if m["ziel"] == "inhalt"]
-    muster += [(name, re.compile(rx)) for name, rx in DATENSCHUTZ]
+    return muster + [(name, re.compile(rx)) for name, rx in DATENSCHUTZ]
+
+
+def _schwaerzen(cfg, text: str) -> str:
+    """Datenschutzmuster, Geheimnis-Inhalte und gesperrte Pfade durch [geschwärzt] ersetzen (vor dem Kürzen)."""
+    for _name, rx in [*_datenschutz_muster(cfg), *((art, rx) for rx, art in _GEHEIM_INHALT)]:
+        text = rx.sub("[geschwärzt]", text)
+    for sp in cfg["projekt"].get("pfade", {}).get("gesperrt", []):
+        if sp:
+            text = re.sub(re.escape(sp), "[geschwärzt]", text, flags=re.IGNORECASE)
+    return text
+
+
+def _protokoll_pfad() -> Path:
+    return Path(os.path.expanduser(os.environ.get("NORMEN_PROTOKOLL") or PROTOKOLL_STANDARD))
+
+
+def _protokoll_anhaengen(eintrag: dict) -> None:
+    """Eine JSON-Zeile mit einem einzigen write anhängen (O_APPEND: mehrere Sitzungen parallel), Datei mit Rechten 600."""
+    pfad = _protokoll_pfad()
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(pfad, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.write(fd, (json.dumps(eintrag, ensure_ascii=False) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _protokoll_eintrag(cfg, rolle: str, werkzeug: str, data: dict, tool: str, eingabe, stufe: str, entscheid: str,
+                       gruende: list[str]) -> dict:
+    """Eintrag für eine Hook-Entscheidung fragen/nein: Bash-Befehl, sonst nur der Pfad, bei mcp__* nur der Tool-Name;
+    alles geschwärzt, dann gekürzt."""
+    e = eingabe if isinstance(eingabe, dict) else {}
+    if tool.startswith("mcp__"):
+        inhalt = ""
+    elif "command" in e or "cmd" in e:
+        inhalt = str(e.get("command") or e.get("cmd") or "")
+    else:
+        inhalt = str(e.get("file_path") or e.get("path") or e.get("notebook_path") or "")
+    gruende_s = [_schwaerzen(cfg, g)[:PROTOKOLL_KUERZE] for g in gruende]
+    return {"zeit": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "projekt": ROOT.name, "rolle": rolle, "werkzeug": werkzeug,
+            "tool": tool, "stufe": stufe, "entscheid": entscheid,
+            "normen": sorted({m for g in gruende for m in re.findall(r"\b[NS]\d{2}-[A-Z0-9-]+[A-Z0-9]", g)}),
+            "gruende": gruende_s, "inhalt": _schwaerzen(cfg, inhalt)[:PROTOKOLL_KUERZE],
+            "session_id": data.get("session_id"), "tool_use_id": data.get("tool_use_id"),
+            "permission_mode": data.get("permission_mode")}
+
+
+def _datenschutz_funde(cfg, text: str) -> list[str]:
+    funde = []
+    muster = _datenschutz_muster(cfg)
     for i, z in enumerate(text.splitlines(), 1):
         for name, rx in muster:
             if rx.search(z):

@@ -471,6 +471,39 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
    Projekte schreiben. Schreiben nach `~/.config/claude-tools/` ist Schreiben außerhalb des Projekts – im Bericht der
    Inhaberin den Pfad nennen (Auftrag vom 23.11. deckt es dem Sinn nach).
 
+**Stand 23.11. abends (Branch `paket-p-protokoll`):**
+- ✅ Schritt 0 (Review-Filter je Rolle, `cmd_review`; Tests in `test_review_tor.py` inkl. „strengster Grund gewinnt“:
+  Forschungspfad mit Geheimnis-Inhalt, Paar Sperrpfad→Forschung) – committet.
+- ✅ `lesbar_extern` je Teilbefehl (`_bash_schreibt_extern`): betroffen sind Glieder, die den Ordner nennen, Glieder nach
+  `cd`/`pushd` dorthin, Glieder hinter einer Pipe; cp/ln/install/rsync mit Ziel außerhalb = nur Quelle; `mv` und
+  `rsync --remove-source-files` bleiben streng; Schleifen/Bedingungen/`xargs`/`eval` (`_KETTE_STRENG`) → ganze Kette wie
+  vorher; unaufgelöstes Ziel → gesperrt. Tests in `test_guardrails.py` – committet.
+- ✅ Schritt 1/2 Schreibstelle (`cmd_hook` → `_protokoll_eintrag`/`_protokoll_anhaengen`, `_schwaerzen` mit gemeinsamem
+  `_datenschutz_muster`); Pfad `NORMEN_PROTOKOLL` (Umgebung) statt `[protokoll].datei` (deckt auch alle Tests ab: das
+  Makefile setzt es auf `$TMPDIR/normen-test-protokoll.jsonl`); Köder-Einträge ausgenommen; `tests/test_protokoll.py`.
+- ⏳ **Messung mit der Inhaberin** (Wegwerf-Repo `probe-ask` im Scratchpad der Sitzung; bei Verlust neu anlegen: Hooks
+  Pre/Post/PostFailure/SessionStart schreiben Ereignis, `tool_use_id`, `permission_mode`, `source` nach `log.jsonl`;
+  Pre fragt bei `probe-ask`): Fälle (a) `echo probe-ask 1` freigeben, (b) `echo probe-ask 2` ablehnen, (c) im
+  Auto-Modus `echo probe-ask 3`, (d) `/clear` → `source` von SessionStart (Matcher `startup|clear`?).
+- Offen danach: Spezifikation an mistral-team für `hook-nach`, `protokoll [--alle|--seit|--gelesen|--faellig]`,
+  SessionStart-Eintrag (Advisor-Vorgaben: Dateiende per `seek` lesen, immer Exit 0 ohne Ausgabe, Hinweis nur Anzahl +
+  Datum); `NORMEN_UNTERBEFEHLE`/`TEAM_NORMEN_ERLAUBT`; Doku (CHANGELOG v18, Ablauf „Review“, `review-auftrag.md`,
+  CLAUDE.md-Zeile zu Forschungsdaten an Mistral, LIES-MICH Zeile 69), Version 18, Review, Merge.
+
+### DT. Design-Team (Ersteller + Kritiker) als Sub-Agenten *(Wunsch der Inhaberin 23.11., nach P)*
+
+Ziel: ein Designer-Team analog zu `mistral-team`/`gemini-analyst` – zwei Rollen: **Design-Ersteller** (experimentierfreudig,
+kreativ: Entwürfe, Varianten, Mock-ups) und **Design-Kritiker** (kritisch: prüft Entwürfe auf Gestaltung, Lesbarkeit,
+Barrierefreiheit, Konsistenz, begründet und priorisiert Befunde). Claude koordiniert: Ersteller liefert, Kritiker prüft,
+Ersteller überarbeitet (begrenzte Runden).
+Schritte (Vorschlag): (1) Advisor zu Plan/Schnittstellen; (2) Entscheidung der Inhaberin: welcher Anbieter/welches Modell
+je Rolle (Claude-Sub-Agent z. B. Sonnet, oder extern über Mistral/Gemini – Kontingent und Datenschutz), Ausgabeformat
+(HTML-/SVG-Entwürfe, Artifacts, Bilder?), wo Entwürfe landen; (3) Agenten-Definitionen in der Quelle (`multi-ki/`, wie
+die bestehenden `.claude/agents/*.md`), Rollen in `rollen.toml` (Rechte wie gemini-analyst: lesen, schreiben nur Pfade
+aus `.normen-auftrag`), Abschnitt im Ablauf (`multi-ki-ablauf.md`: wann delegieren, Auftragsvorlage, Kritik-Runden),
+`CLAUDE.md`-Vorlage; (4) Tests (Rollen, Hook-Rechte); (5) Normen-Version, einspielen, Sitzungen informieren.
+Offene Fragen an die Inhaberin: Anbieter je Rolle; nur Web-/UI-Design oder auch Grafik/Logos; Zahl der Kritik-Runden.
+
 ### D2. Sandbox einführen? *(Entscheidung der Inhaberin offen)*
 
 Grundlage: Nachtrag Paket D im Sandbox-Bericht. Weg 2 ist machbar, verlangt aber: (1) Sandbox-Block mit
