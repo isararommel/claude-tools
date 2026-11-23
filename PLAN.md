@@ -346,14 +346,17 @@ Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu p
 - **Gewichtete Größe statt Diff-Zeilen.** `merge` zählt nur Zeilen in **Code** (Endungen aus neuer Liste
   `projekt.toml [review].code`, Vorgabe `*.py, *.sh, *.js, *.ts, Makefile, *.json`); Markdown, Prompts, Vorlagen, Doku,
   `CHANGELOG`, `PLAN.md` zählen nicht. Tests zählen nicht (`[pfade].tests`) – sie wachsen mit dem Code mit.
-  Leer- und Kommentarzeilen zählen nicht.
+  **Eingespielte Kopien zählen nicht** (`normen/`, `.claude/`, `.vibe/`, `.githooks/`, `docs/` aus `einrichten.sh`) – sonst
+  wäre jeder `aktualisieren`-PR in den Projekten über der Schwelle und hier jede Änderung doppelt; gezählt wird nur die Quelle.
 - **Kritische Stellen zählen immer.** Neue Liste `[review].kritisch` (Globs; hier `agenten-normen/projekt/normen/normen.py`,
-  `**/.claude/settings.json`, `**/.vibe/**`, `**/.githooks/**`, `normen.toml` Muss-Normen): jede Änderung dort löst den
-  Hinweis aus, egal wie klein.
-- **Nur Hinweis, keine Sperre.** Ab 150 gewichteten Code-Zeilen (≈ gemessene Gruppengröße aus R) oder bei einer kritischen
-  Stelle ohne Label meldet `merge` „Review empfohlen: <n> Code-Zeilen / kritisch: <dateien> – Label `meilenstein` setzen?“
-  und mergt **nicht**, bis Claude entweder das Label setzt (dann Tor wie oben) oder `normen.py merge <PR> --klein "<Grund>"`
-  aufruft; der Grund steht im Merge-Commit und im Protokoll (Paket P) und wird so bei der Auswertung sichtbar.
+  `agenten-normen/projekt/normen/{normen,rollen,projekt}.toml`, `agenten-normen/projekt/.claude/settings.json`,
+  `agenten-normen/projekt/.vibe/**`, `agenten-normen/projekt/.githooks/**` – Rechte, Sperrpfade, Hooks; in Projekten leer):
+  jede Änderung dort löst den Halt aus, egal wie klein.
+- **Halt mit Begründungspflicht (keine harte Sperre).** Ab 150 gewichteten Code-Zeilen (≈ gemessene Gruppengröße aus R)
+  oder bei einer kritischen Stelle ohne Label hält `merge` an: „Review empfohlen: <n> Code-Zeilen / kritisch: <dateien> –
+  Label `meilenstein` setzen oder `--klein "<Grund>"`“. Weiter nur mit Label (dann Tor wie oben) oder
+  `normen.py merge <PR> --klein "<Grund>"`; der Grund steht im Merge-Commit (später auch im Protokoll, Paket P).
+  Grenze (CHANGELOG): den Grund gibt Claude selbst – sichtbar, nicht verhindert.
 - Sperrend bleibt allein der große Meilenstein (Label oder neue Normen-Version).
 - Tests in `tests/test_v17.py`: 400 Zeilen Markdown → kein Hinweis; 160 Zeilen `.py` → Hinweis; 3 Zeilen in `kritisch` →
   Hinweis; `--klein` ohne Grund → Fehler.
@@ -372,13 +375,16 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
 - `ask` ohne Bediener (`-p`): kein Post-Ereignis, Eintrag in `permission_denials` des Ergebnisses.
 - Weitere Felder: `session_id`, `cwd`, `permission_mode`, `transcript_path`, `prompt_id`.
 - Folgerung: Ausgang = **„ausgeführt“**, wenn PostToolUse oder PostToolUseFailure mit derselben `tool_use_id` kommt, sonst
-  **„kein Beleg“** (abgelehnt, abgebrochen oder Sitzung beendet). „Abgelehnt“ wird nicht behauptet. Ungemessen:
-  interaktive Ablehnung und Auto-Modus – im Bau im Wegwerf-Repo nachmessen oder als Grenze ins CHANGELOG.
+  **„kein Beleg“** (abgelehnt, abgebrochen oder Sitzung beendet). „Abgelehnt“ wird nicht behauptet. **Ungemessen (erster
+  Bauschritt, einmal interaktiv mit der Inhaberin im Wegwerf-Repo):** kommt nach einem von ihr **freigegebenen** `ask` ein
+  PostToolUse mit derselben `tool_use_id`? (der tragende Fall); was passiert bei ihrer Ablehnung; was macht ein `ask` im
+  Auto-Modus. Was nicht belegt wird, kommt als Grenze ins CHANGELOG.
 
 **Schritte:**
 1. **Schreibstelle in `cmd_hook`** (Claude selbst, heikel): hinter der Herabstufung `fragen`→`nein` für vibe/gemini, nur bei
    `entscheid != "ja"`; Felder: Zeit, Projekt (`ROOT.name`), Rolle, Werkzeug, Tool, Stufe ursprünglich/endgültig, Norm-IDs,
-   Gründe, Befehl bzw. Pfad (gekürzt auf 300 Zeichen), `session_id`, `tool_use_id`. **Eigener, enger Fehlerweg**: ein
+   Gründe, Befehl bzw. Pfad (gekürzt auf 300 Zeichen), `session_id`, `tool_use_id`, **`permission_mode`** (im Auto-Modus
+   beantwortet ein `ask` evtl. nicht die Inhaberin – die Auswertung muss das unterscheiden). **Eigener, enger Fehlerweg**: ein
    Schreibfehler ändert die Entscheidung nie (sonst sperrt ein voller Datenträger alle Projekte), Meldung auf stderr,
    `normen-ausnahme: N08-KEINE-ALTLASTEN – Protokoll darf die Hook-Entscheidung nicht ändern`.
 2. **Datei:** zentral `~/.config/claude-tools/normen-protokoll.jsonl` (außerhalb aller Repos, privat, Rechte 600; Pfad in
@@ -392,9 +398,9 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
 4. **Auswertung `normen.py protokoll [--alle] [--seit DATUM] [--gelesen]`:** Zusammenfassung seit der letzten Auswertung:
    je Norm und Projekt Anzahl `fragen` (davon ausgeführt / kein Beleg) und `nein`, die häufigsten Gründe, Beispiele
    (gekürzt). `--gelesen` setzt die Marke (`~/.config/claude-tools/normen-protokoll.marke`). Keine Rotation (S02).
-5. **„Regelmäßig“:** SessionStart-Hook (Matcher `startup`) in **claude-tools** ruft `normen.py protokoll --faellig` auf:
-   Ausgabe nur, wenn seit der Marke ≥ 7 Tage und ≥ 1 neuer Eintrag oder ≥ 30 neue Einträge (Vorgabe, im Bericht nennen):
-   „Normen-Protokoll: <n> neue Einträge seit <datum> – auswerten (`normen.py protokoll`)“. Claude wertet dann aus
+5. **„Regelmäßig“:** SessionStart-Hook (Matcher `startup`) aus der Quelle, also **in allen Projekten** (die Datei ist zentral;
+   nur in claude-tools käme der Hinweis selten), ruft `normen.py protokoll --faellig` auf: Ausgabe nur, wenn seit der Marke ≥ 7 Tage und ≥ 1 neuer Eintrag oder ≥ 30 neue Einträge (Vorgabe, im Bericht nennen):
+   „Normen-Protokoll: <n> neue Einträge seit <datum> – in claude-tools auswerten (`normen.py protokoll`)“. Claude wertet dort aus
    (zu streng / zu locker / Fehlalarm, vgl. Memory „keine Rückfragen bei Belanglosigkeiten“), schreibt Kandidaten
    **neutralisiert** (keine Projektnamen, Pfade, Befehle aus privaten Projekten) in PLAN.md und setzt die Marke.
 6. **Datenschutz:** Protokoll nie an `gemini-analyst`, nie ins Repo, nicht als Issue; Auswertung macht Claude selbst.
