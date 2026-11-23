@@ -133,6 +133,8 @@ def test_tor(t):
     check("tor: Label ohne Bericht stopp", not ok and "ohne Review-Bericht" in text and "docs/reviews/" in text, text)
     ok, text = E(cfg, daten([(1, 0, "app.py")], [("M", "app.py")]), ["meilenstein"], B, "klein")
     check("tor: Label + --klein bleibt stopp", not ok, text)
+    ok, _ = E(cfg, daten([(1, 0, "app.py")], [("M", "app.py")]), ["Meilenstein"], B, None)
+    check("tor: Label ohne Groß-/Kleinschreibung", not ok)
     pfad = "docs/reviews/2026-11-23-arbeit-r2.md"
     d = daten([(1, 0, "app.py"), (5, 0, pfad)], [("M", "app.py"), ("A", pfad)], berichte={pfad: BERICHT_JA})
     ok, text = E(cfg, d, ["meilenstein"], B, None)
@@ -248,10 +250,20 @@ def test_merge_cli(t):
     for befehl in ("python3 normen/normen.py review", "python3 normen/normen.py auftrag --rolle mistral-team --dateien '**'",
                    "python3 normen/normen.py auftrag --ende", "python3 ./normen/normen.py merge 4",
                    "cd normen && python3 normen.py aktualisieren", "python3 -m normen.normen melden --art x",
-                   "make test && python3 normen/normen.py 'auftrag' --ende"):
+                   "make test && python3 normen/normen.py 'auftrag' --ende",
+                   # Review 23.11. (Mistral Nr. 1): doppelte Anführungszeichen, Befehlsersetzung, exec
+                   'python3 normen/normen.py ""auftrag --ende', "python3 normen/normen.py ''auftrag --ende",
+                   "python3 $(echo normen/normen.py) auftrag --ende", "python3 NORMEN/Normen.py auftrag --ende",
+                   # normen-ausnahme: N09-SICHERE-MUSTER – Befehlstext als Hook-Eingabe, wird nie ausgeführt
+                   "python3 -c \"exec(open('normen/normen.py').read())\" auftrag --ende",
+                   "X=auf; python3 normen/normen.py ${X}trag --ende"):
         check(f"hook: vibe `{befehl}` nein", hook(repo, "mistral-team", "vibe", V(befehl)) == "nein")
         check(f"hook: agy `{befehl}` nein", hook(repo, "gemini-analyst", "gemini", G(befehl)) == "nein")
-    for befehl in ("python3 normen/normen.py pruefen --diff", "python3 normen/normen.py kurz", "make test"):
+    hilfe = sh(sys.executable, "normen/normen.py", "-h", cwd=repo).stdout
+    wahl = set(hilfe.split("{", 1)[1].split("}", 1)[0].split(",")) if "{" in hilfe else set()
+    check("NORMEN_UNTERBEFEHLE = argparse-Unterbefehle", wahl == modul(repo).NORMEN_UNTERBEFEHLE, f"{wahl}")
+    for befehl in ("python3 normen/normen.py pruefen --diff", "python3 normen/normen.py kurz", "make test",
+                   "grep -n 'def cmd_merge' normen/normen.py"):
         check(f"hook: vibe `{befehl}` ja", hook(repo, "mistral-team", "vibe", V(befehl)) == "ja")
     lauf = t / "skripte"
     lauf.mkdir()
@@ -282,6 +294,9 @@ def test_review(t):
     sh("git", "merge", "-q", "arbeit/r2", cwd=repo)
     (repo / "geheim").mkdir()
     (repo / "geheim" / "a.txt").write_text("".join(f"zeile {i}\n" for i in range(20)))
+    (repo / "daten" / "roh").mkdir(parents=True)
+    (repo / "daten" / "roh" / "basis.csv").write_text("".join(f"messung {i},{i * 7}\n" for i in range(20)))
+    (repo / "daten" / "roh" / "umbau.csv").write_text("".join(f"wert {i},{i * 3}\n" for i in range(20)))
     commit(repo, "basis")
     sh("git", "switch", "-q", "arbeit/r2", cwd=repo)
     sh("git", "merge", "-q", "main", cwd=repo)
@@ -302,8 +317,12 @@ def test_review(t):
     (repo / "unter" / "GEHEIM").mkdir(parents=True)
     (repo / "unter" / "GEHEIM" / "x.txt").write_text("x\n")              # gesperrt, andere Schreibweise
     (repo / "conf.env").write_text("TOKEN=x\n")                           # Geheimnis-Muster
-    (repo / "daten" / "roh").mkdir(parents=True)
     (repo / "daten" / "roh" / "m.csv").write_text("1,2\n")                # Forschungsdaten (Pfad)
+    # Review 23.11. (Mistral Nr. 2): unveränderte Kopie und stark umgebaute Umbenennung aus Forschungsdaten heraus
+    (repo / "kopie.csv").write_text((repo / "daten" / "roh" / "basis.csv").read_text())
+    sh("git", "mv", "daten/roh/umbau.csv", "src/umbau.csv", cwd=repo)
+    (repo / "src" / "umbau.csv").write_text("".join(f"wert {i},{i * 3}\n" for i in range(8))
+                                            + "".join(f"neu {i}\n" for i in range(12)))
     (repo / "daten" / "Roh2.csv").write_text("1\n")                     # keine Forschungsdaten (für „ohne Gruppe“)
     (repo / "src" / "liste.py").write_text("IDS = ['proband-0042']\n")    # Forschungsdaten (Marker, andere Schreibweise)
     commit(repo, "änderungen")
@@ -321,6 +340,8 @@ def test_review(t):
         check(f"review: {rolle}/pflicht.txt", (g / rolle / "pflicht.txt").is_file())
     check("review: mistral/bericht.md", (g / "mistral" / "bericht.md").is_file())
     check("review: gemini ohne bericht.md", not (g / "gemini" / "bericht.md").exists())
+    zweit = (g / "mistral" / "bericht.md").read_text(encoding="utf-8") if (g / "mistral" / "bericht.md").is_file() else ""
+    check("review: bericht.md mit Text für den zweiten Schritt", "Schreibe jetzt den Bericht" in zweit, repr(zweit))
     pm = (g / "mistral" / "pflicht.txt").read_text(encoding="utf-8") if (g / "mistral" / "pflicht.txt").is_file() else ""
     pg = (g / "gemini" / "pflicht.txt").read_text(encoding="utf-8") if (g / "gemini" / "pflicht.txt").is_file() else ""
     check("review: pflicht mistral", "Rolle mistral-team" in pm and "Außerhalb des Projektordners" in pm, pm[:200])
@@ -334,6 +355,8 @@ def test_review(t):
         check(f"review {name}: Geheimnis fehlt", "conf.env" not in d and "TOKEN" not in d, d)
         check(f"review {name}: Forschungspfad fehlt", "daten/roh/m.csv" not in d, d)
         check(f"review {name}: Marker-Datei fehlt", "proband-0042" not in d.lower(), d)
+        check(f"review {name}: Kopie aus Forschungsdaten fehlt", "kopie.csv" not in d and "messung 3" not in d, d)
+        check(f"review {name}: umgebaute Umbenennung fehlt", "src/umbau.csv" not in d and "wert 3" not in d, d)
     check("review: Ausgabe nennt Gefiltertes", "gefiltert" in r.stdout and "daten/roh/m.csv" in r.stdout
           and "src/liste.py" in r.stdout and "frei.txt" in r.stdout, r.stdout)
     check("review: Ausgabe nennt Ordner und Zeilen", str(g) in r.stdout or "alles" in r.stdout, r.stdout)

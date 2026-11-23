@@ -23,8 +23,9 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
   ohne Grund Fehler, vor jedem Netzaufruf).
 - **`normen.py review [--basis] [--gruppe NAME=GLOB,…]`:** bereitet Review-Läufe vor (Ordner je Gruppe und Team, `diff.patch`,
   `pflicht.txt`, bei Mistral `bericht.md`), startet keine Teams. Filtert aus jedem Diff `[pfade].gesperrt`, Geheimnis-Muster
-  und Forschungsdaten (Pfad-Globs und Textmarker im Diff-Inhalt, ohne Groß-/Kleinschreibung); bei Umbenennungen fallen alter und
-  neuer Pfad heraus, wenn eine Seite gefiltert ist. `[pruefen].ausschliessen` gilt hier bewusst nicht.
+  und Forschungsdaten (Pfad-Globs und Textmarker im Diff-Inhalt, ohne Groß-/Kleinschreibung); bei Umbenennungen und Kopien
+  fallen beide Pfade heraus, wenn eine Seite gefiltert ist. `[pruefen].ausschliessen` gilt hier bewusst nicht. `bericht.md`
+  enthält den Text für den zweiten Mistral-Schritt. Das Label zählt ohne Groß-/Kleinschreibung.
 - Vorlage `review-bericht.md`: Abschnitt „Ergebnis“ mit `Mergereif: <ja|nein>`.
 
 ### Geändert
@@ -38,8 +39,13 @@ Stellen, keine Versionsdateien). Vorlage `docs/review-bericht.md` und `docs/mult
   nicht gegen Absicht.
 - Das Tor liest `[review]` aus dem Stand, der gemergt wird: Eine Änderung an `normen/projekt.toml` kann die eigene Prüfung
   abschwächen. Deshalb steht `normen/projekt.toml` hier unter `kritisch` (Halt, sichtbar).
-- Die Sperre für Teams erkennt `normen.py`/`normen.normen` im Befehlstext; Aufrufe über umbenannte Kopien oder Variablen für
-  den Programmnamen sieht sie nicht (andere Hook-Regeln greifen dort teilweise).
+- Die Sperre für Teams greift, wenn „normen“ im Befehl steht: dann sperrt jedes Wort, das ein Unterbefehl außer
+  `pruefen`/`kurz` ist (auch in Anführungszeichen oder hinter `$(…)`), und jeder nicht lesbare Unterbefehl (`$X`). Eine Kopie
+  unter anderem Namen oder ein Glob im Programmpfad (`norme?.py`) mit einem zusammengesetzten Unterbefehl sieht sie nicht.
+- `review` erkennt Kopien und Umbenennungen aus Sperr-/Forschungspfaden ab 30 % Ähnlichkeit (`-M30% -C30%
+  --find-copies-harder`). Ganz neu geschriebener Inhalt aus solchen Dateien unter neuem Pfad fällt nur über Textmarker heraus.
+- Mehrere passende Berichte im PR: Es gilt der neueste (Datum im Namen); ein früherer „nein“ vor der Nachbesserung ist
+  der übliche Verlauf.
 
 ---
 

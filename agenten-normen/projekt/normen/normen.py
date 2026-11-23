@@ -751,12 +751,15 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if rinfo.get("auftrag_pflicht") and "normen-auftrag" in cmd:
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
-        if rinfo.get("auftrag_pflicht"):
+        if rinfo.get("auftrag_pflicht") and "normen" in cmd.casefold():
             # v17: Teams rufen von normen.py nur pruefen/kurz auf – `auftrag --dateien` erweiterte samt Siegel die eigenen
             # Rechte, `auftrag --ende`/merge/review/aktualisieren/melden sind Sache von Claude (vorher ungeprüft).
-            for unter in _NORMEN_UNTER_RX.findall(cmd):
-                if unter not in TEAM_NORMEN_ERLAUBT:
-                    gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {unter}` ruft nur Claude auf"))
+            # Ohne Anführungszeichen/Backslash (`""auftrag`), dazu jedes Wort, das ein gesperrter Unterbefehl ist
+            # (`$(echo normen/normen.py) auftrag`, exec(open(…)) – Review 23.11.); sichere Richtung.
+            flach = re.sub(r"[\"'\\]", "", cmd)
+            unter = set(_NORMEN_UNTER_RX.findall(flach)) | (set(re.findall(r"[A-Za-z_-]+", flach)) & NORMEN_UNTERBEFEHLE)
+            for u in sorted(unter - TEAM_NORMEN_ERLAUBT):
+                gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {u}` ruft nur Claude auf"))
         for norm in cfg["normen"]:
             for m in norm.get("muster", []):
                 if m["ziel"] != "befehl":
@@ -1018,7 +1021,9 @@ BRANCH_VERBOTEN = {"-d", "-D", "-m", "-M", "-c", "-C", "-f", "--delete", "--move
 GH_API_VERBOTEN = re.compile(r"^(-X|--method|-f|-F|--field|--raw-field|--input)(=|$)|^-X\w")
 NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren", "review"}
 TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist für Teams gesperrt (Hook)
-_NORMEN_UNTER_RX = re.compile(r"normen(?:\.py|\.normen)\b['\"]?\s+['\"]?([^\s;&|'\"]+)")  # unbekannt ($X …) → gesperrt
+NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "stop", "merge", "auftrag", "skript", "selbsttest", "kurz", "sync",
+                       "aktualisieren", "melden", "review"}
+_NORMEN_UNTER_RX = re.compile(r"normen(?:\.py|\.normen)\b\s+([^\s;&|]+)", re.IGNORECASE)  # unbekannt ($X …) → gesperrt
 PYTHON = re.compile(r"python3?(\.\d+)?$")
 
 
@@ -2543,6 +2548,8 @@ REVIEW_KOPIEN = ("normen/normen.py", "normen/normen.toml", "normen/rollen.toml",
 REVIEW_CODE = ["*.py", "*.sh", "*.js", "*.ts", "Makefile", "*.json"]
 REVIEW_SCHWELLE = 150  # Code-Zeilen (hinzugefügt + gelöscht) ≈ gemessene Gruppengröße aus Paket R
 REVIEW_LABEL = "meilenstein"
+REVIEW_ZWEITER_SCHRITT = ("Lies keine weiteren Dateien und rufe keine Werkzeuge auf. Schreibe jetzt den Bericht im Format aus "
+                          "dem Auftrag\n(Abschnitt „Ausgabe“) mit dem, was du bisher gelesen hast; Offenes unter „Nicht geprüft“.\n")
 _MERGEREIF_RX = re.compile(r"^\s*Mergereif:\s*(.*?)\s*$", re.MULTILINE)
 
 
@@ -2596,7 +2603,7 @@ def review_entscheidung(cfg: dict, daten: dict, labels: list[str], branch: str, 
     rv = _review_werte(cfg)
     tests = cfg["projekt"].get("pfade", {}).get("tests", [])
     gruende = []
-    if REVIEW_LABEL in labels:
+    if REVIEW_LABEL in {l.casefold() for l in labels}:  # sichere Richtung: `Meilenstein` zählt auch
         gruende.append(f"Label `{REVIEW_LABEL}`")
     for datei, (alt, neu) in sorted(daten["versionen"].items()):
         if alt != neu:
@@ -2801,8 +2808,11 @@ def cmd_review(a) -> int:
     try:
         mb = git("merge-base", a.basis, "HEAD").strip()
         branch = re.sub(r"[^A-Za-z0-9._-]", "-", git("rev-parse", "--abbrev-ref", "HEAD").strip())
-        paare = []  # Umbenennungen (alt, neu) per -M; ist eine Seite gefiltert, fallen beide heraus
-        teile = git("diff", "--name-status", "-z", "-M", f"{mb}..HEAD").split("\0")
+        # Umbenennungen und Kopien (alt, neu); ist eine Seite gefiltert, fallen beide heraus. Niedrige Schwelle und
+        # --find-copies-harder (Review 23.11.): sonst kamen unveränderte Kopien und stark umgebaute Umbenennungen aus
+        # Sperr-/Forschungspfaden ungefiltert in den Diff. Ganz neu geschriebene Inhalte erkennt git nicht (Grenze).
+        paare = []
+        teile = git("diff", "--name-status", "-z", "-M30%", "-C30%", "--find-copies-harder", f"{mb}..HEAD").split("\0")
         k = 0
         while k < len(teile) and teile[k]:
             if teile[k][0] in "RC" and k + 2 < len(teile):
@@ -2893,8 +2903,8 @@ def cmd_review(a) -> int:
                             *(f":(literal){p}" for p in dateien)) if dateien else ""
                 (ordner / "diff.patch").write_text(patch, encoding="utf-8")
                 (ordner / "pflicht.txt").write_text("\n".join(auftrag_zeilen(cfg, rollenname, [])) + "\n", encoding="utf-8")
-                if rolle == "mistral":
-                    (ordner / "bericht.md").write_text("", encoding="utf-8")
+                if rolle == "mistral":  # zweiter Schritt (--resume), Text wie in docs/review-auftrag.md
+                    (ordner / "bericht.md").write_text(REVIEW_ZWEITER_SCHRITT, encoding="utf-8")
                 zeilen = len(patch.splitlines())
                 print(f"{name}/{rolle}: {len(dateien)} Dateien, {zeilen} Diff-Zeilen → {ordner}")
                 if zeilen >= 150:
