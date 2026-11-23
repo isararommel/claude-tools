@@ -4,8 +4,8 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 22.11.2026 (v16 auf main; Paket R erledigt, Branch `paket-r-review`; offen: drei Fragen an die Inhaberin unter R;
-nächstes Paket: D2 nach Entscheidung der Inhaberin, sonst **E**; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
+*Stand: 23.11.2026 (v16 auf main; Paket R gemergt (PR #38), Fragen dazu beantwortet; nächstes Paket: **R2** (`normen.py review`
++ Review-Tor, v17) – vorher zwei Fragen an die Inhaberin unter R2; danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
@@ -58,8 +58,9 @@ wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) au
   Basis = unbekannt. Im CHANGELOG v16 als Grenze.
   ✅ Advisor vor „fertig“, PR-Text neu, **PR #30 per `normen.py merge 30` gemergt (22.11., v16 auf main)**, fünf laufende
   Sitzungen per SendMessage zum Aktualisieren aufgefordert.
-  **Offen:** Rückmelde-Issues #74/#71/#66/#61/#75 abgleichen und kommentieren/schließen (#74 und #71 erst nach Abgleich mit
-  Sperrmeldung bzw. Befehl aus dem Projektlauf; #61 offen lassen wegen Stop-Hook).
+  ✅ 23.11. Rückmelde-Issues abgeglichen: #75, #66, #71 geschlossen (#71: Befehlsform `.venv/bin/python -c 'import <projektmodul>'`
+  am Vibe-Hook für mistral-team nachgestellt → ja, mit `os.remove` → nein); #74 kommentiert, offen (wörtliche Sperrmeldung
+  fehlt, Ordnername hat dieselbe Schreibweise); #61 kommentiert, offen (Stop-Hook, Befund (a) unter R).
 
 - ✅ 22.11. **V15b-1** (V15b Punkte 1–4 und 10, Branch `paket-v15-hooks`): gemeinsamer Modul-Auflöser
   `_py_modul_aufloesen` (Suchreihenfolge gegen den Interpreter getestet) für `-m`, `-c`-Importe und `python3 <datei>.py`
@@ -253,10 +254,9 @@ Kombination; agy mit Dateien aus dem ausgecheckten Projekt; Gruppen über ≈ 14
   Richtung (fälschlich „durchgefallen“).
 - **Abnahme Beweislauf:** beide Teams liefern ohne Handrettung einen Bericht im Format (Mistral in 1 Schritt, agy durch).
 
-**Offene Fragen an die Inhaberin (22.11.):** (1) Agent-Definitionen aus `multi-ki/benutzer/agents/` nach `~/.claude/agents/`
-kopieren (bis dahin gelten dort `-c` ohne `--add-dir`; jeder Review-Aufruf muss beides ausschreiben)? (2) `normen.py review`
-(Lauf-Ordner, Diff-Gruppen, Aufträge anlegen) und ein Merge-Tor „Review-Bericht für Meilensteine“ – ja oder nein (Tor wäre
-Normänderung: Advisor S07 Punkt 5)? (3) Rückmelde-Issues #74/#71/#66/#61/#75 kommentieren/schließen?
+**Fragen der Inhaberin vom 22.11., alle am 23.11. mit „ja“ beantwortet:** (1) Agent-Definitionen nach `~/.claude/agents/`
+kopiert (Sicherungen `*.md.bak-2026-11-23` daneben); (2) `normen.py review` und Merge-Tor → Paket R2; (3) Issues abgeglichen
+(siehe Erledigt, V15b-2).
 **Entscheidungen der Inhaberin (20.11.):**
 - Pflicht nur bei **Meilensteinen** (Normen-Release, größere Pakete), nicht vor jedem Merge.
 - Bericht als **Datei** `docs/reviews/<datum>-<branch>.md` (Claudes Wahl: dauerhaft, im Diff prüfbar, in jedem Projekt
@@ -301,6 +301,48 @@ Offen:
    `normen.py`; `aktualisieren` ersetzt die Datei zwar, aber weder es noch das Prüftor melden den Unterschied. Vorschlag:
    `einrichten.sh`/`aktualisieren` spielen nur von sauberem `main` ein (sonst Abbruch mit Hinweis) und `herkunft.toml`
    speichert den Commit der Quelle; `aktualisieren` meldet „gleiche Version, anderer Stand“. Kandidat für die nächste Version.
+
+### R2. `normen.py review` und Review-Tor beim Merge (Normen v17) *(nächstes Paket; Freigabe der Inhaberin 23.11.)*
+
+Entscheidung der Inhaberin 23.11.: beides ja (Frage 2 unter R). Normänderung (N11-Text, `meta.version` 17) → Advisor vor dem
+Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu prüfen):
+1. **`normen.py review [--basis origin/main] [--gruppe NAME=GLOB[,GLOB…]]…`** – bereitet nur vor, startet keine Teams:
+   legt `${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/` an (aufgelöste Pfade), je Ordner `diff.patch`
+   (`git diff <basis>...HEAD -- <globs>`), `pflicht.txt` (= `auftrag_zeilen(rolle, [])`), bei mistral `bericht.md`
+   (zweiter Schritt). Ohne `--gruppe` eine Gruppe „alles“. Ausgabe: Ordner, Diff-Zeilen je Gruppe, Hinweis ab ≈ 150 Zeilen
+   („ungemessen, teilen“). `prompt.md` schreibt weiter Claude (Write-Werkzeug). Exit ≠ 0 bei leerem Diff oder unbekannter Basis.
+   **Datenschutz (Advisor 23.11.): Das Werkzeug ist die einzige Sperre vor Gemini** – der Hook prüft nur die Prompt-Datei,
+   nicht `diff.patch`. Deshalb nicht per git-Pathspec ausschließen, sondern geänderte Dateien per `--name-status` holen und
+   mit dem Abgleich des Hooks filtern (`passt`, `_echt`, ohne Groß-/Kleinschreibung, Ordner-Einträge): `[pfade].gesperrt` aus
+   jedem Diff, `[pfade].forschungsdaten` aus dem gemini-Diff, `[pruefen].ausschliessen` ebenfalls. Bei Umbenennung zählen
+   alter und neuer Pfad. Negativtests: andere Schreibweise (wie #74), Umbenennung aus einem Sperrpfad heraus.
+2. **Review-Tor in `normen.py merge`** – heikle Kernlogik, **Claude schreibt es selbst** als reine Funktion
+   (Labels, Dateiliste, Berichtstexte → Entscheidung); vorher nachsehen, wie bestehende Merge-Tests `gh` ersetzen.
+   Ist der PR ein **Meilenstein**, verlangt das Tor eine im PR-Diff hinzugefügte oder geänderte Datei
+   `docs/reviews/*-<branch>.md` mit fester Zeile `Mergereif: ja` (neu in `review-bericht.md`, Abschnitt „Ergebnis“; der
+   Pilotbericht „nicht mergereif“ hätte ein bloßes `## Ergebnis` passiert). Sonst „Nicht gemergt: Meilenstein ohne
+   Review-Bericht“ bzw. „… Bericht sagt nicht mergereif“. Branchnamen mit `/` im Dateinamen: `/` → `-` (festlegen, testen).
+   Meilenstein = PR-Label `meilenstein` **oder** der Diff ändert `[meta].version` in einer Datei aus der neuen Liste
+   `projekt.toml [review].versionsdateien` – hier `agenten-normen/projekt/normen/normen.toml`, in Projekten leer (sonst wäre
+   jeder `aktualisieren`-PR dort ein Meilenstein). Das Label im Repository anlegen (Lehre #75); JSON-Feld `labels` vorher per
+   `gh pr view --help` belegen (S04). Keine Umgehung im Werkzeug (sonst Merge durch die Inhaberin).
+   **Grenze (CHANGELOG):** Das Label vergibt und entfernt Claude selbst – das Tor schützt gegen Vergessen, nicht gegen Absicht.
+3. **Normtext N11** um einen Satz ergänzen („Meilensteine – PR-Label `meilenstein` oder neue Normen-Version – brauchen
+   zusätzlich einen Review-Bericht `docs/reviews/<datum>-<branch>.md`; Ablauf `docs/multi-ki-ablauf.md`, Abschnitt Review“),
+   `meta.version` 17, `tests/test_v4.py` anheben, CHANGELOG v17, Ablauf/Vorlagen auf `normen.py review` umstellen.
+4. Tests `tests/test_v17.py` (vorher rot): review legt Ordner/Dateien an, Sperr-/Forschungspfade fehlen im Diff, Gruppen;
+   Tor: Meilenstein per Label/Version ohne Bericht → stopp, mit Bericht → weiter, Nicht-Meilenstein unverändert (gh per
+   Attrappe im Test, nicht im Produktivcode).
+5. Umsetzung von `review` an `mistral-team` (Spezifikation von Claude), Tor und Tests schreibt Claude; dann einspielen
+   (`bash einrichten.sh . --test "make test"`), `make test`, `pruefen --diff`, Advisor vor „fertig“, **erster Einsatz des
+   Tors an sich selbst** (v17 ist Meilenstein → Review nach `docs/review-auftrag.md`, Bericht `docs/reviews/…`), Merge,
+   Sitzungen informieren. Im Selbst-Review **einmal den zweiten Schritt erzwingen** (knappes `--max-turns`): `--resume` mit
+   `bericht.md` ist nie gelaufen, auch nicht durch den Hook; derselbe Lauf misst agy mit Dateien aus dem Projekt und eine
+   größere Gruppe.
+**Offene Fragen an die Inhaberin (vor dem Bau):** (1) N11-Zusatz wörtlich: „Meilensteine (PR-Label `meilenstein` oder neue
+Normen-Version der Quelle) brauchen zusätzlich einen Review-Bericht `docs/reviews/<datum>-<branch>.md` mit `Mergereif: ja`;
+Ablauf `docs/multi-ki-ablauf.md`, Abschnitt „Review“.“ – so freigeben? (2) Sollen „größere Pakete“ allein am Label hängen
+(Claude setzt es nach Ermessen), oder zusätzlich eine Größenschwelle (z. B. ab 400 Diff-Zeilen Hinweis „Label setzen?“)?
 
 ### D2. Sandbox einführen? *(Entscheidung der Inhaberin offen)*
 
