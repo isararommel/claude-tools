@@ -368,6 +368,7 @@ def test_review(t):
     sh("git", "merge", "-q", "arbeit/r2", cwd=repo)
     (repo / "geheim").mkdir()
     (repo / "geheim" / "a.txt").write_text("".join(f"zeile {i}\n" for i in range(20)))
+    (repo / "geheim" / "b.txt").write_text("".join(f"sperre {i}\n" for i in range(20)))  # v18: Paar Sperrpfad→Forschung
     (repo / "daten" / "roh").mkdir(parents=True)
     (repo / "daten" / "roh" / "basis.csv").write_text("".join(f"messung {i},{i * 7}\n" for i in range(20)))
     (repo / "daten" / "roh" / "umbau.csv").write_text("".join(f"wert {i},{i * 3}\n" for i in range(20)))
@@ -410,6 +411,9 @@ def test_review(t):
                                             + "".join(f"neu {i}\n" for i in range(12)))
     (repo / "daten" / "Roh2.csv").write_text("1\n")                     # keine Forschungsdaten (für „ohne Gruppe“)
     (repo / "src" / "liste.py").write_text("IDS = ['proband-0042']\n")    # Forschungsdaten (Marker, andere Schreibweise)
+    # v18 (Advisor 23.11.): strengster Grund gewinnt – Forschungspfad mit Geheimnis-Inhalt und Paar Sperrpfad → Forschung
+    (repo / "daten" / "roh" / "zugang.csv").write_text("k = '" + "-----BEGIN " + "RSA PRIVATE KEY-----" + "'\n")
+    sh("git", "mv", "geheim/b.txt", "daten/roh/b.csv", cwd=repo)
     commit(repo, "änderungen")
 
     r = review(repo, tmp)
@@ -438,13 +442,21 @@ def test_review(t):
         check(f"review {name}: gesperrt fehlt", "geheim/a.txt" not in d and "GEHEIM/x.txt" not in d, d)
         check(f"review {name}: Umbenennung aus Sperrpfad fehlt", "frei.txt" not in d, d)
         check(f"review {name}: Geheimnis fehlt", "conf.env" not in d and "TOKEN" not in d, d)
-        check(f"review {name}: Forschungspfad fehlt", "daten/roh/m.csv" not in d, d)
-        check(f"review {name}: Marker-Datei fehlt", "proband-0042" not in d.lower(), d)
-        check(f"review {name}: Kopie aus Forschungsdaten fehlt", "kopie.csv" not in d and "messung 3" not in d, d)
-        check(f"review {name}: Kopie einer neuen Forschungsdatei fehlt", "doppel.csv" not in d and "probe 3" not in d, d)
-        check(f"review {name}: umgebaute Umbenennung fehlt", "src/umbau.csv" not in d and "wert 3" not in d, d)
-        check(f"review {name}: Marker außerhalb des Diffs filtert Datei", "src/auswahl.py" not in d, d)
         check(f"review {name}: Geheimnis-Inhalt fehlt", "src/client.py" not in d and "PRIVATE KEY" not in d, d)
+        check(f"review {name}: Forschungspfad mit Geheimnis-Inhalt fehlt", "zugang.csv" not in d, d)
+        check(f"review {name}: Paar Sperrpfad→Forschung fehlt", "b.csv" not in d and "sperre 3" not in d, d)
+    # v18 (Entscheidung der Inhaberin 23.11.): Forschungsdaten nur aus dem Gemini-Diff, der Mistral-Diff enthält sie
+    for name, d, drin in (("mistral", dm, True), ("gemini", dg, False)):
+        wort = "enthalten" if drin else "fehlt"
+        for teil, muster in (("Forschungspfad", ["daten/roh/m.csv"]), ("Marker-Datei", ["proband-0042"]),
+                             ("Kopie aus Forschungsdaten", ["kopie.csv", "messung 3"]),
+                             ("Kopie einer neuen Forschungsdatei", ["doppel.csv", "probe 3"]),
+                             ("umgebaute Umbenennung", ["src/umbau.csv", "wert 3"]),
+                             ("Marker außerhalb des Diffs filtert Datei", ["src/auswahl.py"])):
+            ok = all(m in d.lower() for m in muster) if drin else not any(m in d.lower() for m in muster)
+            check(f"review {name}: {teil} {wort}", ok, d)
+    check("review: Ausgabe nennt Rollen", "gefiltert (gemini): daten/roh/m.csv" in r.stdout
+          and "gefiltert (mistral, gemini): frei.txt" in r.stdout, r.stdout)
     check("review: Ausgabe nennt Gefiltertes", "gefiltert" in r.stdout and "daten/roh/m.csv" in r.stdout
           and "src/liste.py" in r.stdout and "frei.txt" in r.stdout, r.stdout)
     check("review: Ausgabe nennt Ordner und Zeilen", str(g) in r.stdout or "alles" in r.stdout, r.stdout)

@@ -302,6 +302,19 @@ with tempfile.TemporaryDirectory() as t:
     for befehl in weiter_gesperrt:
         check(f"lesbar_extern weiter gesperrt: {befehl}", hook_in(extern, befehl) == "nein")
     check("lesbar_extern aus dem Projekt: Ziel extern gesperrt", hook_in(repo, f"echo x > {extern}/quelle/a.md") == "nein")
+    # v18: je Teilbefehl statt ganzer Kette (Befund 23.11.: Ordner nur als Quelle bzw. Schreibverb in einem anderen Glied)
+    (repo / "docs").mkdir(exist_ok=True)
+    for befehl in [f"git branch --show-current && ls {extern}/quelle/", f"cp {extern}/quelle/a.md docs/",
+                   f"git status --short && git -C {extern} log -3 main", f"cp -r {extern}/quelle docs/ && git add docs",
+                   f"rsync -a {extern}/quelle/ docs/quelle/", f"ls {extern}/quelle | head -3", f"cp {extern}/quelle/a.md ."]:
+        check(f"v18 lesbar_extern nur gelesen: {befehl}", hook_in(repo, befehl) == "ja")
+    for befehl in [f"cp docs/a {extern}/quelle/", f"cd {extern} && touch x", f"mv {extern}/quelle/a.md docs/",
+                   f"rsync -a --remove-source-files {extern}/quelle/ docs/", f"ls {extern}/quelle | xargs rm",
+                   f"cd {extern}/quelle && git commit -m x", f"git -C {extern} branch neu", f"touch {extern}/x",
+                   f"for f in {extern}/quelle/*; do cp docs/a $f; done", f"cd {extern} && cp a.md /tmp/b.md && rm a.md",
+                   f"cp {extern}/quelle/a.md docs/ && rm {extern}/quelle/a.md", f"cd {extern}; cp a.md b.md",
+                   f"bash -c 'cp {extern}/quelle/a.md docs/; rm {extern}/quelle/a.md'"]:
+        check(f"v18 lesbar_extern weiter gesperrt: {befehl}", hook_in(repo, befehl) == "nein")
 
     # G5 (L5): Datenschutz vor vibe/agy – Prompt-Datei (und *.md daneben) bzw. -p-Text vor dem Start prüfen
     pt.write_text(re.sub(r"gesperrt = \[\s*\]", 'gesperrt = ["daten/geheim/"]', pt.read_text())

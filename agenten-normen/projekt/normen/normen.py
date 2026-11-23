@@ -204,6 +204,10 @@ def _lesbar_extern(cfg) -> list[Path]:
 _SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+(-[cC]\s+\S+\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
 
 
+# Kontrollstrukturen und indirekte Ausführung: Glieder sind dort keine eigenständigen Befehle (`do cp …`, `xargs rm`).
+_KETTE_STRENG = r"(^|[\s;&|(`{!])(for|while|until|if|case|select|function|do|then|else|elif|eval|exec|xargs|parallel|source)(\s|$)"
+
+
 def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None:
     """Gibt den lesbar_extern-Ordner zurück, in den ein Bash-Befehl schreiben könnte (sonst None). Bewusst streng:
     Schreibverb (wie bisher) oder ein Schreibziel aus _schreibziele im Ordner (auch per cd oder git -C), unaufgelöstes
@@ -224,11 +228,36 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
             if z is not None and ((zr := _echt(z)) == q or q in zr.parents):
                 return q
         nennt = [f for f in formen if f.casefold() in cmd.casefold()]
-        if not nennt and not (_echt(cwd) == q or q in _echt(cwd).parents):
+        im_ordner = _echt(cwd) == q or q in _echt(cwd).parents
+        if not nennt and not im_ordner:
             continue
-        # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
-        if re.search(_SCHREIB_VERB, cmd) or None in ziele:
+        if None in ziele:  # unaufgelöstes Ziel (Variable aus Schleife, $(…)) in einer Kette, die den Ordner nennt
             return q
+        if re.search(_KETTE_STRENG, cmd):  # Schleifen, Bedingungen, indirekte Ausführung: ganze Kette wie vor v18
+            if re.search(_SCHREIB_VERB, cmd):
+                return q
+            continue
+        # v18: je Teilbefehl statt ganzer Kette. Betroffen sind Glieder, die den Ordner nennen, alle Glieder nach einem
+        # Glied mit cd/pushd in den Ordner, alle Glieder hinter einer Pipe aus einem betroffenen Glied (`ls q | xargs rm`)
+        # und im Ordner als Arbeitsordner alle. Darin sperrt jedes Schreibverb – außer cp/ln/install/rsync, deren
+        # (oben aufgelöstes) Ziel außerhalb liegt: dann ist der Ordner nur Quelle. mv bleibt streng (löscht die Quelle).
+        teile = _segmente_pos(cmd)
+        betroffen = im_ordner
+        nach_cd = im_ordner
+        for i, (start, seg) in enumerate(teile):
+            trenner = cmd[start + len(seg):teile[i + 1][0]] if i + 1 < len(teile) else ""
+            nennt_seg = any(f.casefold() in seg.casefold() for f in formen)
+            if nennt_seg and re.search(r"(^|[\s(;&|`])(cd|pushd)\b", seg):
+                nach_cd = True
+            if nennt_seg or nach_cd or betroffen:
+                verben = [m.group(3).split()[0] for m in re.finditer(_SCHREIB_VERB, seg)]
+                nur_quelle = (verben and set(verben) <= _LETZTES_ARGUMENT and "--remove-source-files" not in seg
+                              and not nach_cd)
+                if verben and not nur_quelle:
+                    return q
+                betroffen = "|" in trenner and "||" not in trenner
+            else:
+                betroffen = False
     return None
 
 
@@ -2815,7 +2844,8 @@ def cmd_sync(a) -> int:
 def cmd_review(a) -> int:
     """Review-Läufe vorbereiten: je Gruppe und Team einen Ordner unter $TMPDIR/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/
     mit diff.patch, pflicht.txt (mistral zusätzlich bericht.md) anlegen. Der Datenschutz-Filter (gesperrt, Geheimnisse,
-    Forschungsdaten, Umbenennungen) ist die einzige Sperre vor Gemini – der Hook prüft nur die Prompt-Datei, nicht diff.patch."""
+    Forschungsdaten, Umbenennungen) ist die einzige Sperre vor Gemini – der Hook prüft nur die Prompt-Datei, nicht diff.patch.
+    v18 (Entscheidung der Inhaberin 23.11.): Forschungsdaten nur aus dem Gemini-Diff; Sperrpfade/Geheimnisse aus beiden."""
     cfg = laden()
     pf = cfg["projekt"].get("pfade", {})
 
@@ -2861,40 +2891,47 @@ def cmd_review(a) -> int:
                                 + (stand.stdout if stand.returncode == 0 else ""))
             return inhalt[pfad]
 
-        def grund(pfad: str) -> str | None:
-            """Erster Treffer ist der Grund (None = nicht gefiltert); immer ohne Groß-/Kleinschreibung (casefold)."""
+        def grund(pfad: str) -> tuple[tuple[str, ...], str] | None:
+            """(Rollen, Text) des strengsten Treffers (None = nicht gefiltert); immer ohne Groß-/Kleinschreibung
+            (casefold). Sperrpfade und Geheimnisse filtern für beide Teams und werden zuerst geprüft, Forschungsdaten
+            nur für Gemini (v18)."""
             p = pfad.casefold()
             for s in pf.get("gesperrt", []):
                 if s and s.casefold() in p:  # wie der Hook: s.casefold() in Befehl/Pfad
-                    return f"gesperrt ({s})"
+                    return BEIDE, f"gesperrt ({s})"
             if _geheim(Path(pfad).name, pf):
-                return "Geheimnis-Muster"
+                return BEIDE, "Geheimnis-Muster"
             for rx, art in _GEHEIM_INHALT:  # Review 23.11. (Gemini Nr. 7): Schlüssel/Tokens im Inhalt, wie der Prompt-Hook
                 if rx.search(diff_datei(pfad)):
-                    return f"Geheimnis-Inhalt ({art})"
+                    return BEIDE, f"Geheimnis-Inhalt ({art})"
             for e in pf.get("forschungsdaten", []):
                 if not e:
                     continue
                 if "/" in e or "*" in e:  # Pfad-Glob (Eintrag mit / oder *)
                     if fnmatch.fnmatchcase(p, e.casefold()):
-                        return f"Forschungsdaten ({e})"
+                        return NUR_GEMINI, f"Forschungsdaten ({e})"
                     praefix = e.casefold().split("*", 1)[0].rstrip("/")
                     if praefix and p.startswith(praefix + "/"):
-                        return f"Forschungsdaten ({e})"
+                        return NUR_GEMINI, f"Forschungsdaten ({e})"
                 elif e.casefold() in diff_datei(pfad).casefold():  # Textmarker im Diff-Inhalt dieser Datei
-                    return f"Forschungsdaten ({e})"
+                    return NUR_GEMINI, f"Forschungsdaten ({e})"
             return None
 
-        gefiltert: dict[str, str] = {}
+        BEIDE, NUR_GEMINI = ("mistral", "gemini"), ("gemini",)
+        # gefiltert[rolle][pfad] = Grund; je Rolle eigene Paare und eigener Blob-Abgleich (strengster Grund gewinnt:
+        # ein Paar aus Sperrpfad und Forschungsdaten fällt für beide heraus)
+        gefiltert: dict[str, dict[str, str]] = {r: {} for r in BEIDE}
         for alt, neu in paare:
-            if grund(alt) or grund(neu):
-                gefiltert[alt] = f"umbenannt nach {neu}"
-                gefiltert[neu] = f"umbenannt aus {alt}"
+            ga, gn = grund(alt), grund(neu)
+            for rolle in BEIDE:
+                if (ga and rolle in ga[0]) or (gn and rolle in gn[0]):
+                    gefiltert[rolle][alt] = f"umbenannt nach {neu}"
+                    gefiltert[rolle][neu] = f"umbenannt aus {alt}"
         for pfad in alle:
-            if pfad not in gefiltert:
-                g = grund(pfad)
-                if g:
-                    gefiltert[pfad] = g
+            g = grund(pfad)
+            for rolle in BEIDE:
+                if g and rolle in g[0] and pfad not in gefiltert[rolle]:
+                    gefiltert[rolle][pfad] = g[1]
         # Kopien, deren Quelle selbst neu im Branch ist, sieht git nicht als Kopie (Quellen nur aus der Basis):
         # gleicher Inhalt (Blob) wie eine gefilterte Datei → ebenfalls heraus (Advisor 23.11.)
         blob: dict[str, str] = {}
@@ -2902,10 +2939,11 @@ def cmd_review(a) -> int:
             if z:
                 kopf, pfad = z.split("\t", 1)
                 blob[pfad] = kopf.split()[2]
-        gefilterte_blobs = {blob[p]: p for p in gefiltert if p in blob}
-        for pfad in alle:
-            if pfad not in gefiltert and blob.get(pfad) in gefilterte_blobs:
-                gefiltert[pfad] = f"gleicher Inhalt wie {gefilterte_blobs[blob[pfad]]}"
+        for rolle in BEIDE:
+            gefilterte_blobs = {blob[p]: p for p in gefiltert[rolle] if p in blob}
+            for pfad in alle:
+                if pfad not in gefiltert[rolle] and blob.get(pfad) in gefilterte_blobs:
+                    gefiltert[rolle][pfad] = f"gleicher Inhalt wie {gefilterte_blobs[blob[pfad]]}"
 
         gruppen: list[tuple[str, list[str]]] = []
         if a.gruppe:
@@ -2922,7 +2960,7 @@ def cmd_review(a) -> int:
         zuordnung: dict[str, str] = {}
         ohne: list[str] = []
         for pfad in alle:
-            if pfad in gefiltert:
+            if pfad in gefiltert["mistral"]:  # Mistral-Filter ⊆ Gemini-Filter; Gemini lässt zusätzlich weg (s. u.)
                 continue
             for name, gl in gruppen:  # erste passende Gruppe gewinnt
                 if any(passt(pfad, g) for g in gl):
@@ -2939,8 +2977,8 @@ def cmd_review(a) -> int:
 
         print(f"Review-Ordner: {lauf}")
         for name, _gl in gruppen:
-            dateien = sorted(p for p, g in zuordnung.items() if g == name)
             for rolle, rollenname in (("mistral", "mistral-team"), ("gemini", "gemini-analyst")):
+                dateien = sorted(p for p, g in zuordnung.items() if g == name and p not in gefiltert[rolle])
                 ordner = (lauf / name / rolle).resolve()
                 ordner.mkdir(parents=True, exist_ok=True)
                 patch = git("diff", "--no-renames", f"{mb}..HEAD", "--",
@@ -2954,8 +2992,9 @@ def cmd_review(a) -> int:
                 if zeilen >= 150:
                     print("  Hinweis: ≥ 150 Diff-Zeilen – ungemessen, Gruppe teilen (--gruppe)")
         for pfad in alle:
-            if pfad in gefiltert:
-                print(f"gefiltert (mistral, gemini): {pfad} – {gefiltert[pfad]}")
+            rollen = [r for r in BEIDE if pfad in gefiltert[r]]
+            if rollen:
+                print(f"gefiltert ({', '.join(rollen)}): {pfad} – {gefiltert[rollen[-1]][pfad]}")
         for pfad in ohne:
             print(f"ohne Gruppe: {pfad}")
         print("prompt.md schreibt Claude (Write-Werkzeug); Teams starten über die Agent-Schnittstelle.")
