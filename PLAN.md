@@ -485,6 +485,12 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
   Pre/Post/PostFailure/SessionStart schreiben Ereignis, `tool_use_id`, `permission_mode`, `source` nach `log.jsonl`;
   Pre fragt bei `probe-ask`): Fälle (a) `echo probe-ask 1` freigeben, (b) `echo probe-ask 2` ablehnen, (c) im
   Auto-Modus `echo probe-ask 3`, (d) `/clear` → `source` von SessionStart (Matcher `startup|clear`?).
+  **Ergebnis 1. Lauf (23.11.):** Sitzung lief durchgehend mit `permission_mode: "auto"` (auch Fälle a/b). Alle drei `ask`
+  → PostToolUse mit gleicher `tool_use_id` nach 1–2 s, also **im Auto-Modus beantwortet ein `ask` nicht die Inhaberin**
+  (auch der „abgelehnte“ Fall lief). `/clear` → SessionStart `source: "clear"` → Matcher `startup|clear`.
+  Nachtrag: **Alle drei** Rückfragen kamen bei der Inhaberin an (sie hat zu schnell geklickt, alle freigegeben) – ein Hook-`ask`
+  erreicht sie also auch im Auto-Modus; `fragen` heißt damit immer „die Inhaberin gefragt“. Belegt: freigegebenes `ask` → PostToolUse mit gleicher
+  `tool_use_id`. Ungemessen (Grenze im CHANGELOG): Ablehnung (erwartet: kein Post → „kein Beleg“).
 - Offen danach: Spezifikation an mistral-team für `hook-nach`, `protokoll [--alle|--seit|--gelesen|--faellig]`,
   SessionStart-Eintrag (Advisor-Vorgaben: Dateiende per `seek` lesen, immer Exit 0 ohne Ausgabe, Hinweis nur Anzahl +
   Datum); `NORMEN_UNTERBEFEHLE`/`TEAM_NORMEN_ERLAUBT`; Doku (CHANGELOG v18, Ablauf „Review“, `review-auftrag.md`,
