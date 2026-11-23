@@ -405,6 +405,13 @@ umstellen (Forschungspfad/Marker/Kopie: im Mistral-Diff **vorhanden**, im Gemini
 Doku: CHANGELOG v18, Ablauf „Review“, Vorlage `review-auftrag.md`, `CLAUDE.md` dieses Projekts („an mistral-team nur nach
 Freigabe“ → bei Reviews freigegeben). Der Hook fragt bei Forschungsdaten im **Prompt** an vibe weiter nach (unverändert).
 
+**Mit v18 mitnehmen (Befund aus einer Projektsitzung 23.11., hier nachgestellt):** `cp <lesbar_extern>/datei docs/` sperrt
+für Claude mit N06 („schreibt möglicherweise in … [pfade].lesbar_extern“), obwohl nur die **Quelle** dort liegt und das Ziel
+im Projekt. Vermutlich wertet `_bash_schreibt_extern` jedes Pfad-Argument von `cp` als Schreibziel; richtig wäre nur das
+letzte (bzw. `-t ZIEL`). Nicht nachgestellt: `git -C <lesbar_extern> log`/`status` gingen im Wegwerf-Projekt durch – die
+Projektsitzung meldete auch diese als gesperrt (evtl. mit Umleitung/Pipe); dort Befehl wörtlich erfragen. Test: `cp`
+Quelle extern → ja, Ziel extern → nein.
+
 **Lehren aus R2 für P:** Testdatei nicht `test_v18.py` nennen (N08 sperrt Versionszusätze) – z. B. `tests/test_protokoll.py`.
 Neue Unterbefehle (`hook-nach`, `protokoll`) in `NORMEN_UNTERBEFEHLE` eintragen (ein Test vergleicht mit argparse); ob Teams
 sie aufrufen dürfen, entscheidet `TEAM_NORMEN_ERLAUBT` (Vorschlag: nein). Vibe-Aufträge, deren Tests `einrichten.sh`/Temp-Repos
