@@ -5,7 +5,7 @@ hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
 *Stand: 23.11.2026 (v16 auf main; Paket R gemergt (PR #38), Fragen dazu beantwortet; nächstes Paket: **R2** (`normen.py review`
-+ Review-Tor, v17) – vorher zwei Fragen an die Inhaberin unter R2; danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
++ Review-Tor, v17; Fragen beantwortet 23.11., Schwellen-Entwurf unter R2), dann **P** (Normen-Protokoll, v18); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
@@ -327,8 +327,7 @@ Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu p
    jeder `aktualisieren`-PR dort ein Meilenstein). Das Label im Repository anlegen (Lehre #75); JSON-Feld `labels` vorher per
    `gh pr view --help` belegen (S04). Keine Umgehung im Werkzeug (sonst Merge durch die Inhaberin).
    **Grenze (CHANGELOG):** Das Label vergibt und entfernt Claude selbst – das Tor schützt gegen Vergessen, nicht gegen Absicht.
-3. **Normtext N11** um einen Satz ergänzen („Meilensteine – PR-Label `meilenstein` oder neue Normen-Version – brauchen
-   zusätzlich einen Review-Bericht `docs/reviews/<datum>-<branch>.md`; Ablauf `docs/multi-ki-ablauf.md`, Abschnitt Review“),
+3. **Normtext N11** um den freigegebenen Satz ergänzen (Wortlaut unter „Antworten der Inhaberin 23.11.“ unten),
    `meta.version` 17, `tests/test_v4.py` anheben, CHANGELOG v17, Ablauf/Vorlagen auf `normen.py review` umstellen.
 4. Tests `tests/test_v17.py` (vorher rot): review legt Ordner/Dateien an, Sperr-/Forschungspfade fehlen im Diff, Gruppen;
    Tor: Meilenstein per Label/Version ohne Bericht → stopp, mit Bericht → weiter, Nicht-Meilenstein unverändert (gh per
@@ -339,10 +338,79 @@ Bau (S07 Punkt 1 und 5). Branch `paket-r2-review-tor`. Entwurf (vom Advisor zu p
    Sitzungen informieren. Im Selbst-Review **einmal den zweiten Schritt erzwingen** (knappes `--max-turns`): `--resume` mit
    `bericht.md` ist nie gelaufen, auch nicht durch den Hook; derselbe Lauf misst agy mit Dateien aus dem Projekt und eine
    größere Gruppe.
-**Offene Fragen an die Inhaberin (vor dem Bau):** (1) N11-Zusatz wörtlich: „Meilensteine (PR-Label `meilenstein` oder neue
-Normen-Version der Quelle) brauchen zusätzlich einen Review-Bericht `docs/reviews/<datum>-<branch>.md` mit `Mergereif: ja`;
-Ablauf `docs/multi-ki-ablauf.md`, Abschnitt „Review“.“ – so freigeben? (2) Sollen „größere Pakete“ allein am Label hängen
-(Claude setzt es nach Ermessen), oder zusätzlich eine Größenschwelle (z. B. ab 400 Diff-Zeilen Hinweis „Label setzen?“)?
+**Antworten der Inhaberin 23.11.:** (1) N11-Zusatz ja, **für große Meilensteine** – Wortlaut daher: „Große Meilensteine
+(PR-Label `meilenstein` oder neue Normen-Version der Quelle) brauchen zusätzlich einen Review-Bericht
+`docs/reviews/<datum>-<branch>.md` mit `Mergereif: ja`; Ablauf `docs/multi-ki-ablauf.md`, Abschnitt „Review“.“
+(2) Keine reine Zeilenschwelle: maßgeblich sind **sinnvolle Änderungen** – eine geänderte Beschreibung oder ein Prompt kann
+400 Diff-Zeilen haben und ist trotzdem klein. Entwurf (Claude 23.11., im Bau vom Advisor zu prüfen):
+- **Gewichtete Größe statt Diff-Zeilen.** `merge` zählt nur Zeilen in **Code** (Endungen aus neuer Liste
+  `projekt.toml [review].code`, Vorgabe `*.py, *.sh, *.js, *.ts, Makefile, *.json`); Markdown, Prompts, Vorlagen, Doku,
+  `CHANGELOG`, `PLAN.md` zählen nicht. Tests zählen nicht (`[pfade].tests`) – sie wachsen mit dem Code mit.
+  **Eingespielte Kopien zählen nicht** (`normen/`, `.claude/`, `.vibe/`, `.githooks/`, `docs/` aus `einrichten.sh`) – sonst
+  wäre jeder `aktualisieren`-PR in den Projekten über der Schwelle und hier jede Änderung doppelt; gezählt wird nur die Quelle.
+- **Kritische Stellen zählen immer.** Neue Liste `[review].kritisch` (Globs; hier `agenten-normen/projekt/normen/normen.py`,
+  `agenten-normen/projekt/normen/{normen,rollen,projekt}.toml`, `agenten-normen/projekt/.claude/settings.json`,
+  `agenten-normen/projekt/.vibe/**`, `agenten-normen/projekt/.githooks/**` – Rechte, Sperrpfade, Hooks; in Projekten leer):
+  jede Änderung dort löst den Halt aus, egal wie klein.
+- **Halt mit Begründungspflicht (keine harte Sperre).** Ab 150 gewichteten Code-Zeilen (≈ gemessene Gruppengröße aus R)
+  oder bei einer kritischen Stelle ohne Label hält `merge` an: „Review empfohlen: <n> Code-Zeilen / kritisch: <dateien> –
+  Label `meilenstein` setzen oder `--klein "<Grund>"`“. Weiter nur mit Label (dann Tor wie oben) oder
+  `normen.py merge <PR> --klein "<Grund>"`; der Grund steht im Merge-Commit (später auch im Protokoll, Paket P).
+  Grenze (CHANGELOG): den Grund gibt Claude selbst – sichtbar, nicht verhindert.
+- Sperrend bleibt allein der große Meilenstein (Label oder neue Normen-Version).
+- Tests in `tests/test_v17.py`: 400 Zeilen Markdown → kein Hinweis; 160 Zeilen `.py` → Hinweis; 3 Zeilen in `kritisch` →
+  Hinweis; `--klein` ohne Grund → Fehler.
+
+### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(Wunsch der Inhaberin 23.11.; nach R2)*
+
+Auftrag (23.11.): „jede Anwendung der Normen (mit Freigabe durch mich) in allen Projekten sammeln, in eine Datei schreiben und
+regelmäßig zur Evaluation geben“. Lesart (Advisor 23.11.): protokolliert werden Hook-Entscheidungen **`fragen`** (Rückfrage an
+die Inhaberin) mit ihrem Ausgang, dazu **`nein`** (Sperren) – nötig, um „zu streng“ zu erkennen. Die Auswertung zeigt
+standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene Version). Branch `paket-p-protokoll`.
+
+**Messung 23.11. (Wegwerf-Repo, `claude -p`, Hooks geben Eingabe-Schlüssel aus):**
+- `tool_use_id` steht in PreToolUse **und** PostToolUse (gleicher Wert) → Korrelation möglich.
+- Fehlgeschlagenes Werkzeug (`false`): **kein** PostToolUse, aber **PostToolUseFailure** (Felder `error`, `is_interrupt`,
+  gleiche `tool_use_id`).
+- `ask` ohne Bediener (`-p`): kein Post-Ereignis, Eintrag in `permission_denials` des Ergebnisses.
+- Weitere Felder: `session_id`, `cwd`, `permission_mode`, `transcript_path`, `prompt_id`.
+- Folgerung: Ausgang = **„ausgeführt“**, wenn PostToolUse oder PostToolUseFailure mit derselben `tool_use_id` kommt, sonst
+  **„kein Beleg“** (abgelehnt, abgebrochen oder Sitzung beendet). „Abgelehnt“ wird nicht behauptet. **Ungemessen (erster
+  Bauschritt, einmal interaktiv mit der Inhaberin im Wegwerf-Repo):** kommt nach einem von ihr **freigegebenen** `ask` ein
+  PostToolUse mit derselben `tool_use_id`? (der tragende Fall); was passiert bei ihrer Ablehnung; was macht ein `ask` im
+  Auto-Modus. Was nicht belegt wird, kommt als Grenze ins CHANGELOG.
+
+**Schritte:**
+1. **Schreibstelle in `cmd_hook`** (Claude selbst, heikel): hinter der Herabstufung `fragen`→`nein` für vibe/gemini, nur bei
+   `entscheid != "ja"`; Felder: Zeit, Projekt (`ROOT.name`), Rolle, Werkzeug, Tool, Stufe ursprünglich/endgültig, Norm-IDs,
+   Gründe, Befehl bzw. Pfad (gekürzt auf 300 Zeichen), `session_id`, `tool_use_id`, **`permission_mode`** (im Auto-Modus
+   beantwortet ein `ask` evtl. nicht die Inhaberin – die Auswertung muss das unterscheiden). **Eigener, enger Fehlerweg**: ein
+   Schreibfehler ändert die Entscheidung nie (sonst sperrt ein voller Datenträger alle Projekte), Meldung auf stderr,
+   `normen-ausnahme: N08-KEINE-ALTLASTEN – Protokoll darf die Hook-Entscheidung nicht ändern`.
+2. **Datei:** zentral `~/.config/claude-tools/normen-protokoll.jsonl` (außerhalb aller Repos, privat, Rechte 600; Pfad in
+   `[protokoll].datei` überschreibbar, für Tests). Je Eintrag **ein** `open(…, "a")`-Schreibvorgang einer Zeile (mehrere
+   Sitzungen parallel; nicht das Lesen-Kürzen-Schreiben der Sitzungsprobe). **Schwärzen vor dem Schreiben** mit den Mustern
+   aus `_datenschutz_funde` (N03-Inhaltsmuster, E-Mail, IBAN, Telefon) und gesperrten Pfaden → `[geschwärzt]`.
+3. **Ausgang:** neuer Unterbefehl `normen.py hook-nach --werkzeug claude` für PostToolUse **und** PostToolUseFailure
+   (Matcher wie PreToolUse); schreibt nur, wenn die `tool_use_id` vorher als `fragen` protokolliert wurde (Liste der offenen
+   IDs je Sitzung klein halten: nur letzte 200 Zeilen lesen), Eintrag `{"ausgang": "ausgefuehrt"|"fehlgeschlagen", …}`.
+   Exit immer 0, keine Ausgabe an Claude. Eintrag in `.claude/settings.json` der Quelle.
+4. **Auswertung `normen.py protokoll [--alle] [--seit DATUM] [--gelesen]`:** Zusammenfassung seit der letzten Auswertung:
+   je Norm und Projekt Anzahl `fragen` (davon ausgeführt / kein Beleg) und `nein`, die häufigsten Gründe, Beispiele
+   (gekürzt). `--gelesen` setzt die Marke (`~/.config/claude-tools/normen-protokoll.marke`). Keine Rotation (S02).
+5. **„Regelmäßig“:** SessionStart-Hook (Matcher `startup`) aus der Quelle, also **in allen Projekten** (die Datei ist zentral;
+   nur in claude-tools käme der Hinweis selten), ruft `normen.py protokoll --faellig` auf: Ausgabe nur, wenn seit der Marke ≥ 7 Tage und ≥ 1 neuer Eintrag oder ≥ 30 neue Einträge (Vorgabe, im Bericht nennen):
+   „Normen-Protokoll: <n> neue Einträge seit <datum> – in claude-tools auswerten (`normen.py protokoll`)“. Claude wertet dort aus
+   (zu streng / zu locker / Fehlalarm, vgl. Memory „keine Rückfragen bei Belanglosigkeiten“), schreibt Kandidaten
+   **neutralisiert** (keine Projektnamen, Pfade, Befehle aus privaten Projekten) in PLAN.md und setzt die Marke.
+6. **Datenschutz:** Protokoll nie an `gemini-analyst`, nie ins Repo, nicht als Issue; Auswertung macht Claude selbst.
+7. Tests `tests/test_v18.py` (vorher rot, Umsetzung `protokoll`/`hook-nach` an mistral-team, Schreibstelle Claude):
+   Eintrag bei `fragen`/`nein`, keiner bei `ja`; Schwärzung (Token, E-Mail); Schreibfehler (Datei-Pfad ist Ordner) →
+   Entscheidung unverändert; Korrelation Pre/Post; `--faellig` an den Schwellen; Marke.
+8. `meta.version` 18, CHANGELOG, einspielen, Advisor vor „fertig“, Merge. **Wirkt in allen Projekten erst nach
+   `normen.py aktualisieren` dort** → Sitzungen informieren (Memory „Versionsschritt“); von hier aus nicht in fremde
+   Projekte schreiben. Schreiben nach `~/.config/claude-tools/` ist Schreiben außerhalb des Projekts – im Bericht der
+   Inhaberin den Pfad nennen (Auftrag vom 23.11. deckt es dem Sinn nach).
 
 ### D2. Sandbox einführen? *(Entscheidung der Inhaberin offen)*
 
