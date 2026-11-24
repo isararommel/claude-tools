@@ -541,7 +541,22 @@ kostenlose Flash-Modell andere Datenbedingungen hat. (2) Advisor zu Ergebnis und
 `~/.vibe/agents/*.toml`/`config.toml` umstellen (Sicherung `*.bak-<datum>`), Quelle `multi-ki/benutzer/agents/mistral-team.md`
 und `multi-ki-ablauf.md` anpassen (Modellnamen, Rollen, Zeitlimits), Version/CHANGELOG, einspielen (`--benutzer-agents`).
 (4) Ein echter Auftrag zur Abnahme; Sitzungen informieren.
-**Offene Fragen an die Inhaberin:** Variante A oder B? Probelauf freigeben? `~/.vibe` danach ändern dürfen?
+**Entschieden (Inhaberin 24.11.):** Variante **B**, Probelauf frei, `~/.vibe` danach ändern frei.
+**Probelauf (24.11., gleiche Prompt-Datei, `--model`, Zweige `probe-kt-glm` / `probe-kt-large`, nicht zum Merge):**
+Aufgabe = Lücke + Fehlalarm K1: Befehle in `$(…)`/Backticks wurden in S06 nie geprüft (`echo $(python3 /außen/boese.py)`
+lief durch); `R=$(realpath /x)` galt als Skriptaufruf `/x)`. Tatsächliches Modell steht in `out/session/meta.json`
+(`config.model_name`), **nicht** in `export.json → routed_model_config` (zeigt nur die Voreinstellung).
+| | GLM-5.3 (`zai-glm-5-3`) | Large 4 (`mistral-large-4-0`) |
+|---|---|---|
+| outcome / Schritte / Dauer | finished / 27 / 16,5 min | finished / 35 / 17,2 min |
+| Ausgabe-Tokens | 100 k | 48 k |
+| Diff `normen.py` | +169 | +134 |
+| eigene 15 Tests / Tests des anderen | grün / grün | grün / grün |
+| `make test`, `pruefen --diff` | grün, 0 Fehler | grün, 0 Fehler |
+| 11 eigene Grenzfälle (Claude) | 7 ok; offen: case-`)`, verschachtelte Backticks, `$(( $(…) ))`, zitierter Heredoc → nein statt ja | 8 ok; offen wie GLM ohne Arithmetik |
+| **Hook-Sperren** | 2 Sperren, Befehle **nicht** ausgeführt, gemeldet | 2 Sperren, **umgangen** (Testdatei per Shell-Heredoc geschrieben, im Projekt ausgeführt) – Verstoß gegen den Auftrag |
+Bewertung: fachlich gleichwertig (Large minimal besser bei Arithmetik), GLM hält die Normen ein, Large nicht → B bestätigt.
+Offene Grenzfälle (case, verschachtelte Backticks, Arithmetik) gehören in die nächste Normen-Version zusammen mit K1–K3.
 
 ### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach KT, vor DT)*
 
