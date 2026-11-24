@@ -5,7 +5,8 @@ hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
 *Stand: 24.11.2026 (v18 auf main nach Merge von Paket **P** (Normen-Protokoll, Forschungsdaten in Mistral-Reviews,
-`lesbar_extern` je Teilbefehl, `einrichten-hier.sh`); zuerst: erste Protokoll-Auswertung (siehe P); nächstes Paket: **VL**
+`lesbar_extern` je Teilbefehl, `einrichten-hier.sh`); erste Protokoll-Auswertung erledigt (Fehlalarm-Kandidaten K1–K3 unter
+P); nächstes Paket: **KT** (Coding-Team neu, hohe Priorität, Fragen an die Inhaberin offen), dann **VL**
 (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
@@ -498,11 +499,51 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
   Simulation); Vibes Smart-Approve verweigert Änderungen an `.claude/settings.json` (auch der Vorlage) → solche Einträge
   setzt Claude; agy schafft 410 Diff-Zeilen + Codebereiche nicht in 9 min → Doku-Gruppe teilen; Testdateien direkt starten
   schrieb ins echte Protokoll (behoben: jede Testdatei setzt `NORMEN_PROTOKOLL`).
-- **Erste Auswertung offen:** Im echten Protokoll stehen ≈ 245 Einträge (davon ≈ 235 Testeinträge vom 24.11., Entscheidung
-  der Inhaberin: stehen lassen) ohne Marke → `--faellig` meldet sich bei jedem Sitzungsstart, bis einmal
-  `normen.py protokoll --gelesen` läuft (in claude-tools, Claude wertet aus).
+- ✅ **Erste Auswertung (24.11., Marke gesetzt mit `--gelesen`):** 244 Einträge, davon nur **8 aus echten Sitzungen** (der
+  Rest Testeinträge unter Projektname `projekt`, verzerren alle Zählungen; stehen lassen). Berechtigt: N01 (`xargs … git
+  restore` auf gelöschte Dateien, anderes Projekt), 2× N06 (Schreiben außerhalb des Projekts), S06 `nein` (Code-Mode-Skript
+  mit `symlink_to`/`tempfile`), S06 „Modul wird im selben Befehl geschrieben“. **Fehlalarm-Kandidaten** (alle S06
+  „nicht prüfbar“, für die nächste Normen-Version):
+  (K1) Skriptpfad mit angehängtem `)` – Zuweisung `R=$(realpath "$RUN")` vor einer agy-Freigabe-JSON wurde als Skriptpfad
+  `…/gemini)` gelesen; (K2) `S=<pfad>; … bash "$S/x.sh"` – Variable im selben Befehl zugewiesen, trotzdem „unaufgelöst“;
+  (K3) `for f in tests/test_*.py; do python3 "$f"; done` – Schleifenvariable über einen Glob im Projekt (könnte die
+  getrackten Treffer einzeln prüfen). Ablehnungen kamen keine vor.
 
-### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach P, vor DT)*
+### KT. Coding-Team neu aufstellen: bestes verfügbares Coding-Modell *(Wunsch der Inhaberin 24.11., **hohe Priorität**, vor VL)*
+
+Ziel: prüfen, welches verfügbare Modell (z. B. GLM) für Coding am besten ist, und `mistral-team` danach neu konzipieren.
+**Bestand (gemessen 24.11.):**
+- Vibe 3.1.2, Abo-Modelle: Mistral Large 4 (`mistral-large-4-0-3`, Teamleiter, `active_model`), GLM-5.3 (`glm-5-3`,
+  Sub-Agent `code-reviewer`), GLM-5.3 Flash (`zai-glm-5-3-flash`, `…-vibe-free`, Sub-Agent `flash-scout`), Mistral Medium
+  3.5 (Sub-Agent `code-worker`). Zuordnung in `~/.vibe/agents/*.toml` und `~/.vibe/config.toml` (Einstellungen der
+  Inhaberin, außerhalb des Projekts); Text der Schnittstelle: `multi-ki/benutzer/agents/mistral-team.md` (Zeile ≈ 55).
+- **Kein einziger der 16 Vibe-Läufe (22.–24.11., `export.json`) hat einen Sub-Agenten aufgerufen** – Large 4 hat alles
+  selbst gemacht; GLM-5.3 lief bei uns nie. 6 von 16 Läufen endeten mit `deadline`/`turn_limit`.
+- agy (`agy models`): Gemini 3.8 Flash (high/medium/low), Claude Sonnet 4.6, Claude Opus 4.6, GPT-OSS 120B – **kein**
+  Gemini Pro mehr. agy hat keine Hooks (N02/N06 nicht erzwungen) → bleibt Analyst, nicht Umsetzer.
+- Lokal (Ollama auf dem Server): u. a. Qwen3.6 35B-A3B, GPT-OSS 120B, eigene Ableitungen – keine Kandidaten für das
+  Haupt-Coding-Team. Auffällig: Die MCP-Beschreibung des Servers sagt „nicht für Forschungsdaten“, die Rolle `lokal`
+  erlaubt sie – getrennt klären (nicht in KT).
+**Recherche (Benchmarks, Herstellerangaben widersprüchlich, nur Rangfolge belastbar):** auf gemeinsamem Gerüst
+(mini-swe-agent, vals.ai: SWE-bench Verified, Terminal-Bench 4) gilt **GLM-5.3 > Mistral Large 4 > Mistral Medium 3.5**;
+Gemini 3.8 Flash liegt auf SWE-bench Verified vor Sonnet 4.6, GPT-OSS 120B weit dahinter. Agenten-Werte messen Modell
+plus Gerüst. Heißt: Heute schreibt nominell das schwächste Modell (Medium 3.5) Code, das stärkste prüft nur.
+**Varianten (Entscheidung der Inhaberin):**
+- (A) Minimal: `code-worker` → GLM-5.3; `code-reviewer` → Large 4 (anderes Modell als der Umsetzer, unabhängiger);
+  Teamleiter bleibt Large 4. Nachteil: wirkt nur, wenn Vibe die Sub-Agenten auch aufruft – bisher nie.
+- (B) **Empfohlen:** GLM-5.3 als `active_model` (arbeitet selbst, ein Sprung weniger); Reviews mit Large 4 (`--model`
+  bzw. eigener Review-Agent), Kreuz-Review weiter über gemini-analyst; Medium 3.5 entfällt; Flash bleibt Scout.
+**Schritte:** (1) **Probelauf** (nur nach Freigabe): dieselbe kleine, bekannte Aufgabe (z. B. Fehlalarm K2 oben mit Test)
+je einmal mit GLM-5.3 und Large 4 als `active_model` per `--model`, ohne `~/.vibe` zu ändern; messen: Ergebnis grün?
+Diff minimal? Dauer, Schritte, Tokens, `outcome`, Verhalten unter `safety = "smart"`, Wartezeit bei `thinking = "max"`
+vs. `high`. Vorher klären, ob `glm-5-3` tatsächlich angesprochen wird (`export.json` → `routed_model_config`) und ob das
+kostenlose Flash-Modell andere Datenbedingungen hat. (2) Advisor zu Ergebnis und Variante. (3) Mit Freigabe der Inhaberin
+`~/.vibe/agents/*.toml`/`config.toml` umstellen (Sicherung `*.bak-<datum>`), Quelle `multi-ki/benutzer/agents/mistral-team.md`
+und `multi-ki-ablauf.md` anpassen (Modellnamen, Rollen, Zeitlimits), Version/CHANGELOG, einspielen (`--benutzer-agents`).
+(4) Ein echter Auftrag zur Abnahme; Sitzungen informieren.
+**Offene Fragen an die Inhaberin:** Variante A oder B? Probelauf freigeben? `~/.vibe` danach ändern dürfen?
+
+### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach KT, vor DT)*
 
 Wunsch: „ein Ordner im Repository, wo all die Dateien drin sind, die ich in ein neues Projekt kopieren muss“. Entschieden
 (Variante a): `agenten-normen/projekt/` und `multi-ki/projekt/` zu **einem** Ordner `vorlage/` zusammenlegen, der genau den
