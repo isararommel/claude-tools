@@ -13,7 +13,7 @@ Gruppen mit Thema und Größe>
 | Prüfer | Modell | Lauf | Ergebnis |
 |---|---|---|---|
 | Claude | `/code-review <stufe>` | – | <n> Befunde |
-| mistral-team | <active_model aus export.json>, `--agent ask` | <Schritte, Zeit, outcome; zweiter Schritt ja/nein> | <n> Befunde |
+| mistral-team | <model_name aus out/session/meta.json, erwartet mistral-large-4-0>, `--agent ask` | <Schritte, Zeit, outcome; zweiter Schritt ja/nein> | <n> Befunde |
 | gemini-analyst | <Modell>, Nur-Lesen | <Zeit, vollständig/abgebrochen> | <n> Befunde |
 
 Status: **bestätigt** = von Claude nachgestellt (Test, Befehl, Interpreter); **plausibel** = am Code gelesen, nicht

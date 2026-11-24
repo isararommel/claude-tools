@@ -34,7 +34,7 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 
 ## 3. Voraussetzungen (einmalig pro Rechner)
 
-1. **Mistral Vibe** installiert und angemeldet (`vibe` im PATH, API-Schlüssel im macOS-Schlüsselbund). Modelle `glm-5-3` und `mistral-large-4-0-3` sowie Sub-Agent `flash-scout` in der Vibe-Konfiguration (`~/.vibe`) eingerichtet.
+1. **Mistral Vibe** installiert und angemeldet (`vibe` im PATH, API-Schlüssel im macOS-Schlüsselbund). Modelle `glm-5-3` und `mistral-large-4-0-3` in der Vibe-Konfiguration (`~/.vibe`) eingerichtet; die optionalen Sub-Agenten zeigen auf dieselbe Aufteilung (`flash-scout` GLM-5.3 Flash, `code-worker` GLM-5.3, `code-reviewer` Mistral Large 4).
 2. **Google Antigravity** installiert und angemeldet (`agy` im PATH).
 3. **Agent-Definitionen** für Claude Code:
    - `~/.claude/agents/mistral-team.md`
@@ -208,7 +208,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 | Prüfer | Wie | Schwerpunkt |
 |---|---|---|
 | Claude | Skill `/code-review <stufe>` über denselben Diff | Fehler, Randfälle |
-| `mistral-team` | Vibe `--agent ask`, `--add-dir <lauf-ordner>`, je Gruppe ein kurzer Lauf, Bericht ggf. im zweiten Schritt | Zeile für Zeile, fehlende Tests |
+| `mistral-team` | Vibe `--agent ask --model mistral-large-4-0-3`, `--add-dir <lauf-ordner>`, je Gruppe ein kurzer Lauf, Bericht ggf. im zweiten Schritt | Zeile für Zeile, fehlende Tests |
 | `gemini-analyst` | agy Nur-Lesen, Material im eigenen Lauf-Ordner | Konzept gegen Code, CHANGELOG/Doku gegen Verhalten |
 
 1. **Eingang:** `python3 normen/normen.py review [--basis origin/main] [--gruppe NAME=GLOB[,GLOB…]]…` legt
@@ -225,7 +225,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 2. **Auftrag:** `docs/review-auftrag.md` ausfüllen und als `prompt.md` (Write-Werkzeug) in den Rollen-Ordner legen; eigene
    Prüffragen (etwa vom Advisor) ergänzen – im Pilot kamen die meisten bestätigten Lücken aus diesen Fragen. Pflichtsätze aus
    `pflicht.txt` übernehmen.
-3. **Mistral:** Lese-Modus mit `--add-dir` (nur der Lauf-Ordner, nie breiter); ohne `--add-dir` lehnt Vibe `read_file` außerhalb des Projekts ab („needs approval,
+3. **Mistral:** Lese-Modus mit `--model mistral-large-4-0-3` (nie GLM-5.3, das den Code geschrieben hat) und `--add-dir` (nur der Lauf-Ordner, nie breiter); ohne `--add-dir` lehnt Vibe `read_file` außerhalb des Projekts ab („needs approval,
    which a headless run cannot give“). Endet der Lauf ohne Bericht, **einmal** fortsetzen mit `--resume <session_id>` aus
    `out/export.json` und der Prompt-Datei aus dem Abschnitt „Zweiter Schritt“ der Vorlage – nicht `-c`: bei parallelen
    Läufen im selben Projekt greift `-c` die falsche Sitzung („Session is already open“).

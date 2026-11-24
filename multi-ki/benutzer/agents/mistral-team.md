@@ -28,10 +28,11 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
         --output-dir "$RUN/out" --prompt-file "$RUN/prompt.md" < /dev/null > "$RUN/antwort.txt" 2>&1
    ```
    - `< /dev/null` ist Pflicht, sonst wartet Vibe auf Eingabe und hängt.
-   - **Modell immer ausdrücklich** (`--model`, nie die Voreinstellung): Umsetzung, Tests, Scout, Testlauf, Recherche →
-     `--model glm-5-3`; **Review-Aufträge** (Prompt nach `docs/review-auftrag.md` oder Claude sagt „Review“) →
+   - **Modell immer ausdrücklich** (`--model`, nie die Voreinstellung), auch im Lese-Modus: Umsetzung, Tests, Scout,
+     Testlauf, Recherche, Analyse – alles außer Review → `--model glm-5-3`; **Review-Aufträge** (Prompt nach `docs/review-auftrag.md` oder Claude sagt „Review“) →
      `--model mistral-large-4-0-3`, damit nie dasselbe Modell seinen eigenen Code prüft. Nennt Claude ein anderes Modell,
-     gilt das. Bei `--resume` dasselbe `--model` wie im ersten Lauf angeben.
+     gilt das. `--model` wirkt nur bei neuen Sitzungen (`vibe --help`); `--resume` setzt mit dem Modell des ersten Laufs fort –
+     danach in `meta.json` prüfen.
    - **Lese-Modus:** Sagt Claude „nur lesen“ (Analyse ohne ändernde Befehle), statt `--smart-approve` den eingebauten Agenten
      `--agent ask` und `--max-turns 12` verwenden: Schreiben und nicht-lesende Shell-Befehle werden abgelehnt, auch bei Sub-Agenten
      (gemessen 16.11., Vibe 3.1.2); lesende Befehle wie `ls`, `cat`, `grep` laufen. Vibe versucht Abgelehntes erneut, deshalb die
@@ -54,12 +55,12 @@ Du bist NUR die Schnittstelle zu Mistral Vibe (`vibe`). Die eigentliche Arbeit m
 
 3. Ergebnis auslesen:
    - `tail -n 80 "$RUN/antwort.txt"`
-   - `python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('exit_code'),d.get('error'),d.get('cost_usd'),d.get('steps'),d.get('config',{}).get('active_model'),d['usage'])"`
+   - `python3 -c "import json;d=json.load(open('$RUN/out/export.json'));print(d['outcome'],d.get('exit_code'),d.get('error'),d.get('cost_usd'),d.get('steps'),d['usage'])"` (das Modell nur aus `meta.json`, siehe unten)
    - `outcome` sagt, warum Vibe aufhörte: `turn_limit` = alle `--max-turns` verbraucht (Auftrag zu groß → Claude soll ihn teilen), sonst Zeitlimit (`--time-limit`). Die Zahl der Runden steht in `steps` – genau diese Zahl berichten, nicht schätzen. Nur beim Zeitlimit einmal fortsetzen, mit `--resume <session_id>` (Feld `session_id` in `export.json`) und einem Fortsetzungs-Prompt – nicht `-c`, das greift bei parallelen Läufen im selben Projekt die falsche Sitzung; bei `turn_limit` an Claude melden. **Review-Aufträge:** Fehlt nach dem ersten Lauf der Bericht (egal ob `deadline` oder `turn_limit`), genau einmal mit `--resume <session_id>` und der Prompt-Datei `bericht.md` fortsetzen, die Claude in den Lauf-Ordner gelegt hat (Abschnitt „Zweiter Schritt“ in `docs/review-auftrag.md`), gleiche Optionen, `--max-turns 3`.
    - **Modell prüfen:** Das tatsächlich genutzte Modell steht in `out/session/meta.json` → `config.model_name`
      (`python3 -c "import json;print(json.load(open('$RUN/out/session/meta.json'))['config'])"`); `export.json →
-     routed_model_config` zeigt nur die Voreinstellung. Erwartet: `zai-glm-5-3` (Umsetzung) bzw. `mistral-large-4-0`
-     (Review). Steht dort etwas anderes (z. B. `mistral-vibe-cli-latest` = Medium 3.5) oder meldet `antwort.txt` „Model … is
+     routed_model_config` zeigt nur die Voreinstellung. Erwartet: `zai-glm-5-3` (bei `--model glm-5-3`) bzw.
+     `mistral-large-4-0` (bei `--model mistral-large-4-0-3`). Steht dort etwas anderes (z. B. `mistral-vibe-cli-latest` = Medium 3.5) oder meldet `antwort.txt` „Model … is
      not available“, ist Vibe ausgewichen: im Bericht als Erstes nennen (Issue #25).
    - **Hooks prüfen:** Meldet `antwort.txt` beim Start einen Fehler zu `hooks.toml` (z. B. „name: Field required“), greifen die Normen-Hooks nicht. Dann Status „gescheitert“ und an Claude melden – das Ergebnis nicht als normal abliefern.
    - „Reading API keys from the macOS Keychain“ ist normal.
