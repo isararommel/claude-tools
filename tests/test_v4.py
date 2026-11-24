@@ -133,7 +133,7 @@ with tempfile.TemporaryDirectory() as t:
 
     # 4. herkunft.toml, pruefen-Hinweise, aktualisieren
     h = (repo / "normen/herkunft.toml").read_text()
-    check("herkunft: Version", "version = 17" in h)
+    check("herkunft: Version", "version = 18" in h)
     check("herkunft: drei Prüfsummen", h.count(' = "') >= 3 and '"normen/normen.py"' in h)
     check("herkunft: kein lokaler Pfad", str(Path.home()) not in h and str(ROOT) not in h)
     aus = normen(repo, "pruefen", "--nur-melden").stdout
@@ -144,7 +144,7 @@ with tempfile.TemporaryDirectory() as t:
     r = normen(repo, "aktualisieren", "--quelle", str(ROOT))
     check("aktualisieren verweigert bei Handänderung", r.returncode == 1 and "normen/rollen.toml" in r.stderr, r.stderr)
     r = normen(repo0, "aktualisieren", "--quelle", str(ROOT))
-    check("aktualisieren läuft", r.returncode == 0 and "v17 → v17" in r.stdout, r.stdout + r.stderr)
+    check("aktualisieren läuft", r.returncode == 0 and "v18 → v18" in r.stdout, r.stdout + r.stderr)
     r = normen(repo0, "aktualisieren", "--quelle", str(Path(t) / "gibtsnicht"))
     check("aktualisieren: Quelle fehlt", r.returncode == 1)
 

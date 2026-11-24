@@ -26,6 +26,6 @@ Regeln:
 
 Datenschutz in diesem Projekt (zusätzlich zu `docs/multi-ki-ablauf.md`):
 - Geheimnisse (Passwörter, Tokens, Schlüssel, `.env`) gehen an kein externes Team.
-- Forschungsdaten und personenbezogene Daten: **nie an `gemini-analyst`** (Google). An `mistral-team` nur, wenn nötig (nur wenn die Inhaberin es freigibt).
+- Forschungsdaten und personenbezogene Daten: **nie an `gemini-analyst`** (Google). An `mistral-team` nur, wenn nötig (nur wenn die Inhaberin es freigibt); in Reviews (`normen.py review`) seit v18 freigegeben.
 - Diese Pfade stehen in keinem Auftrag und werden nicht zum Lesen freigegeben (auch in `.geminiignore` und `AGENTS.md`):
 @@SPERRLISTE@@

@@ -66,11 +66,17 @@ bash ~/Documents/Projekte/claude-tools/agenten-normen/einrichten.sh <projekt> --
 - Weiterhin mit Rückfrage: direktes `git push … main` / `gh pr merge`, neue Pakete, andere destruktive Befehle, außerhalb des Projekts, Einstellungen/Normen.
 
 ## Neue Projektwerte in projekt.toml (v7)
-- `[pfade].forschungsdaten`: Pfad-Globs relativ zum Projekt (enthalten `/` oder `*`, z. B. `daten/roh/**`) und Textmarker (z. B. `PROBAND-`). Wirkung: bei `gemini-analyst` (`agy`) gesperrt; bei `mistral-team` (`vibe`) wird nachgefragt (`fragen`).
+- `[pfade].forschungsdaten`: Pfad-Globs relativ zum Projekt (enthalten `/` oder `*`, z. B. `daten/roh/**`) und Textmarker (z. B. `PROBAND-`). Wirkung: bei `gemini-analyst` (`agy`) gesperrt; bei `mistral-team` (`vibe`) wird im Prompt nachgefragt (`fragen`); `normen.py review` filtert sie seit v18 nur aus dem Gemini-Diff (Mistral-Reviews sehen sie).
 - `[mcp]`: Steuert MCP-Werkzeuge (`mcp__.*`) über den vollen Werkzeugnamen:
   - `nein`: Globs gesperrter MCP-Werkzeuge.
   - `fragen`: Globs von MCP-Werkzeugen, die vor dem Aufruf fragen (z. B. `mcp__*__container_restart`).
   - `nein` hat Vorrang vor `fragen`. Unbekannte MCP-Werkzeuge sind standardmäßig erlaubt, Eingabefelder werden nicht als Befehle oder Pfade ausgewertet. In der Vorlage `.claude/settings.json` ist `enableAllProjectMcpServers: false` voreingestellt.
+
+## Normen-Protokoll (v18)
+
+Jede Hook-Entscheidung `fragen`/`nein` landet geschwärzt in `~/.config/claude-tools/normen-protokoll.jsonl` (alle Projekte,
+privat). Auswerten in claude-tools: `python3 normen/normen.py protokoll` (danach `--gelesen`); der SessionStart-Hook meldet
+mit `protokoll --faellig`, wenn eine Auswertung ansteht. Einzelheiten: CHANGELOG v18.
 
 ## Was technisch erzwungen wird – und was nicht
 | Norm | Claude Code | Mistral Vibe | Antigravity (agy) | danach |

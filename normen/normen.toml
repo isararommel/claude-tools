@@ -12,8 +12,8 @@
 # Ausnahme im Code: Kommentar „normen-ausnahme: <ID> – Begründung“ in derselben Zeile oder der Zeile davor.
 
 [meta]
-version = 17
-stand = "2026-11-23"
+version = 18
+stand = "2026-11-24"
 grundlage = [
   "Reel @ayoships (Polling, Fallbacks/v2-Code), Bildschirmaufnahme 14.11.2026",
   "Recherche 14.11.2026: Fehlermuster Claude Code / Mistral Vibe / Gemini CLI + Antigravity (ImpossibleBench, System Cards, GitHub-Issues, Vorfälle)",
