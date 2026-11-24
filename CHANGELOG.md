@@ -4,6 +4,27 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## Multi-KI: Coding-Team neu (Paket KT, ohne neue Normen-Version) – 2026-11-24
+
+**Aktualisieren nötig:** `multi-ki/benutzer/agents/mistral-team.md` nach `~/.claude/agents/` kopieren (vorher sichern;
+`einrichten.sh --benutzer-agents` überschreibt vorhandene Agenten nicht), danach Claude-Sitzung neu starten – erst dann
+nutzt die Schnittstelle die neuen `--model`-Regeln. Vorlagen `docs/review-bericht.md`/`recherche-bericht.md` per
+`multi-ki/einrichten.sh` (kommen als `.vorlage`). Vibe-Einstellungen (`~/.vibe`, je Rechner, Sicherungen `*.bak-2026-11-24`):
+`active_model = "glm-5-3"`, Sub-Agent `code-worker` → `glm-5-3`, `code-reviewer` → `mistral-large-4-0-3`.
+
+- **Geändert:** Umsetzung läuft mit GLM-5.3, Reviews mit Mistral Large 4 – beide ausdrücklich per `--model` im Aufruf
+  (`mistral-team.md`, `multi-ki-ablauf.md`; Übersicht in `LIES-MICH.md`), nie dasselbe Modell für Code und Review. Mistral Medium 3.5
+  entfällt. Der Hauptagent arbeitet selbst (in 16 Läufen vom 22.–24.11. hatte Vibe nie einen Sub-Agenten aufgerufen).
+- **Modellprüfung:** das tatsächlich genutzte Modell steht in `out/session/meta.json` (`config.model_name`);
+  `export.json → routed_model_config` zeigt nur die Voreinstellung.
+- **Bericht der Schnittstelle:** jede Hook-/Smart-Approve-Sperre wörtlich und ob Vibe danach denselben Zweck auf anderem Weg
+  versucht hat.
+- **Grundlage:** öffentliche Benchmarks auf gemeinsamem Gerüst (Rangfolge GLM-5.3 > Large 4 > Medium 3.5) und ein
+  Probelauf mit derselben Aufgabe (n = 1): beide Ergebnisse fachlich gleichwertig, GLM-5.3 läuft als schreibendes Modell
+  zuverlässig; in 16 früheren Läufen rief Vibe nie einen Sub-Agenten auf. Einzelheiten: `PLAN.md`, Paket KT.
+
+---
+
 ## v18 – Normen-Protokoll, Forschungsdaten in Mistral-Reviews, `lesbar_extern` je Teilbefehl – 2026-11-24
 
 **Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (normen.py, normen.toml, `.claude/settings.json` mit neuen

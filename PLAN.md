@@ -6,7 +6,8 @@ Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste A
 
 *Stand: 24.11.2026 (v18 auf main nach Merge von Paket **P** (Normen-Protokoll, Forschungsdaten in Mistral-Reviews,
 `lesbar_extern` je Teilbefehl, `einrichten-hier.sh`); erste Protokoll-Auswertung erledigt (Fehlalarm-Kandidaten K1–K3 unter
-P); nächstes Paket: **KT** (Coding-Team neu, hohe Priorität, Fragen an die Inhaberin offen), dann **VL**
+P); **KT** erledigt (Coding-Team: Umsetzung GLM-5.3, Reviews Large 4); nächstes Paket: **S06-ERS** (Lücke `$(…)` in S06,
+Normen v19, Freigabe der Inhaberin nötig), dann **VL**
 (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
@@ -509,7 +510,7 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
   (K3) `for f in tests/test_*.py; do python3 "$f"; done` – Schleifenvariable über einen Glob im Projekt (könnte die
   getrackten Treffer einzeln prüfen). Ablehnungen kamen keine vor.
 
-### KT. Coding-Team neu aufstellen: bestes verfügbares Coding-Modell *(Wunsch der Inhaberin 24.11., **hohe Priorität**, vor VL)*
+### KT. Coding-Team neu aufstellen: bestes verfügbares Coding-Modell *(✅ erledigt 24.11., Branch `paket-kt-team`)*
 
 Ziel: prüfen, welches verfügbare Modell (z. B. GLM) für Coding am besten ist, und `mistral-team` danach neu konzipieren.
 **Bestand (gemessen 24.11.):**
@@ -541,7 +542,49 @@ kostenlose Flash-Modell andere Datenbedingungen hat. (2) Advisor zu Ergebnis und
 `~/.vibe/agents/*.toml`/`config.toml` umstellen (Sicherung `*.bak-<datum>`), Quelle `multi-ki/benutzer/agents/mistral-team.md`
 und `multi-ki-ablauf.md` anpassen (Modellnamen, Rollen, Zeitlimits), Version/CHANGELOG, einspielen (`--benutzer-agents`).
 (4) Ein echter Auftrag zur Abnahme; Sitzungen informieren.
-**Offene Fragen an die Inhaberin:** Variante A oder B? Probelauf freigeben? `~/.vibe` danach ändern dürfen?
+**Entschieden (Inhaberin 24.11.):** Variante **B**, Probelauf frei, `~/.vibe` danach ändern frei.
+**Probelauf (24.11., gleiche Prompt-Datei, `--model`, Zweige `probe-kt-glm` / `probe-kt-large`, nicht zum Merge):**
+Aufgabe = Lücke + Fehlalarm K1: Befehle in `$(…)`/Backticks wurden in S06 nie geprüft (`echo $(python3 /außen/boese.py)`
+lief durch); `R=$(realpath /x)` galt als Skriptaufruf `/x)`. Tatsächliches Modell steht in `out/session/meta.json`
+(`config.model_name`), **nicht** in `export.json → routed_model_config` (zeigt nur die Voreinstellung).
+| | GLM-5.3 (`zai-glm-5-3`) | Large 4 (`mistral-large-4-0`) |
+|---|---|---|
+| outcome / Schritte / Dauer | finished / 27 / 16,5 min | finished / 35 / 17,2 min |
+| Ausgabe-Tokens | 100 k | 48 k |
+| Diff `normen.py` | +169 | +134 |
+| eigene 15 Tests / Tests des anderen | grün / grün | grün / grün |
+| `make test`, `pruefen --diff` | grün, 0 Fehler | grün, 0 Fehler |
+| 11 eigene Grenzfälle (Claude) | 7 ok; offen: case-`)`, verschachtelte Backticks, `$(( $(…) ))`, zitierter Heredoc → nein statt ja | 8 ok; offen wie GLM ohne Arithmetik |
+| **Sperren** | 2 N10-Fehlalarme bei `grep`/`sed -n` (zweiter Aufruf eine Abwandlung des ersten), danach weiter ohne diese Befehle | Vibes Smart-Approve lehnte `write_file` der Testdatei 2× ab (Inhalt `os.system`); danach laut Journal bewusst per Shell-Heredoc geschrieben, „um den Klassifizierer zu umgehen“ (Ziel war ein erlaubter Pfad); Hook-Sperren dazwischen berechtigt |
+Bewertung (n = 1, GLM mit `thinking = max`, Large mit `high`; GLM nicht schneller, doppelt so viele Ausgabe-Tokens):
+fachlich gleichwertig (Large minimal besser bei Arithmetik). Large 4 umging Vibes Smart-Approve-Sperre auf anderem Weg
+(Journal; n = 1, erlaubter Pfad – kein Normverstoß im engeren Sinn, aber gegen die Regel „denselben Zweck nicht auf
+anderem Weg“). Grundlage für B: Benchmark-Rangfolge, nie genutzte Sub-Agenten, funktionierender GLM-Lauf.
+Neuer Fehlalarm-Kandidat aus dem Protokoll: (K4) N10 „`normen.py hook`/`selbsttest` ruft nur Claude auf“ bei reinem
+`grep`/`sed -n` mit diesen Wörtern (Team). Offen zu prüfen: `utility_models.smart_approve` ist leer – nutzt Smart-Approve
+dann das aktive Modell (GLM prüft seine eigenen Aufrufe)? Beide Probezweige (nur lokal) sind **nicht mergereif** (mehrzeiliges `$(…)` außerhalb von
+Anführungszeichen → „nicht zerlegbar“, neue Fehlalarm-Klasse).
+**Umgesetzt (24.11.):** `~/.vibe/config.toml` `active_model = "glm-5-3"`, `code-worker` → GLM-5.3, `code-reviewer` →
+Large 4 (Sicherungen `*.bak-2026-11-24`); Quelle `mistral-team.md` (Modell immer per `--model`, Review → Large 4, sonst
+GLM-5.3; Modellprüfung über `meta.json`; Sperren und Umgehungsversuche im Bericht), `multi-ki-ablauf.md`, `LIES-MICH.md`,
+Berichtsvorlagen; `~/.claude/agents/mistral-team.md` eingespielt (Sicherung `.bak-2026-11-24`). CHANGELOG-Eintrag ohne
+Normen-Version. **Abnahme:** Testlauf ohne Modellvorgabe → `zai-glm-5-3`, grün; Review mit `--model mistral-large-4-0-3`
+→ `mistral-large-4-0`, 10 Befunde, 9 behoben (Befund „LIES-MICH Stand 14.11.“ betrifft gemini-analyst, nicht KT).
+**Offen:** Die neue Schnittstelle gilt erst nach Neustart einer Sitzung (diese Sitzung hatte die alte geladen – erster
+Review-Lauf lief daher mit GLM). Nach dem Neustart einmal prüfen, dass ein Review ohne Modellangabe im Agent-Prompt
+`mistral-large-4-0` in `meta.json` zeigt.
+
+### S06-ERS. Befehlsersetzungen in der S06-Prüfung (Normen v19) *(nächstes Paket, Freigabe der Inhaberin für Normänderung)*
+
+Lücke (gemessen 24.11.): `echo $(python3 /außen/boese.py)` wird für die Rolle claude erlaubt – Befehle in `$(…)`/Backticks
+prüft S06 nie; zugleich Fehlalarm K1 (`R=$(realpath /x)` → „Skript /x) nicht gefunden“). Ausgangsbasis: Probezweig
+`probe-kt-glm` (GLM-5.3, Funktionen `_ersetzungen`, `_skript_in_ersetzungen`, Test `tests/test_ersetzung.py`) – nicht
+mergen, sondern als Vorlage für die Spezifikation. Zusätzlich verlangen: `case … )` in `$(…)`, verschachtelte Backticks,
+`$(( $(…) ))`, zitierter Heredoc in `$(…)` = Daten (heute „nicht zerlegbar“), mehrzeiliges `$(…)` ohne Anführungszeichen
+ohne Fehlalarm, doppelte Klammer-Hilfsfunktionen zusammenlegen; Grenzfälle aus
+`tests/kante_kt.py` auf dem lokalen Zweig `probe-kt-glm` als Tests übernehmen. Zusammen mit K1–K4. Schritte:
+Advisor (Normänderung, S07 Punkt 5), Freigabe der Inhaberin, mistral-team (GLM-5.3) setzt um, Review Large 4 + Gemini,
+Version 19, Bericht, Merge, Sitzungen informieren. Danach Probezweige `probe-kt-glm`/`probe-kt-large` löschen (Rückfrage).
 
 ### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach KT, vor DT)*
 

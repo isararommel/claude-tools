@@ -26,7 +26,7 @@ Alternativ den Abschnitt „Anweisungen für Claude“ (unten) direkt in die `CL
 |---|---|---|---|
 | Supervisor | Fable als Advisor der Hauptsitzung (/advisor) | prüft Plan, Schnittstellen, Abnahme; arbeitet nicht selbst | Anthropic |
 | Chef-Architekt | Claude Opus (Hauptsitzung) | Planen, Aufträge präzise formulieren, Architektur, Ergebnisse prüfen, Commits, Gespräch mit der Nutzerin | Anthropic |
-| `mistral-team` | Mistral Vibe CLI (`vibe`): Mistral Large 4 als Teamleiter, Sub-Agenten `flash-scout`, `code-worker`, `code-reviewer` (GLM-5.3, ZAI-GLM-5.3-Flash, Mistral Medium 3.5) | Eigenständige Implementierung, Unit-Tests schreiben, Testläufe, zweites Code-Review | Mistral |
+| `mistral-team` | Mistral Vibe CLI (`vibe`): Umsetzung mit GLM-5.3 (`--model glm-5-3`), Reviews mit Mistral Large 4 (`--model mistral-large-4-0-3`), Sub-Agent `flash-scout` (GLM-5.3 Flash) für Suche | Eigenständige Implementierung, Unit-Tests schreiben, Testläufe, zweites Code-Review | Mistral |
 | `gemini-analyst` | Google Antigravity (`agy`) mit `gemini-3.8-flash-high` | Analyse vieler Dateien auf einmal, Abgleich Konzept gegen Code, Dokumentation schreiben, unabhängige Zweitmeinung vor großen Architekturentscheidungen | Google |
 | Schnelle Suche | Claudes eigenes `Explore`-Tool (Haiku) | Dateien und Stellen im Projekt finden | Anthropic (günstig) |
 
@@ -34,7 +34,7 @@ Die beiden externen Teams sind in Claude Code als **Sub-Agenten** angelegt. Der 
 
 ## 3. Voraussetzungen (einmalig pro Rechner)
 
-1. **Mistral Vibe** installiert und angemeldet (`vibe` im PATH, API-Schlüssel im macOS-Schlüsselbund). Teamleiter und Sub-Agenten `flash-scout`, `code-worker`, `code-reviewer` in der Vibe-Konfiguration (`~/.vibe`) eingerichtet.
+1. **Mistral Vibe** installiert und angemeldet (`vibe` im PATH, API-Schlüssel im macOS-Schlüsselbund). Modelle `glm-5-3` und `mistral-large-4-0-3` in der Vibe-Konfiguration (`~/.vibe`) eingerichtet; die optionalen Sub-Agenten zeigen auf dieselbe Aufteilung (`flash-scout` GLM-5.3 Flash, `code-worker` GLM-5.3, `code-reviewer` Mistral Large 4).
 2. **Google Antigravity** installiert und angemeldet (`agy` im PATH).
 3. **Agent-Definitionen** für Claude Code:
    - `~/.claude/agents/mistral-team.md`
@@ -139,7 +139,7 @@ Nutzerin ──► Claude Opus: versteht, plant, zerlegt
 |---|---|
 | Feature nach klarer Spezifikation umsetzen | `mistral-team` |
 | Unit-Tests zu bestehendem Code schreiben | `mistral-team` |
-| Code-Review eines Diffs (zweite Meinung) | `mistral-team` (code-reviewer) oder `gemini-analyst` |
+| Code-Review eines Diffs (zweite Meinung) | `mistral-team` (Review mit Mistral Large 4) oder `gemini-analyst` |
 | „Passt der Code noch zum Konzept?“ über viele Dateien | `gemini-analyst` |
 | Entwickler-Doku schreiben/aktualisieren | `gemini-analyst` |
 | Zweitmeinung zu einer Architekturentscheidung | `gemini-analyst` |
@@ -208,7 +208,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 | Prüfer | Wie | Schwerpunkt |
 |---|---|---|
 | Claude | Skill `/code-review <stufe>` über denselben Diff | Fehler, Randfälle |
-| `mistral-team` | Vibe `--agent ask`, `--add-dir <lauf-ordner>`, je Gruppe ein kurzer Lauf, Bericht ggf. im zweiten Schritt | Zeile für Zeile, fehlende Tests |
+| `mistral-team` | Vibe `--agent ask --model mistral-large-4-0-3`, `--add-dir <lauf-ordner>`, je Gruppe ein kurzer Lauf, Bericht ggf. im zweiten Schritt | Zeile für Zeile, fehlende Tests |
 | `gemini-analyst` | agy Nur-Lesen, Material im eigenen Lauf-Ordner | Konzept gegen Code, CHANGELOG/Doku gegen Verhalten |
 
 1. **Eingang:** `python3 normen/normen.py review [--basis origin/main] [--gruppe NAME=GLOB[,GLOB…]]…` legt
@@ -225,7 +225,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 2. **Auftrag:** `docs/review-auftrag.md` ausfüllen und als `prompt.md` (Write-Werkzeug) in den Rollen-Ordner legen; eigene
    Prüffragen (etwa vom Advisor) ergänzen – im Pilot kamen die meisten bestätigten Lücken aus diesen Fragen. Pflichtsätze aus
    `pflicht.txt` übernehmen.
-3. **Mistral:** Lese-Modus mit `--add-dir` (nur der Lauf-Ordner, nie breiter); ohne `--add-dir` lehnt Vibe `read_file` außerhalb des Projekts ab („needs approval,
+3. **Mistral:** Lese-Modus mit `--model mistral-large-4-0-3` (nie GLM-5.3, das den Code geschrieben hat) und `--add-dir` (nur der Lauf-Ordner, nie breiter); ohne `--add-dir` lehnt Vibe `read_file` außerhalb des Projekts ab („needs approval,
    which a headless run cannot give“). Endet der Lauf ohne Bericht, **einmal** fortsetzen mit `--resume <session_id>` aus
    `out/export.json` und der Prompt-Datei aus dem Abschnitt „Zweiter Schritt“ der Vorlage – nicht `-c`: bei parallelen
    Läufen im selben Projekt greift `-c` die falsche Sitzung („Session is already open“).
@@ -277,19 +277,21 @@ Im ersten Durchlauf haben die Haiku-Schnittstellen bei CLI-Fehlern die Aufgabe e
 # Claude hat $RUN/prompt.md vorher mit dem Write-Werkzeug angelegt (Schritt 3 in Abschnitt 4).
 RUN="${TMPDIR:-/tmp}/vibe-runs/<zeitstempel>-<kurzname>"; test -s "$RUN/prompt.md"
 
-vibe --trust --smart-approve --time-limit 540 --max-turns 60 \
+vibe --trust --smart-approve --model glm-5-3 --time-limit 540 --max-turns 60 \
      --output-dir "$RUN/out" --prompt-file "$RUN/prompt.md" < /dev/null > "$RUN/antwort.txt" 2>&1
 ```
 
 - **`< /dev/null` ist Pflicht**, sonst wartet Vibe auf Eingabe und hängt.
+- **Modell immer ausdrücklich** (Paket KT, Probelauf 24.11.2026): Umsetzung `--model glm-5-3`, Reviews `--model mistral-large-4-0-3` (nie dasselbe Modell für Code und Review). Das tatsächlich genutzte Modell steht in `out/session/meta.json` (`config.model_name`), nicht in `export.json → routed_model_config`.
 - Prompt immer als Datei (`--prompt-file`), nie direkt in `-p "..."`: Backticks und `$` würden von der Shell ausgeführt. Die Datei schreibt Claude mit dem Write-Werkzeug, nie die Schnittstelle per Heredoc (Normen-Hook).
 - Bash-Timeout 600000 ms. Für längere Läufe `--time-limit` bis 1800 und `run_in_background`, auf die Benachrichtigung warten statt zu pollen.
 - Ergebnis: `tail -n 80 "$RUN/antwort.txt"` und `"$RUN/out/export.json"` (Felder `outcome`, `exit_code`, `error`, `cost_usd`, `usage`).
 - Exit-Code 3 = Zeit- oder Rundenlimit erreicht (`outcome` in `export.json`: `deadline` bzw. `turn_limit`). Fortsetzen mit
-  `--resume <session_id>` (aus `export.json`) und einem Fortsetzungs-Prompt; `-c` nur, wenn kein anderer Vibe-Lauf im selben
+  `--resume <session_id>` (aus `export.json`) und einem Fortsetzungs-Prompt, **ohne `--model`** (sonst „Error: --model only
+  applies to a new session“; die Sitzung behält ihr Modell, gemessen 24.11.2026); `-c` nur, wenn kein anderer Vibe-Lauf im selben
   Projekt läuft.
 - Lese-Modus (`--agent ask`) liest außerhalb des Projekts nur mit `--add-dir <ordner>` (gemessen 22.11.2026).
-- Nie `--agent flash-scout|code-worker|code-reviewer` (das sind Sub-Agenten, als Hauptagent schlagen sie fehl). Stattdessen im Prompt bitten, Teilaufgaben über das task-Tool an sie zu geben.
+- Nie `--agent flash-scout|code-worker|code-reviewer` (das sind Sub-Agenten, als Hauptagent schlagen sie fehl). Der Hauptagent arbeitet selbst; Sub-Agenten sind optional.
 - Harmlos: „Reading API keys from the macOS Keychain“ und Startwarnungen „Model ... is not available“.
 
 ### Google Antigravity (agy)

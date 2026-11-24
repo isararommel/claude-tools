@@ -26,7 +26,7 @@ Lauf-Ordner) und committet ihn.
 <was sich nicht klären ließ; was eine Entscheidung noch braucht>
 
 ## Methode
-- Anbieter und Modell: <z. B. gemini-analyst (agy, gemini-…) und mistral-team (Vibe, Mistral Large …) / Claude>
+- Anbieter und Modell: <z. B. gemini-analyst (agy, gemini-…) und mistral-team (Vibe, GLM-5.3 …) / Claude>
 - Suchbegriffe: <…>
 - Datum der Recherche: <JJJJ-MM-TT>
 - Gegenprüfung: <ja: zweiter Anbieter, Ergebnis übereinstimmend/abweichend | nein>
