@@ -210,7 +210,7 @@ def _lesbar_extern(cfg) -> list[Path]:
 
 
 # Schreibende Shell-Befehle (wie im N10-Muster): schreiben an jeder Stelle bzw. als Ziel, Umleitung, git-Schreibbefehle.
-_SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+(-[cC]\s+\S+\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
+_SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|dd|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+((-[cC]\s+\S+|--[a-z-]+=\S+)\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
 
 
 # Kontrollstrukturen und indirekte Ausführung: Glieder sind dort keine eigenständigen Befehle (`do cp …`, `xargs rm`).
@@ -2549,14 +2549,13 @@ def _protokoll_eintrag(cfg, rolle: str, werkzeug: str, data: dict, tool: str, ei
 
 
 def _protokoll_marke() -> datetime | None:
-    """Marke (zuletzt ausgewertet) als ISO-Zeitstempel mit Zeitzone; fehlt oder kaputt → None (wie „keine Marke“)."""
+    """Marke (zuletzt ausgewertet) als ISO-Zeitstempel; fehlt → None, ohne Zeitzone → lokal; kaputt → ValueError
+    (der Aufrufer meldet ihn – nicht still „keine Marke“, sonst zählte alles als neu)."""
     marke = _protokoll_pfad().with_suffix(".marke")
     if not marke.is_file():
         return None
-    try:
-        return datetime.fromisoformat(marke.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return None
+    dt = datetime.fromisoformat(marke.read_text(encoding="utf-8").strip())
+    return dt if dt.tzinfo is not None else dt.astimezone()
 
 
 def _protokoll_marke_setzen() -> None:
@@ -2632,7 +2631,7 @@ def cmd_hook_nach(a) -> int:
                 continue
             if not isinstance(e, dict) or e.get("tool_use_id") != tid:
                 continue
-            if e.get("stufe") == "fragen":
+            if e.get("entscheid") == "fragen":
                 fragen = True
             if "ausgang" in e:
                 schon = True
@@ -2716,7 +2715,7 @@ def cmd_protokoll(a) -> int:
                 gruende[str(grund)] += 1
             for norm in normen:
                 g = gruppen.setdefault((norm, projekt), [0, 0, 0, 0, 0])  # fragen, ausgeführt, fehlgeschlagen, kein Beleg, nein
-                if e.get("stufe") == "nein":
+                if e.get("entscheid") == "nein":
                     g[4] += 1
                 else:
                     g[0] += 1

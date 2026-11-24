@@ -288,6 +288,23 @@ def test_auswertung(t):
     fall("alt-keiner", 8, 0, False)
     fall("frisch-viele", 1, 30, True)
     fall("frisch-29", 1, 29, False)
+
+    # Review v18 (Mistral Nr. 5): Team-Eintrag mit Stufe fragen, Endentscheidung nein zählt als nein, nicht als „kein Beleg“
+    p = t / "ausw" / "team.jsonl"
+    team = eintrag("tm", zeit="2026-11-20T10:00:00+0100", norm="N01-KEINE-ZERSTOERUNG", projekt="p3")
+    team.update({"rolle": "mistral-team", "werkzeug": "vibe", "entscheid": "nein"})
+    schreibe(p, [team])
+    r = normen(repo, p, "protokoll")
+    check("team fragen→nein: als nein gezählt", "fragen 0" in r.stdout and "nein 1" in r.stdout, r.stdout)
+    # Review v18 (Mistral Nr. 6): Marke ohne Zeitzone gilt als lokal; kaputte Marke wird gemeldet, nicht still übergangen
+    p.with_suffix(".marke").write_text("2026-11-19T10:00:00\n", encoding="utf-8")
+    r = normen(repo, p, "protokoll")
+    check("marke ohne Zeitzone: Exit 0", r.returncode == 0 and "1 Einträge" in r.stdout, r.stdout + r.stderr)
+    p.with_suffix(".marke").write_text("kaputt\n", encoding="utf-8")
+    r = normen(repo, p, "protokoll")
+    check("kaputte Marke: Exit ≠ 0 mit Meldung", r.returncode != 0 and "nicht ausgewertet" in r.stderr, r.stdout + r.stderr)
+    r = normen(repo, p, "protokoll", "--faellig")
+    check("kaputte Marke --faellig: Exit 0, Meldung stderr", r.returncode == 0 and r.stdout == "" and r.stderr, r.stdout + r.stderr)
     r = normen(repo, t / "ausw" / "gibt-es-nicht.jsonl", "protokoll", "--faellig")
     check("fällig ohne Protokoll: still, Exit 0", r.returncode == 0 and r.stdout.strip() == "", r.stdout + r.stderr)
     r = normen(repo, t / "ausw" / "gibt-es-nicht.jsonl", "protokoll")
