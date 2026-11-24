@@ -496,6 +496,20 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
   Datum); `NORMEN_UNTERBEFEHLE`/`TEAM_NORMEN_ERLAUBT`; Doku (CHANGELOG v18, Ablauf „Review“, `review-auftrag.md`,
   CLAUDE.md-Zeile zu Forschungsdaten an Mistral, LIES-MICH Zeile 69), Version 18, Review, Merge.
 
+### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach P, vor DT)*
+
+Wunsch: „ein Ordner im Repository, wo all die Dateien drin sind, die ich in ein neues Projekt kopieren muss“. Entschieden
+(Variante a): `agenten-normen/projekt/` und `multi-ki/projekt/` zu **einem** Ordner `vorlage/` zusammenlegen, der genau den
+Baum eines eingerichteten Projekts zeigt (`normen/`, `.claude/`, `.vibe/`, `.githooks/`, `docs/`, `AGENTS.md`,
+`.geminiignore`, `CLAUDE-abschnitt.md`, `PLAN.md`); Benutzer-Agenten (`multi-ki/benutzer/`) als `vorlage-benutzer/` bzw.
+Unterordner – beim Planen entscheiden. Einzige Quelle (N08: keine Kopie daneben), `einrichten.sh` liest von dort.
+Schritte: (1) Advisor zu Schnitt und Namen; (2) Stellen finden, die die alten Pfade nennen (beide `einrichten.sh`,
+`normen.py aktualisieren`/`_quelle`, `herkunft.toml`, Tests, LIES-MICH, NEUES-REPOSITORY, KONZEPT, CLAUDE.md) – Analyse an
+gemini-analyst; (3) `git mv` + Pfade anpassen (mistral-team nach Spezifikation); (4) Platzhalter (`@@SPERRLISTE@@` …) in
+`vorlage/` dokumentieren: „von Hand kopieren“ heißt Platzhalter selbst füllen – `einrichten.sh` bleibt der empfohlene Weg;
+(5) Normen-Version, einspielen, **`aktualisieren` in Projekten muss mit dem neuen Quellpfad funktionieren** (Test mit
+Projekt auf alter Version); Sitzungen informieren.
+
 ### DT. Design-Team (Ersteller + Kritiker) als Sub-Agenten *(Wunsch der Inhaberin 23.11., nach P)*
 
 Ziel: ein Designer-Team analog zu `mistral-team`/`gemini-analyst` – zwei Rollen: **Design-Ersteller** (experimentierfreudig,
