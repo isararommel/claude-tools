@@ -70,7 +70,7 @@ gilt hier nicht – das Ergebnis ist allein die Antwort im Berichtsformat.
 ## Zweiter Schritt (nur Mistral, wenn der erste Lauf ohne Bericht endet)
 
 Prompt-Datei `bericht.md` im selben Lauf-Ordner (legt `normen.py review` mit diesem Text an), Aufruf mit
-`--resume <session_id>` aus `out/export.json` (nicht `-c`). Gemessen 23.11.: liefert einen Bericht; bei 344 Diff-Zeilen plus
+`--resume <session_id>` aus `out/export.json` (nicht `-c`), ohne `--model` (die Sitzung behält Mistral Large 4). Gemessen 23.11.: liefert einen Bericht; bei 344 Diff-Zeilen plus
 Dateibereichen reichten 540 s für beide Schritte nicht (`deadline`) – für Gruppen dieser Größe `--time-limit 1200`.
 
 ```

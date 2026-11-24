@@ -287,7 +287,8 @@ vibe --trust --smart-approve --model glm-5-3 --time-limit 540 --max-turns 60 \
 - Bash-Timeout 600000 ms. Für längere Läufe `--time-limit` bis 1800 und `run_in_background`, auf die Benachrichtigung warten statt zu pollen.
 - Ergebnis: `tail -n 80 "$RUN/antwort.txt"` und `"$RUN/out/export.json"` (Felder `outcome`, `exit_code`, `error`, `cost_usd`, `usage`).
 - Exit-Code 3 = Zeit- oder Rundenlimit erreicht (`outcome` in `export.json`: `deadline` bzw. `turn_limit`). Fortsetzen mit
-  `--resume <session_id>` (aus `export.json`) und einem Fortsetzungs-Prompt; `-c` nur, wenn kein anderer Vibe-Lauf im selben
+  `--resume <session_id>` (aus `export.json`) und einem Fortsetzungs-Prompt, **ohne `--model`** (sonst „Error: --model only
+  applies to a new session“; die Sitzung behält ihr Modell, gemessen 24.11.2026); `-c` nur, wenn kein anderer Vibe-Lauf im selben
   Projekt läuft.
 - Lese-Modus (`--agent ask`) liest außerhalb des Projekts nur mit `--add-dir <ordner>` (gemessen 22.11.2026).
 - Nie `--agent flash-scout|code-worker|code-reviewer` (das sind Sub-Agenten, als Hauptagent schlagen sie fehl). Der Hauptagent arbeitet selbst; Sub-Agenten sind optional.
