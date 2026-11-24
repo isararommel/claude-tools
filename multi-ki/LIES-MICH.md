@@ -8,7 +8,7 @@ die Arbeit läuft über zwei externe Teams, damit das Claude-Kontingent geschont
 
 | Agent (Claude Code) | Externes CLI | Wofür | Datenschutz |
 |---|---|---|---|
-| `mistral-team` | Mistral Vibe `vibe` (Mistral Large als Teamleiter, Sub-Agenten flash-scout, code-worker, code-reviewer) | Umsetzung nach Spezifikation, Unit-Tests, Testläufe, zweites Review | keine Geheimnisse; Forschungsdaten nur nach Freigabe (eigene Mistral-Lizenz) |
+| `mistral-team` | Mistral Vibe `vibe` (Mistral Large als Teamleiter, Sub-Agenten flash-scout, code-worker, code-reviewer) | Umsetzung nach Spezifikation, Unit-Tests, Testläufe, zweites Review | keine Geheimnisse; Forschungsdaten nur nach Freigabe (eigene Mistral-Lizenz; in Reviews seit v18 freigegeben) |
 | `gemini-analyst` | Google Antigravity `agy --model gemini-3.8-flash-high` | Analyse vieler Dateien, Konzept-gegen-Code, Doku, Zweitmeinung | keine Geheimnisse, **keine personenbezogenen Daten, keine Forschungsdaten** |
 
 Beide Agenten sind nur **Schnittstellen** (Modell Haiku, Werkzeuge nur `Bash, Read`): Prompt-Datei schreiben → CLI aufrufen →

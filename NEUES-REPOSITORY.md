@@ -55,7 +55,10 @@ Vor der Ausführung offene Parameter in **einer einzigen gebündelten Frage** an
 
 ## Schritt 4: Einrichtung ausführen und `projekt.toml` konfigurieren
 
-Führe das zentrale Installationsskript aus:
+**Kurzweg (v18):** `einrichten-hier.sh` in das neue Projekt kopieren und dort `bash einrichten-hier.sh` ausführen – es
+fragt nach Testbefehl und Sperrpfaden und ruft das Installationsskript für genau diesen Ordner auf. Danach darf es weg.
+
+Oder direkt das zentrale Installationsskript ausführen:
 
 ```bash
 bash ~/Documents/Projekte/claude-tools/einrichten.sh ~/Projekte/mein-projekt \

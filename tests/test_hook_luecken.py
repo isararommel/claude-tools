@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+os.environ.setdefault("NORMEN_PROTOKOLL", os.path.join(tempfile.gettempdir(), "normen-test-protokoll/protokoll.jsonl"))  # v18: Hooks der Tests nie ins echte Protokoll
 VORLAGE = ROOT / "agenten-normen"
 OK = FAIL = 0
 

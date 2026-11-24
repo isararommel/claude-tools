@@ -4,6 +4,63 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v18 – Normen-Protokoll, Forschungsdaten in Mistral-Reviews, `lesbar_extern` je Teilbefehl – 2026-11-24
+
+**Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (normen.py, normen.toml, `.claude/settings.json` mit neuen
+Hooks). Vorlage `docs/review-auftrag.md` per `multi-ki/einrichten.sh` (kommt als `.vorlage`); in der eigenen `CLAUDE.md` die
+Datenschutzzeile zu Forschungsdaten von Hand anpassen (siehe unten).
+
+### Neu
+- **Normen-Protokoll:** Der PreToolUse-Hook schreibt jede Entscheidung `fragen`/`nein` (aller Rollen, ohne Selbsttest-Köder)
+  als JSON-Zeile nach `~/.config/claude-tools/normen-protokoll.jsonl` (zentral für alle Projekte, außerhalb aller Repos,
+  Rechte 600; Umgebungsvariable `NORMEN_PROTOKOLL` lenkt um – `make test` in claude-tools setzt sie auf ein Testprotokoll).
+  Felder: Zeit, Projekt, Rolle, Werkzeug, Tool, Stufe (vor der Herabstufung für Teams) und Entscheidung, Norm-IDs, Gründe,
+  Bash-Befehl bzw. nur Pfad (Edit/Write) bzw. nur Tool-Name (`mcp__*`), `session_id`, `tool_use_id`, `permission_mode`.
+  Vor dem Schreiben geschwärzt (N03-Inhaltsmuster, Token-Muster, E-Mail, IBAN, Telefon, gesperrte Pfade → `[geschwärzt]`),
+  danach auf 300 Zeichen gekürzt. Ein Schreibfehler ändert die Hook-Entscheidung nie (Meldung auf stderr); ohne geladene
+  Konfiguration entsteht kein Eintrag (kein Schwärzen möglich).
+- **`normen.py hook-nach --werkzeug claude`** (Hooks PostToolUse und PostToolUseFailure, Matcher wie PreToolUse): trägt zu
+  einem `fragen`-Eintrag den Ausgang `ausgefuehrt`/`fehlgeschlagen` nach (gleiche `tool_use_id`, nur die letzten 200 Zeilen
+  bzw. 64 KiB der Datei). Immer Exit 0, keine Ausgabe.
+- **`normen.py protokoll [--alle] [--seit JJJJ-MM-TT] [--gelesen]`:** Auswertung seit der letzten Marke – je Norm und Projekt
+  `fragen` (ausgeführt / fehlgeschlagen / kein Beleg) und `nein`, häufigste Gründe, Beispiele. `--gelesen` setzt die Marke
+  (`normen-protokoll.marke` neben dem Protokoll).
+- **Regelmäßiger Hinweis:** SessionStart-Hook (Matcher `startup|clear`) ruft `protokoll --faellig` auf: eine Zeile mit Anzahl
+  und Datum, wenn seit der Marke ≥ 7 Tage vergangen und ≥ 1 neuer Eintrag da ist, oder ≥ 30 neue Einträge. Ausgewertet wird in
+  claude-tools durch Claude selbst (nie an `gemini-analyst`, nie ins Repository, nie als Issue); Kandidaten neutralisiert in
+  `PLAN.md`.
+- **Teams lesen das Protokoll nicht:** Für Rollen mit Auftragspflicht (mistral-team, gemini-analyst) sperrt der Hook jeden
+  Befehl bzw. Pfad, der den Ordner des Protokolls nennt (`~/.config/claude-tools/`, auch als `$HOME/…`), mit N03.
+- **`einrichten-hier.sh`:** einzelnes Skript zum Kopieren in ein neues Projekt; richtet den Ordner ein, in dem es liegt
+  (ruft `einrichten.sh` aus `$CLAUDE_TOOLS` bzw. `~/Documents/Projekte/claude-tools` auf, fragt ohne `--test` nach Testbefehl
+  und Sperrpfaden, bietet `git init` an).
+
+### Geändert
+- **`normen.py review`: Forschungsdaten nur noch aus dem Gemini-Diff** (Entscheidung der Inhaberin 23.11.). Sperrpfade und
+  Geheimnisse bleiben für beide Teams gefiltert; der strengste Grund gewinnt, auch über Umbenennungspaare und den Blob-Abgleich
+  (Paar Sperrpfad → Forschungspfad fällt für beide heraus). Ausgabe `gefiltert (gemini): …` bzw. `gefiltert (mistral, gemini): …`.
+  Im Prompt an vibe fragt der Hook bei Forschungsdaten weiter nach (unverändert).
+- **`[pfade].lesbar_extern` je Teilbefehl statt ganzer Kette:** `cp <ext>/datei docs/` und
+  `git branch --show-current && ls <ext>/` sperren nicht mehr. Weiter gesperrt: Schreibziel im Ordner (aufgelöst), Glieder mit
+  Schreibverb, die den Ordner nennen, alle Glieder nach `cd`/`pushd` dorthin und hinter einer Pipe aus einem solchen Glied,
+  unaufgelöste Ziele, `mv` aus dem Ordner (löscht die Quelle), `ln` und `cp -l`/`-s` (Link in den Ordner),
+  `rsync --remove-source-files`; Ketten mit Schleifen, Bedingungen, `xargs`, `eval`, `exec`, `source` oder einer Zuweisung,
+  die den Ordner nennt (`D=<ext>; git -C $D …`), werden wie bisher als Ganzes geprüft. Neu erkannt: `dd` und git-Optionen
+  mit `=` (`git --git-dir=<ext>/.git add`).
+- **Schwärzen gesperrter Pfade:** das ganze Pfadwort, nicht nur das Präfix (`geheim/kunde.txt` → `[geschwärzt]`).
+
+### Grenzen
+- Gemessen (23.11., interaktiv): ein Hook-`ask` erreicht die Inhaberin auch im Auto-Modus; nach Freigabe folgt PostToolUse mit
+  gleicher `tool_use_id`. **Ungemessen:** Ablehnung – erwartet kein Post-Ereignis, die Auswertung zeigt dann „kein Beleg“
+  (abgelehnt, abgebrochen oder Sitzung beendet; „abgelehnt“ wird nicht behauptet).
+- Ein `fragen`-Eintrag, auf den mehr als 200 Protokollzeilen oder mehr als 64 KiB folgen, bevor das Werkzeug fertig ist,
+  bekommt keinen Ausgang.
+- Geschwärzt wird nur, was ein Muster trifft (Token-Formen, `token = "…"`, E-Mail, IBAN, Telefon, gesperrte Pfade); ein
+  Passwort in anderer Form (z. B. `-pGeheim`) bleibt sichtbar. Das Protokoll ist deshalb privat (Rechte 600, außerhalb der Repos).
+- Keine Rotation des Protokolls.
+
+---
+
 ## v17 – Review-Tor beim Merge, `normen.py review`, normen.py für Teams gesperrt – 2026-11-23
 
 **Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (normen.py, normen.toml); in `normen/projekt.toml` den neuen

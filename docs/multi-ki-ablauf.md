@@ -214,7 +214,7 @@ Vorlagen: `docs/review-auftrag.md` (Auftrag, wird zur Prompt-Datei) und `docs/re
 1. **Eingang:** `python3 normen/normen.py review [--basis origin/main] [--gruppe NAME=GLOB[,GLOB…]]…` legt
    `${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/` an (Pfade aufgelöst), je Ordner `diff.patch` und
    `pflicht.txt` (Pflichtsätze der Rolle), bei Mistral eine leere `bericht.md` für den zweiten Schritt. Es filtert
-   `[pfade].gesperrt`, Geheimnis-Muster und Forschungsdaten (Pfade und Textmarker im Diff) aus jedem Diff – das ist die einzige
+   `[pfade].gesperrt` und Geheimnis-Muster aus jedem Diff, Forschungsdaten (Pfade und Textmarker im Diff) seit v18 nur aus dem Gemini-Diff – das ist die einzige
    Sperre vor Gemini, der Hook prüft nur die Prompt-Datei – und nennt Gefiltertes und Dateien ohne Gruppe. Große Diffs in Gruppen
    nach Thema schneiden (Hinweis ab 150 Zeilen in `diff.patch` samt Kontext – Maß für den Lauf der Teams, nicht die
    Code-Zeilen-Schwelle von `merge`); jede Gruppe geht an beide Teams. Gemessen (22.11.2026): 141 Diff-Zeilen

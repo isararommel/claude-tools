@@ -3,6 +3,8 @@
 
   python3 normen/normen.py pruefen [--diff [BASIS] | --staged] [--nur-melden]
   python3 normen/normen.py hook --rolle ROLLE --werkzeug claude|vibe|gemini   (stdin: JSON des Werkzeugs)
+  python3 normen/normen.py hook-nach --werkzeug claude                         (PostToolUse/PostToolUseFailure: Ausgang nachtragen – immer Exit 0, keine Ausgabe)
+  python3 normen/normen.py protokoll [--alle|--seit JJJJ-MM-TT] [--gelesen] [--faellig]   (Normen-Protokoll auswerten; --faellig: SessionStart-Hook)
   python3 normen/normen.py stop --werkzeug claude                             (Claude-Stop-Hook: Test + Diff-Prüfung)
   python3 normen/normen.py auftrag --rolle ROLLE [--dateien PFAD …] | --ende  (Pflichtsätze; .normen-auftrag schreiben/entfernen)
   python3 normen/normen.py merge PR                                            (PR nach main – nur mit grünem Prüftor)
@@ -31,6 +33,7 @@ import tempfile
 import time
 import tomllib
 from collections import Counter
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -70,6 +73,12 @@ KOEDER = ".normen/normen-koeder.txt"
 KOEDER_RX = re.compile(r"(^|[;&|]\s*)touch\s+\.normen/normen-koeder\.txt\s*($|[;&|])", re.MULTILINE)
 KOEDER_BEFEHL = "touch " + KOEDER
 SITZUNGSPROBE = ".normen/sitzungsprobe.txt"  # v16 (#66): session_ids, deren Hook den Köder gesperrt hat
+# v18: Normen-Protokoll (Hook-Entscheidungen fragen/nein aller Projekte), zentral und privat; NORMEN_PROTOKOLL lenkt um
+# (make test setzt es, damit Testläufe nicht ins echte Protokoll schreiben).
+PROTOKOLL_STANDARD = "~/.config/claude-tools/normen-protokoll.jsonl"
+PROTOKOLL_KUERZE = 300
+PROTOKOLL_FAELLIG_TAGE = 7
+PROTOKOLL_FAELLIG_ANZAHL = 30
 # Wege des Selbsttests (v14): pro Werkzeug die Köder-Prompts für Shell- und Datei-Werkzeuge (Weg -> Prompt).
 SELBSTTEST_WEGE = {"claude": ["bash", "write"], "vibe": ["bash", "write_file", "edit"]}
 SELBSTTEST_TEXTE = {
@@ -201,7 +210,14 @@ def _lesbar_extern(cfg) -> list[Path]:
 
 
 # Schreibende Shell-Befehle (wie im N10-Muster): schreiben an jeder Stelle bzw. als Ziel, Umleitung, git-Schreibbefehle.
-_SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+(-[cC]\s+\S+\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
+_SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|chown|tee|install|rsync|truncate|dd|sed\s+-[a-zA-Z]*i|perl\s+-[a-z]*i|patch|unzip|tar\s+-?[a-zA-Z]*x|git\s+((-[cC]\s+\S+|--[a-z-]+=\S+)\s+)*(add|commit|push|merge|rebase|reset|checkout|restore|switch|stash|apply|am|rm|mv|clean|tag|branch))\b"
+
+
+# Kontrollstrukturen und indirekte Ausführung: Glieder sind dort keine eigenständigen Befehle (`do cp …`, `xargs rm`).
+_ZUWEISUNG_RX = r"\s*(export\s+|local\s+|readonly\s+|declare\s+(-\w+\s+)*)?[A-Za-z_]\w*="
+_NUR_QUELLE = {"cp", "install", "rsync"}  # Ordner nur als Quelle, wenn das aufgelöste Ziel außerhalb liegt
+_CP_LINK_RX = r"(^|\s)(-[a-zA-Z]*[ls][a-zA-Z]*|--link|--symbolic-link)(\s|$)"
+_KETTE_STRENG = r"(^|[\s;&|(`{!])(for|while|until|if|case|select|function|do|then|else|elif|eval|exec|xargs|parallel|source)(\s|$)"
 
 
 def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None:
@@ -224,11 +240,40 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
             if z is not None and ((zr := _echt(z)) == q or q in zr.parents):
                 return q
         nennt = [f for f in formen if f.casefold() in cmd.casefold()]
-        if not nennt and not (_echt(cwd) == q or q in _echt(cwd).parents):
+        im_ordner = _echt(cwd) == q or q in _echt(cwd).parents
+        if not nennt and not im_ordner:
             continue
-        # Ganze Kette: steht der Ordner irgendwo (cd, git -C, Pfad) und wird irgendwo geschrieben → gesperrt.
-        if re.search(_SCHREIB_VERB, cmd) or None in ziele:
+        if None in ziele:  # unaufgelöstes Ziel (Variable aus Schleife, $(…)) in einer Kette, die den Ordner nennt
             return q
+        teile = _segmente_pos(cmd)
+        # Schleifen, Bedingungen, indirekte Ausführung – oder der Ordner steht in einer Zuweisung (`D=<ordner>; git -C $D …`,
+        # Advisor v18): ganze Kette wie vor v18
+        if re.search(_KETTE_STRENG, cmd) or any(
+                re.match(_ZUWEISUNG_RX, seg) and any(f.casefold() in seg.casefold() for f in formen) for _, seg in teile):
+            if re.search(_SCHREIB_VERB, cmd):
+                return q
+            continue
+        # v18: je Teilbefehl statt ganzer Kette. Betroffen sind Glieder, die den Ordner nennen, alle Glieder nach einem
+        # Glied mit cd/pushd in den Ordner, alle Glieder hinter einer Pipe aus einem betroffenen Glied (`ls q | xargs rm`)
+        # und im Ordner als Arbeitsordner alle. Darin sperrt jedes Schreibverb – außer cp/install/rsync, deren (oben
+        # aufgelöstes) Ziel außerhalb liegt: dann ist der Ordner nur Quelle. Streng bleiben mv (löscht die Quelle), ln und
+        # cp -l/-s (Link in den Ordner: späteres Schreiben über den Link sähe der Hook nicht), rsync --remove-source-files.
+        betroffen = im_ordner
+        nach_cd = im_ordner
+        for i, (start, seg) in enumerate(teile):
+            trenner = cmd[start + len(seg):teile[i + 1][0]] if i + 1 < len(teile) else ""
+            nennt_seg = any(f.casefold() in seg.casefold() for f in formen)
+            if nennt_seg and re.search(r"(^|[\s(;&|`])(cd|pushd)\b", seg):
+                nach_cd = True
+            if nennt_seg or nach_cd or betroffen:
+                verben = [m.group(3).split()[0] for m in re.finditer(_SCHREIB_VERB, seg)]
+                nur_quelle = (verben and set(verben) <= _NUR_QUELLE and "--remove-source-files" not in seg
+                              and not ("cp" in verben and re.search(_CP_LINK_RX, seg)) and not nach_cd)
+                if verben and not nur_quelle:
+                    return q
+                betroffen = "|" in trenner and "||" not in trenner
+            else:
+                betroffen = False
     return None
 
 
@@ -705,6 +750,15 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
     _sammeln(eingabe, {"file_path", "path", "absolute_path", "filePath", "notebook_path", "paths", "target_file", "file"}, pfade)
     art = _art(tool, befehle)
     gruende: list[tuple[str, str]] = []
+    if rinfo.get("auftrag_pflicht"):  # v18: Teams lesen das Normen-Protokoll nie (Befehle und Projekte aller Repositorys)
+        p_ordner = _protokoll_pfad().parent
+        formen = {str(p_ordner), str(_echt(p_ordner))}
+        if str(p_ordner).startswith(str(Path.home()) + "/"):
+            rest = str(p_ordner)[len(str(Path.home())):]
+            formen |= {"~" + rest, "$HOME" + rest, "${HOME}" + rest}
+        flach = re.sub(r"[\"'\\]", "", "\n".join(befehle + pfade)).casefold()
+        if any(f.casefold() in flach for f in formen):
+            gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Ordner des Normen-Protokolls ({p_ordner}) ist für Teams tabu"))
 
     def pruefe(faehigkeit: str, text: str):
         e = darf(cfg, rolle, faehigkeit)
@@ -851,6 +905,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
 
 
 def cmd_hook(a) -> int:
+    cfg, data, tool, eingabe = None, {}, "", {}
     try:
         cfg = laden()
         roh = sys.stdin.read()
@@ -871,10 +926,19 @@ def cmd_hook(a) -> int:
             probe.write_text("\n".join([*alt, str(data["session_id"])]) + "\n", encoding="utf-8")
     except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Hook muss bei jedem Fehler sperren (fail-closed)
         entscheid, gruende = "nein", [f"Normen-Hook fehlerhaft ({type(e).__name__}: {e}) – gesperrt"]
+    stufe = entscheid
     if a.werkzeug != "claude" and entscheid == "fragen":
         entscheid = "nein"
     if entscheid == "ja":
         return 0
+    if not any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
+        try:  # v18: Normen-Protokoll; ohne cfg (laden() gescheitert) kein Schwärzen möglich → kein Eintrag
+            if cfg is None:
+                raise RuntimeError("Konfiguration nicht geladen")
+            _protokoll_anhaengen(_protokoll_eintrag(cfg, a.rolle, a.werkzeug, data if isinstance(data, dict) else {},
+                                                    tool, eingabe, stufe, entscheid, gruende))
+        except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Protokoll darf die Hook-Entscheidung nicht ändern
+            print(f"Normen-Protokoll nicht geschrieben ({type(e).__name__}: {e})", file=sys.stderr)
     grund = "Agenten-Normen: " + "; ".join(gruende) + (f" – bitte {inhaberin(cfg)} fragen." if entscheid == "fragen" else
                                                      " – nicht ausführen, im Bericht melden.")
     if a.werkzeug == "claude":
@@ -1020,8 +1084,8 @@ BRANCH_VERBOTEN = {"-d", "-D", "-m", "-M", "-c", "-C", "-f", "--delete", "--move
 GH_API_VERBOTEN = re.compile(r"^(-X|--method|-f|-F|--field|--raw-field|--input)(=|$)|^-X\w")
 NORMEN_VERBOTEN = {"merge", "auftrag", "melden", "aktualisieren", "review"}
 TEAM_NORMEN_ERLAUBT = {"pruefen", "kurz"}  # v17: alles andere aus normen.py ist für Teams gesperrt (Hook)
-NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "stop", "merge", "auftrag", "skript", "selbsttest", "kurz", "sync",
-                       "aktualisieren", "melden", "review"}
+NORMEN_UNTERBEFEHLE = {"pruefen", "hook", "hook-nach", "protokoll", "stop", "merge", "auftrag", "skript", "selbsttest",
+                       "kurz", "sync", "aktualisieren", "melden", "review"}
 _NORMEN_PFAD_RX = re.compile(r"(?<![\w.-])normen(?:\.py|\.normen)\b", re.IGNORECASE)  # nicht test_normen.py
 
 
@@ -2448,11 +2512,262 @@ DATENSCHUTZ = [
 ]
 
 
-def _datenschutz_funde(cfg, text: str) -> list[str]:
-    funde = []
+def _datenschutz_muster(cfg) -> list[tuple[str, re.Pattern]]:
+    """N03-Inhaltsmuster und DATENSCHUTZ (E-Mail, IBAN, Telefon) – für melden (Funde) und das Protokoll (Schwärzen)."""
     muster = [(f"{n['id']}", m["_rx"]) for n in cfg["normen"] if n["id"].startswith("N03")
               for m in n.get("muster", []) if m["ziel"] == "inhalt"]
-    muster += [(name, re.compile(rx)) for name, rx in DATENSCHUTZ]
+    return muster + [(name, re.compile(rx)) for name, rx in DATENSCHUTZ]
+
+
+def _schwaerzen(cfg, text: str) -> str:
+    """Datenschutzmuster, Geheimnis-Inhalte und gesperrte Pfade durch [geschwärzt] ersetzen (vor dem Kürzen)."""
+    for _name, rx in [*_datenschutz_muster(cfg), *((art, rx) for rx, art in _GEHEIM_INHALT)]:
+        text = rx.sub("[geschwärzt]", text)
+    for sp in cfg["projekt"].get("pfade", {}).get("gesperrt", []):
+        if sp:
+            text = re.sub(r"[^\s'\"]*" + re.escape(sp) + r"[^\s'\"]*", "[geschwärzt]", text, flags=re.IGNORECASE)  # ganzes Pfadwort
+    return text
+
+
+def _protokoll_pfad() -> Path:
+    return Path(os.path.expanduser(os.environ.get("NORMEN_PROTOKOLL") or PROTOKOLL_STANDARD))
+
+
+def _protokoll_anhaengen(eintrag: dict) -> None:
+    """Eine JSON-Zeile mit einem einzigen write anhängen (O_APPEND: mehrere Sitzungen parallel), Datei mit Rechten 600."""
+    pfad = _protokoll_pfad()
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(pfad, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.write(fd, (json.dumps(eintrag, ensure_ascii=False) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _protokoll_eintrag(cfg, rolle: str, werkzeug: str, data: dict, tool: str, eingabe, stufe: str, entscheid: str,
+                       gruende: list[str]) -> dict:
+    """Eintrag für eine Hook-Entscheidung fragen/nein: Bash-Befehl, sonst nur der Pfad, bei mcp__* nur der Tool-Name;
+    alles geschwärzt, dann gekürzt."""
+    e = eingabe if isinstance(eingabe, dict) else {}
+    if tool.startswith("mcp__"):
+        inhalt = tool  # nur der Tool-Name, nie die Argumente
+    elif "command" in e or "cmd" in e:
+        inhalt = str(e.get("command") or e.get("cmd") or "")
+    else:
+        inhalt = str(e.get("file_path") or e.get("path") or e.get("notebook_path") or "")
+    gruende_s = [_schwaerzen(cfg, g)[:PROTOKOLL_KUERZE] for g in gruende]
+    return {"zeit": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "projekt": ROOT.name, "rolle": rolle, "werkzeug": werkzeug,
+            "tool": tool, "stufe": stufe, "entscheid": entscheid,
+            "normen": sorted({m for g in gruende for m in re.findall(r"\b[NS]\d{2}-[A-Z0-9-]+[A-Z0-9]", g)}),
+            "gruende": gruende_s, "inhalt": _schwaerzen(cfg, inhalt)[:PROTOKOLL_KUERZE],
+            "session_id": data.get("session_id"), "tool_use_id": data.get("tool_use_id"),
+            "permission_mode": data.get("permission_mode")}
+
+
+def _protokoll_marke() -> datetime | None:
+    """Marke (zuletzt ausgewertet) als ISO-Zeitstempel; fehlt → None, ohne Zeitzone → lokal; kaputt → ValueError
+    (der Aufrufer meldet ihn – nicht still „keine Marke“, sonst zählte alles als neu)."""
+    marke = _protokoll_pfad().with_suffix(".marke")
+    if not marke.is_file():
+        return None
+    dt = datetime.fromisoformat(marke.read_text(encoding="utf-8").strip())
+    return dt if dt.tzinfo is not None else dt.astimezone()
+
+
+def _protokoll_marke_setzen() -> None:
+    """Marke auf jetzt setzen (Datei anlegen/überschreiben, Rechte 600)."""
+    marke = _protokoll_pfad().with_suffix(".marke")
+    marke.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(marke, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, (datetime.now().astimezone().isoformat(timespec="seconds") + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _protokoll_zeilen() -> tuple[list[dict], int]:
+    """Alle Protokoll-Zeilen als Dicts plus Anzahl unlesbarer Zeilen; Datei fehlt → leer, 0."""
+    pfad = _protokoll_pfad()
+    if not pfad.is_file():
+        return [], 0
+    eintraege, unlesbar = [], 0
+    with open(pfad, "r", encoding="utf-8", errors="replace") as f:
+        for zeile in f:
+            zeile = zeile.strip()
+            if not zeile:
+                continue
+            try:
+                e = json.loads(zeile)
+            except json.JSONDecodeError:
+                unlesbar += 1
+                continue
+            if isinstance(e, dict):
+                eintraege.append(e)
+            else:
+                unlesbar += 1
+    return eintraege, unlesbar
+
+
+def _protokoll_zeit(e: dict) -> datetime | None:
+    """zeit-Feld als aware datetime (ohne Offset: lokal annehmen); unlesbar → None."""
+    try:
+        dt = datetime.fromisoformat(str(e.get("zeit") or ""))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else dt.astimezone()
+
+
+def cmd_hook_nach(a) -> int:
+    """v18: PostToolUse/PostToolUseFailure – Ausgang zu einem protokollierten fragen-Eintrag nachtragen.
+    Liest nur das Dateiende (letzte 64 KiB, davon die letzten 200 vollständigen Zeilen). Immer Exit 0, nie Ausgabe
+    auf stdout; Fehler als eine Zeile auf stderr."""
+    try:
+        roh = sys.stdin.read()
+        data = json.loads(roh) if roh.strip() else {}
+        if not isinstance(data, dict):
+            return 0
+        event = str(data.get("hook_event_name") or "")
+        tid = str(data.get("tool_use_id") or "")
+        if event not in ("PostToolUse", "PostToolUseFailure") or not tid:
+            return 0
+        pfad = _protokoll_pfad()
+        if not pfad.exists():  # noch kein Eintrag → nichts nachzutragen (kein Fehler bei jedem Werkzeugaufruf)
+            return 0
+        with open(pfad, "rb") as f:
+            f.seek(0, 2)
+            n = f.tell()
+            f.seek(max(0, n - 65536))
+            roh_datei = f.read()
+        zeilen = roh_datei.decode("utf-8", "replace").splitlines()
+        if n > 65536 and zeilen:
+            zeilen = zeilen[1:]  # erste, evtl. angeschnittene Zeile verwerfen
+        fragen = schon = False
+        for zeile in zeilen[-200:]:
+            try:
+                e = json.loads(zeile)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(e, dict) or e.get("tool_use_id") != tid:
+                continue
+            if e.get("entscheid") == "fragen":
+                fragen = True
+            if "ausgang" in e:
+                schon = True
+        if fragen and not schon:
+            _protokoll_anhaengen({"zeit": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "tool_use_id": tid,
+                                  "session_id": data.get("session_id"),
+                                  "ausgang": "ausgefuehrt" if event == "PostToolUse" else "fehlgeschlagen"})
+    except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Nach-Hook darf den Werkzeuglauf nie stören
+        print(f"Normen-Protokoll hook-nach nicht geschrieben ({type(e).__name__}: {e})", file=sys.stderr)
+    return 0
+
+
+def _protokoll_faellig() -> int:
+    """v18: SessionStart-Hinweis – genau eine Zeile mit Anzahl + Datum, nie Inhalte/Projekte/Gründe; Schwellen
+    PROTOKOLL_FAELLIG_TAGE (Marke bzw. ältester Eintrag mindestens so alt) und PROTOKOLL_FAELLIG_ANZAHL."""
+    eintraege, _unlesbar = _protokoll_zeilen()
+    marke = _protokoll_marke()
+    neu = []
+    for e in eintraege:
+        if "ausgang" in e:
+            continue
+        dt = _protokoll_zeit(e)
+        if dt is None or (marke is not None and dt < marke):
+            continue
+        neu.append(dt)
+    n = len(neu)
+    if n == 0:
+        return 0
+    jetzt = datetime.now().astimezone()
+    if marke is not None:
+        alt_genug = (jetzt - marke) >= timedelta(days=PROTOKOLL_FAELLIG_TAGE)
+        datum = marke.date().isoformat()
+    else:
+        aeltestes = min(neu)
+        alt_genug = (jetzt - aeltestes) >= timedelta(days=PROTOKOLL_FAELLIG_TAGE)
+        datum = aeltestes.date().isoformat()
+    if alt_genug or n >= PROTOKOLL_FAELLIG_ANZAHL:
+        print(f"Normen-Protokoll: {n} neue Einträge seit {datum} – in claude-tools auswerten (`normen.py protokoll`)")
+    return 0
+
+
+def cmd_protokoll(a) -> int:
+    """v18: Auswertung des Normen-Protokolls – Tabelle je (Norm, Projekt) seit Marke/--seit/--alle; --gelesen setzt
+    die Marke. --faellig (SessionStart-Hook): keine Tabelle, nur Anzahl + Datum ab den Schwellen."""
+    try:
+        if a.faellig:
+            return _protokoll_faellig()
+        eintraege, unlesbar = _protokoll_zeilen()
+        seit, seit_text = None, "Beginn"
+        if a.seit is not None:
+            try:
+                seit = datetime.strptime(a.seit, "%Y-%m-%d").astimezone()
+            except ValueError:
+                print(f"--seit erwartet ein Datum JJJJ-MM-TT, nicht {a.seit!r}", file=sys.stderr)
+                return 2
+            seit_text = a.seit
+        elif not a.alle:
+            marke = _protokoll_marke()
+            if marke is not None:
+                seit, seit_text = marke, marke.date().isoformat()
+        ausgaenge = {e.get("tool_use_id"): e.get("ausgang") for e in eintraege if "ausgang" in e and e.get("tool_use_id")}
+        gewaehlt = []
+        for e in eintraege:
+            if "ausgang" in e:
+                continue
+            dt = _protokoll_zeit(e)
+            if dt is None:
+                unlesbar += 1
+            elif seit is None or dt >= seit:
+                gewaehlt.append(e)
+        print(f"Normen-Protokoll: {len(gewaehlt)} Einträge seit {seit_text}")
+        if unlesbar:
+            print(f"{unlesbar} unlesbare Zeilen")
+        gruppen: dict = {}
+        gruende: Counter = Counter()
+        beispiele: dict = {}
+        for e in gewaehlt:
+            projekt = str(e.get("projekt") or "")
+            normen = [str(x) for x in (e.get("normen") or [])] or ["(ohne Norm)"]
+            for grund in e.get("gruende") or []:  # je Eintrag einmal, nicht je Norm
+                gruende[str(grund)] += 1
+            for norm in normen:
+                g = gruppen.setdefault((norm, projekt), [0, 0, 0, 0, 0])  # fragen, ausgeführt, fehlgeschlagen, kein Beleg, nein
+                if e.get("entscheid") == "nein":
+                    g[4] += 1
+                else:
+                    g[0] += 1
+                    aus = ausgaenge.get(e.get("tool_use_id"))
+                    if aus == "ausgefuehrt":
+                        g[1] += 1
+                    elif aus == "fehlgeschlagen":
+                        g[2] += 1
+                    else:
+                        g[3] += 1
+                inhalt = str(e.get("inhalt") or "")
+                if inhalt and inhalt not in beispiele.setdefault(norm, []):
+                    beispiele[norm].append(inhalt)
+        for (norm, projekt), g in sorted(gruppen.items()):
+            print(f"{norm} {projekt}: fragen {g[0]} (ausgeführt {g[1]}, fehlgeschlagen {g[2]}, kein Beleg {g[3]}), nein {g[4]}")
+        print("Häufigste Gründe:")
+        for grund, anzahl in gruende.most_common(10):
+            print(f"  {anzahl} {grund}")
+        print("Beispiele:")
+        for norm in sorted(beispiele):
+            print(f"  {norm}:")
+            for inhalt in beispiele[norm][:3]:
+                print(f"    {inhalt[:120]}")
+        if a.gelesen:
+            _protokoll_marke_setzen()
+        return 0
+    except Exception as e:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Auswertung darf den Hook-Lauf nie stören
+        print(f"Normen-Protokoll nicht ausgewertet ({type(e).__name__}: {e})", file=sys.stderr)
+        return 0 if a.faellig else 1
+
+
+def _datenschutz_funde(cfg, text: str) -> list[str]:
+    funde = []
+    muster = _datenschutz_muster(cfg)
     for i, z in enumerate(text.splitlines(), 1):
         for name, rx in muster:
             if rx.search(z):
@@ -2815,7 +3130,8 @@ def cmd_sync(a) -> int:
 def cmd_review(a) -> int:
     """Review-Läufe vorbereiten: je Gruppe und Team einen Ordner unter $TMPDIR/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/
     mit diff.patch, pflicht.txt (mistral zusätzlich bericht.md) anlegen. Der Datenschutz-Filter (gesperrt, Geheimnisse,
-    Forschungsdaten, Umbenennungen) ist die einzige Sperre vor Gemini – der Hook prüft nur die Prompt-Datei, nicht diff.patch."""
+    Forschungsdaten, Umbenennungen) ist die einzige Sperre vor Gemini – der Hook prüft nur die Prompt-Datei, nicht diff.patch.
+    v18 (Entscheidung der Inhaberin 23.11.): Forschungsdaten nur aus dem Gemini-Diff; Sperrpfade/Geheimnisse aus beiden."""
     cfg = laden()
     pf = cfg["projekt"].get("pfade", {})
 
@@ -2861,40 +3177,47 @@ def cmd_review(a) -> int:
                                 + (stand.stdout if stand.returncode == 0 else ""))
             return inhalt[pfad]
 
-        def grund(pfad: str) -> str | None:
-            """Erster Treffer ist der Grund (None = nicht gefiltert); immer ohne Groß-/Kleinschreibung (casefold)."""
+        def grund(pfad: str) -> tuple[tuple[str, ...], str] | None:
+            """(Rollen, Text) des strengsten Treffers (None = nicht gefiltert); immer ohne Groß-/Kleinschreibung
+            (casefold). Sperrpfade und Geheimnisse filtern für beide Teams und werden zuerst geprüft, Forschungsdaten
+            nur für Gemini (v18)."""
             p = pfad.casefold()
             for s in pf.get("gesperrt", []):
                 if s and s.casefold() in p:  # wie der Hook: s.casefold() in Befehl/Pfad
-                    return f"gesperrt ({s})"
+                    return BEIDE, f"gesperrt ({s})"
             if _geheim(Path(pfad).name, pf):
-                return "Geheimnis-Muster"
+                return BEIDE, "Geheimnis-Muster"
             for rx, art in _GEHEIM_INHALT:  # Review 23.11. (Gemini Nr. 7): Schlüssel/Tokens im Inhalt, wie der Prompt-Hook
                 if rx.search(diff_datei(pfad)):
-                    return f"Geheimnis-Inhalt ({art})"
+                    return BEIDE, f"Geheimnis-Inhalt ({art})"
             for e in pf.get("forschungsdaten", []):
                 if not e:
                     continue
                 if "/" in e or "*" in e:  # Pfad-Glob (Eintrag mit / oder *)
                     if fnmatch.fnmatchcase(p, e.casefold()):
-                        return f"Forschungsdaten ({e})"
+                        return NUR_GEMINI, f"Forschungsdaten ({e})"
                     praefix = e.casefold().split("*", 1)[0].rstrip("/")
                     if praefix and p.startswith(praefix + "/"):
-                        return f"Forschungsdaten ({e})"
+                        return NUR_GEMINI, f"Forschungsdaten ({e})"
                 elif e.casefold() in diff_datei(pfad).casefold():  # Textmarker im Diff-Inhalt dieser Datei
-                    return f"Forschungsdaten ({e})"
+                    return NUR_GEMINI, f"Forschungsdaten ({e})"
             return None
 
-        gefiltert: dict[str, str] = {}
+        BEIDE, NUR_GEMINI = ("mistral", "gemini"), ("gemini",)
+        # gefiltert[rolle][pfad] = Grund; je Rolle eigene Paare und eigener Blob-Abgleich (strengster Grund gewinnt:
+        # ein Paar aus Sperrpfad und Forschungsdaten fällt für beide heraus)
+        gefiltert: dict[str, dict[str, str]] = {r: {} for r in BEIDE}
         for alt, neu in paare:
-            if grund(alt) or grund(neu):
-                gefiltert[alt] = f"umbenannt nach {neu}"
-                gefiltert[neu] = f"umbenannt aus {alt}"
+            ga, gn = grund(alt), grund(neu)
+            for rolle in BEIDE:
+                if (ga and rolle in ga[0]) or (gn and rolle in gn[0]):
+                    gefiltert[rolle][alt] = f"umbenannt nach {neu}"
+                    gefiltert[rolle][neu] = f"umbenannt aus {alt}"
         for pfad in alle:
-            if pfad not in gefiltert:
-                g = grund(pfad)
-                if g:
-                    gefiltert[pfad] = g
+            g = grund(pfad)
+            for rolle in BEIDE:
+                if g and rolle in g[0] and pfad not in gefiltert[rolle]:
+                    gefiltert[rolle][pfad] = g[1]
         # Kopien, deren Quelle selbst neu im Branch ist, sieht git nicht als Kopie (Quellen nur aus der Basis):
         # gleicher Inhalt (Blob) wie eine gefilterte Datei → ebenfalls heraus (Advisor 23.11.)
         blob: dict[str, str] = {}
@@ -2902,10 +3225,11 @@ def cmd_review(a) -> int:
             if z:
                 kopf, pfad = z.split("\t", 1)
                 blob[pfad] = kopf.split()[2]
-        gefilterte_blobs = {blob[p]: p for p in gefiltert if p in blob}
-        for pfad in alle:
-            if pfad not in gefiltert and blob.get(pfad) in gefilterte_blobs:
-                gefiltert[pfad] = f"gleicher Inhalt wie {gefilterte_blobs[blob[pfad]]}"
+        for rolle in BEIDE:
+            gefilterte_blobs = {blob[p]: p for p in gefiltert[rolle] if p in blob}
+            for pfad in alle:
+                if pfad not in gefiltert[rolle] and blob.get(pfad) in gefilterte_blobs:
+                    gefiltert[rolle][pfad] = f"gleicher Inhalt wie {gefilterte_blobs[blob[pfad]]}"
 
         gruppen: list[tuple[str, list[str]]] = []
         if a.gruppe:
@@ -2922,7 +3246,7 @@ def cmd_review(a) -> int:
         zuordnung: dict[str, str] = {}
         ohne: list[str] = []
         for pfad in alle:
-            if pfad in gefiltert:
+            if pfad in gefiltert["mistral"]:  # Mistral-Filter ⊆ Gemini-Filter; Gemini lässt zusätzlich weg (s. u.)
                 continue
             for name, gl in gruppen:  # erste passende Gruppe gewinnt
                 if any(passt(pfad, g) for g in gl):
@@ -2939,8 +3263,8 @@ def cmd_review(a) -> int:
 
         print(f"Review-Ordner: {lauf}")
         for name, _gl in gruppen:
-            dateien = sorted(p for p, g in zuordnung.items() if g == name)
             for rolle, rollenname in (("mistral", "mistral-team"), ("gemini", "gemini-analyst")):
+                dateien = sorted(p for p, g in zuordnung.items() if g == name and p not in gefiltert[rolle])
                 ordner = (lauf / name / rolle).resolve()
                 ordner.mkdir(parents=True, exist_ok=True)
                 patch = git("diff", "--no-renames", f"{mb}..HEAD", "--",
@@ -2954,8 +3278,9 @@ def cmd_review(a) -> int:
                 if zeilen >= 150:
                     print("  Hinweis: ≥ 150 Diff-Zeilen – ungemessen, Gruppe teilen (--gruppe)")
         for pfad in alle:
-            if pfad in gefiltert:
-                print(f"gefiltert (mistral, gemini): {pfad} – {gefiltert[pfad]}")
+            rollen = [r for r in BEIDE if pfad in gefiltert[r]]
+            if rollen:
+                print(f"gefiltert ({', '.join(rollen)}): {pfad} – {gefiltert[rollen[-1]][pfad]}")
         for pfad in ohne:
             print(f"ohne Gruppe: {pfad}")
         print("prompt.md schreibt Claude (Write-Werkzeug); Teams starten über die Agent-Schnittstelle.")
@@ -2980,6 +3305,15 @@ def main() -> int:
     p.add_argument("--rolle", required=True)
     p.add_argument("--werkzeug", choices=["claude", "vibe", "gemini"], required=True)
     p.set_defaults(f=cmd_hook)
+    p = sub.add_parser("hook-nach", help="PostToolUse/PostToolUseFailure: Ausgang zum fragen-Eintrag nachtragen (immer Exit 0, keine Ausgabe)")
+    p.add_argument("--werkzeug", choices=["claude"], required=True)
+    p.set_defaults(f=cmd_hook_nach)
+    p = sub.add_parser("protokoll", help="Normen-Protokoll auswerten (Tabelle; --faellig für den SessionStart-Hook)")
+    p.add_argument("--alle", action="store_true")
+    p.add_argument("--seit", default=None, metavar="JJJJ-MM-TT")
+    p.add_argument("--gelesen", action="store_true")
+    p.add_argument("--faellig", action="store_true")
+    p.set_defaults(f=cmd_protokoll)
     p = sub.add_parser("stop")
     p.add_argument("--werkzeug", choices=["claude"], default="claude")
     p.set_defaults(f=cmd_stop)

@@ -1,8 +1,8 @@
 # Review-Auftrag (Vorlage)
 
 Vorher legt `python3 normen/normen.py review [--gruppe NAME=GLOB,…]` je Gruppe und Team einen Lauf-Ordner an
-(`${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/`, Pfade aufgelöst) mit `diff.patch` (gefiltert: Sperrpfade,
-Geheimnisse, Forschungsdaten), `pflicht.txt` (Pflichtsätze der Rolle) und bei Mistral `bericht.md` (zweiter Schritt).
+(`${TMPDIR}/review-runs/<zeit>-<branch>/<gruppe>/{mistral,gemini}/`, Pfade aufgelöst) mit `diff.patch` (gefiltert: Sperrpfade
+und Geheimnisse für beide Teams, Forschungsdaten nur für Gemini), `pflicht.txt` (Pflichtsätze der Rolle) und bei Mistral `bericht.md` (zweiter Schritt).
 Claude füllt die Felder aus, übernimmt `pflicht.txt` wörtlich in den Abschnitt „Pflichtsätze“ und schreibt die Datei mit dem
 Write-Werkzeug als `prompt.md` in den Rollen-Ordner. `gemini-analyst` und `mistral-team` bekommen denselben Inhalt, aber je
 Team eigene Pfade und eigene Pflichtsätze (siehe `docs/multi-ki-ablauf.md`, Abschnitt „Review“).

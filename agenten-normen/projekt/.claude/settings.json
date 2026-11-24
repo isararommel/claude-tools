@@ -16,6 +16,22 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook-nach --werkzeug claude" }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook-nach --werkzeug claude" }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -24,6 +40,12 @@
       }
     ],
     "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" protokoll --faellig" }
+        ]
+      },
       {
         "matcher": "compact",
         "hooks": [
