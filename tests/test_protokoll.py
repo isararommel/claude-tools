@@ -105,7 +105,7 @@ def test_schreibstelle(t):
     check("schwärzen: Eintrag", len(z) == vor + 1, roh)
     check("schwärzen: Token weg", token not in roh and "ghp_" not in roh, roh)
     check("schwärzen: E-Mail weg", mail not in roh, roh)
-    check("schwärzen: gesperrter Pfad weg", "geheim/" not in roh.casefold(), roh)
+    check("schwärzen: gesperrter Pfad weg", "geheim/" not in roh.casefold() and "x.txt" not in roh, roh)
     check("schwärzen: Marke", "[geschwärzt]" in roh, roh)
     lang = "echo " + "x" * 400 + " " + token + "; git push --force"
     hook(repo, prot, bash(lang, repo, "toolu_l"))
@@ -151,6 +151,16 @@ def test_schreibstelle(t):
     check("kaputte Konfiguration: gesperrt", e == "nein", r.stdout + r.stderr)
     check("kaputte Konfiguration: kein Eintrag ohne Schwärzen", len(zeilen(prot)) == vor, str(zeilen(prot)[vor:]))
     pt.write_text(alt, encoding="utf-8")
+
+    # Advisor v18: Teams lesen das Protokoll nie (weder Shell noch Lesewerkzeug)
+    for rolle, werkzeug, ereignis in (
+            ("mistral-team", "vibe", bash(f"cat {prot}", repo, "toolu_t1")),
+            ("gemini-analyst", "gemini", bash(f"cat {prot}", repo, "toolu_t2")),
+            ("mistral-team", "vibe", {"tool_name": "read_file", "tool_input": {"path": str(prot)}, "cwd": str(repo)}),
+            ("gemini-analyst", "gemini", {"tool_name": "read_file", "tool_input": {"path": str(prot)}, "cwd": str(repo)}),
+            ("mistral-team", "vibe", bash(f"grep x {prot.parent}/*.jsonl", repo, "toolu_t3"))):
+        e, r = hook(repo, prot, ereignis, rolle=rolle, werkzeug=werkzeug)
+        check(f"Team liest Protokoll nicht: {rolle} {ereignis['tool_name']}", e == "nein", r.stdout + r.stderr)
 
 
 def normen(repo, prot, *args, eingabe=""):

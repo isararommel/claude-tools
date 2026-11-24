@@ -29,7 +29,8 @@ Datenschutzzeile zu Forschungsdaten von Hand anpassen (siehe unten).
   und Datum, wenn seit der Marke ≥ 7 Tage vergangen und ≥ 1 neuer Eintrag da ist, oder ≥ 30 neue Einträge. Ausgewertet wird in
   claude-tools durch Claude selbst (nie an `gemini-analyst`, nie ins Repository, nie als Issue); Kandidaten neutralisiert in
   `PLAN.md`.
-
+- **Teams lesen das Protokoll nicht:** Für Rollen mit Auftragspflicht (mistral-team, gemini-analyst) sperrt der Hook jeden
+  Befehl bzw. Pfad, der den Ordner des Protokolls nennt (`~/.config/claude-tools/`, auch als `$HOME/…`), mit N03.
 - **`einrichten-hier.sh`:** einzelnes Skript zum Kopieren in ein neues Projekt; richtet den Ordner ein, in dem es liegt
   (ruft `einrichten.sh` aus `$CLAUDE_TOOLS` bzw. `~/Documents/Projekte/claude-tools` auf, fragt ohne `--test` nach Testbefehl
   und Sperrpfaden, bietet `git init` an).
@@ -42,8 +43,11 @@ Datenschutzzeile zu Forschungsdaten von Hand anpassen (siehe unten).
 - **`[pfade].lesbar_extern` je Teilbefehl statt ganzer Kette:** `cp <ext>/datei docs/` und
   `git branch --show-current && ls <ext>/` sperren nicht mehr. Weiter gesperrt: Schreibziel im Ordner (aufgelöst), Glieder mit
   Schreibverb, die den Ordner nennen, alle Glieder nach `cd`/`pushd` dorthin und hinter einer Pipe aus einem solchen Glied,
-  unaufgelöste Ziele, `mv` aus dem Ordner (löscht die Quelle), `rsync --remove-source-files`; Ketten mit Schleifen,
-  Bedingungen, `xargs`, `eval`, `exec`, `source` werden wie bisher als Ganzes geprüft.
+  unaufgelöste Ziele, `mv` aus dem Ordner (löscht die Quelle), `ln` und `cp -l`/`-s` (Link in den Ordner),
+  `rsync --remove-source-files`; Ketten mit Schleifen, Bedingungen, `xargs`, `eval`, `exec`, `source` oder einer Zuweisung,
+  die den Ordner nennt (`D=<ext>; git -C $D …`), werden wie bisher als Ganzes geprüft. Neu erkannt: `dd` und git-Optionen
+  mit `=` (`git --git-dir=<ext>/.git add`).
+- **Schwärzen gesperrter Pfade:** das ganze Pfadwort, nicht nur das Präfix (`geheim/kunde.txt` → `[geschwärzt]`).
 
 ### Grenzen
 - Gemessen (23.11., interaktiv): ein Hook-`ask` erreicht die Inhaberin auch im Auto-Modus; nach Freigabe folgt PostToolUse mit

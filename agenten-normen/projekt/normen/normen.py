@@ -214,6 +214,9 @@ _SCHREIB_VERB = r"(^|[;&|`(\s])(sudo\s+)?(cp|mv|rm|rmdir|touch|mkdir|ln|chmod|ch
 
 
 # Kontrollstrukturen und indirekte Ausführung: Glieder sind dort keine eigenständigen Befehle (`do cp …`, `xargs rm`).
+_ZUWEISUNG_RX = r"\s*(export\s+|local\s+|readonly\s+|declare\s+(-\w+\s+)*)?[A-Za-z_]\w*="
+_NUR_QUELLE = {"cp", "install", "rsync"}  # Ordner nur als Quelle, wenn das aufgelöste Ziel außerhalb liegt
+_CP_LINK_RX = r"(^|\s)(-[a-zA-Z]*[ls][a-zA-Z]*|--link|--symbolic-link)(\s|$)"
 _KETTE_STRENG = r"(^|[\s;&|(`{!])(for|while|until|if|case|select|function|do|then|else|elif|eval|exec|xargs|parallel|source)(\s|$)"
 
 
@@ -242,15 +245,19 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
             continue
         if None in ziele:  # unaufgelöstes Ziel (Variable aus Schleife, $(…)) in einer Kette, die den Ordner nennt
             return q
-        if re.search(_KETTE_STRENG, cmd):  # Schleifen, Bedingungen, indirekte Ausführung: ganze Kette wie vor v18
+        teile = _segmente_pos(cmd)
+        # Schleifen, Bedingungen, indirekte Ausführung – oder der Ordner steht in einer Zuweisung (`D=<ordner>; git -C $D …`,
+        # Advisor v18): ganze Kette wie vor v18
+        if re.search(_KETTE_STRENG, cmd) or any(
+                re.match(_ZUWEISUNG_RX, seg) and any(f.casefold() in seg.casefold() for f in formen) for _, seg in teile):
             if re.search(_SCHREIB_VERB, cmd):
                 return q
             continue
         # v18: je Teilbefehl statt ganzer Kette. Betroffen sind Glieder, die den Ordner nennen, alle Glieder nach einem
         # Glied mit cd/pushd in den Ordner, alle Glieder hinter einer Pipe aus einem betroffenen Glied (`ls q | xargs rm`)
-        # und im Ordner als Arbeitsordner alle. Darin sperrt jedes Schreibverb – außer cp/ln/install/rsync, deren
-        # (oben aufgelöstes) Ziel außerhalb liegt: dann ist der Ordner nur Quelle. mv bleibt streng (löscht die Quelle).
-        teile = _segmente_pos(cmd)
+        # und im Ordner als Arbeitsordner alle. Darin sperrt jedes Schreibverb – außer cp/install/rsync, deren (oben
+        # aufgelöstes) Ziel außerhalb liegt: dann ist der Ordner nur Quelle. Streng bleiben mv (löscht die Quelle), ln und
+        # cp -l/-s (Link in den Ordner: späteres Schreiben über den Link sähe der Hook nicht), rsync --remove-source-files.
         betroffen = im_ordner
         nach_cd = im_ordner
         for i, (start, seg) in enumerate(teile):
@@ -260,8 +267,8 @@ def _bash_schreibt_extern(cmd: str, cwd: str, ordner: list[Path]) -> Path | None
                 nach_cd = True
             if nennt_seg or nach_cd or betroffen:
                 verben = [m.group(3).split()[0] for m in re.finditer(_SCHREIB_VERB, seg)]
-                nur_quelle = (verben and set(verben) <= _LETZTES_ARGUMENT and "--remove-source-files" not in seg
-                              and not nach_cd)
+                nur_quelle = (verben and set(verben) <= _NUR_QUELLE and "--remove-source-files" not in seg
+                              and not ("cp" in verben and re.search(_CP_LINK_RX, seg)) and not nach_cd)
                 if verben and not nur_quelle:
                     return q
                 betroffen = "|" in trenner and "||" not in trenner
@@ -743,6 +750,15 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
     _sammeln(eingabe, {"file_path", "path", "absolute_path", "filePath", "notebook_path", "paths", "target_file", "file"}, pfade)
     art = _art(tool, befehle)
     gruende: list[tuple[str, str]] = []
+    if rinfo.get("auftrag_pflicht"):  # v18: Teams lesen das Normen-Protokoll nie (Befehle und Projekte aller Repositorys)
+        p_ordner = _protokoll_pfad().parent
+        formen = {str(p_ordner), str(_echt(p_ordner))}
+        if str(p_ordner).startswith(str(Path.home()) + "/"):
+            rest = str(p_ordner)[len(str(Path.home())):]
+            formen |= {"~" + rest, "$HOME" + rest, "${HOME}" + rest}
+        flach = re.sub(r"[\"'\\]", "", "\n".join(befehle + pfade)).casefold()
+        if any(f.casefold() in flach for f in formen):
+            gruende.append(("nein", f"N03-KEINE-GEHEIMNISSE: Ordner des Normen-Protokolls ({p_ordner}) ist für Teams tabu"))
 
     def pruefe(faehigkeit: str, text: str):
         e = darf(cfg, rolle, faehigkeit)
@@ -2509,7 +2525,7 @@ def _schwaerzen(cfg, text: str) -> str:
         text = rx.sub("[geschwärzt]", text)
     for sp in cfg["projekt"].get("pfade", {}).get("gesperrt", []):
         if sp:
-            text = re.sub(re.escape(sp), "[geschwärzt]", text, flags=re.IGNORECASE)
+            text = re.sub(r"[^\s'\"]*" + re.escape(sp) + r"[^\s'\"]*", "[geschwärzt]", text, flags=re.IGNORECASE)  # ganzes Pfadwort
     return text
 
 

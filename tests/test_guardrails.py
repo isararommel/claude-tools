@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("NORMEN_PROTOKOLL", os.path.join(tempfile.gettempdir(), "normen-test-protokoll.jsonl"))  # v18: Hooks der Tests nie ins echte Protokoll
+os.environ.setdefault("NORMEN_PROTOKOLL", os.path.join(tempfile.gettempdir(), "normen-test-protokoll/protokoll.jsonl"))  # v18: Hooks der Tests nie ins echte Protokoll
 VORLAGE = ROOT / "agenten-normen"
 OK = FAIL = 0
 
@@ -316,6 +316,11 @@ with tempfile.TemporaryDirectory() as t:
                    f"for f in {extern}/quelle/*; do cp docs/a $f; done", f"cd {extern} && cp a.md /tmp/b.md && rm a.md",
                    f"cp {extern}/quelle/a.md docs/ && rm {extern}/quelle/a.md", f"cd {extern}; cp a.md b.md",
                    f"bash -c 'cp {extern}/quelle/a.md docs/; rm {extern}/quelle/a.md'",
+                   # Advisor v18: ln (Link in den Ordner), cp -l/-s, Ordner nur über Variable genannt
+                   f"ln -s {extern} docs/l && touch docs/l/x", f"ln {extern}/quelle/a.md docs/b",
+                   f"cp -l {extern}/quelle/a.md docs/b", f"cp -s {extern}/quelle/a.md docs/b",
+                   f"D={extern}; cd $D && git commit -m x", f"D={extern}; git -C $D commit -m x",
+                   f"export D={extern} && cd \"$D\" && git add -A",
                    # Review v18 (Mistral Nr. 3/4): git-Langoptionen mit =, zerlegtes Quoting
                    f"git --git-dir={extern}/.git add f", f"git --git-dir={extern}/.git --work-tree={extern} commit -m x",
                    f"touch '{extern}'/x"]:

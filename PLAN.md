@@ -4,8 +4,9 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 23.11.2026 (v17 auf main nach Merge von Paket **R2** (Review-Tor, `normen.py review`, Team-Sperre für normen.py);
-nächstes Paket: **P** (Normen-Protokoll, v18); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
+*Stand: 24.11.2026 (v18 auf main nach Merge von Paket **P** (Normen-Protokoll, Forschungsdaten in Mistral-Reviews,
+`lesbar_extern` je Teilbefehl, `einrichten-hier.sh`); zuerst: erste Protokoll-Auswertung (siehe P); nächstes Paket: **VL**
+(eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
@@ -13,7 +14,7 @@ wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) au
 | Datei | Wofür |
 |---|---|
 | [KONZEPT.md](KONZEPT.md) | Ziel und Aufbau von claude-tools |
-| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v15; Einzelheiten aller früheren Pakete stehen dort) |
+| [CHANGELOG.md](CHANGELOG.md) | Normen-Versionen (aktuell v18; Einzelheiten aller früheren Pakete stehen dort) |
 | [agenten-normen/](agenten-normen/LIES-MICH.md) | Quelle der Normen, Hooks, normen.py |
 | [multi-ki/multi-ki-ablauf.md](multi-ki/multi-ki-ablauf.md) | Ablauf mit mistral-team / gemini-analyst |
 | [NEUES-REPOSITORY.md](NEUES-REPOSITORY.md) | Neues Projekt einrichten |
@@ -394,7 +395,7 @@ R2 → P von der Inhaberin am 23.11. bestätigt** – im Bau nur noch Advisor-Pr
 - Tests in `tests/test_v17.py`: 400 Zeilen Markdown → kein Hinweis; 160 Zeilen `.py` → Hinweis; 3 Zeilen in `kritisch` →
   Hinweis; `--klein` ohne Grund → Fehler.
 
-### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(nächstes Paket; Wunsch der Inhaberin 23.11.)*
+### P. Normen-Protokoll: Rückfragen und Sperren sammeln, regelmäßig auswerten (Normen v18) *(✅ erledigt 24.11., Branch `paket-p-protokoll`)*
 
 **Schritt 0 (Entscheidung der Inhaberin 23.11., mit v18 ausliefern):** „Forschungsdaten dürfen an Mistral“ – bei Reviews
 filtert `normen.py review` Forschungsdaten (Pfad-Globs und Textmarker, samt Kopien/Umbenennungen/gleichem Blob) **nur noch
@@ -491,10 +492,15 @@ standardmäßig die Rückfragen. Eigenes Paket, getrennt von R2 (kleiner, eigene
   Nachtrag: **Alle drei** Rückfragen kamen bei der Inhaberin an (sie hat zu schnell geklickt, alle freigegeben) – ein Hook-`ask`
   erreicht sie also auch im Auto-Modus; `fragen` heißt damit immer „die Inhaberin gefragt“. Belegt: freigegebenes `ask` → PostToolUse mit gleicher
   `tool_use_id`. Ungemessen (Grenze im CHANGELOG): Ablehnung (erwartet: kein Post → „kein Beleg“).
-- Offen danach: Spezifikation an mistral-team für `hook-nach`, `protokoll [--alle|--seit|--gelesen|--faellig]`,
-  SessionStart-Eintrag (Advisor-Vorgaben: Dateiende per `seek` lesen, immer Exit 0 ohne Ausgabe, Hinweis nur Anzahl +
-  Datum); `NORMEN_UNTERBEFEHLE`/`TEAM_NORMEN_ERLAUBT`; Doku (CHANGELOG v18, Ablauf „Review“, `review-auftrag.md`,
-  CLAUDE.md-Zeile zu Forschungsdaten an Mistral, LIES-MICH Zeile 69), Version 18, Review, Merge.
+- ✅ 24.11.: `hook-nach`, `protokoll` (mistral-team, zweiter Lauf), Hook-Einträge, Version 18, Doku, `einrichten-hier.sh`,
+  Review (Mistral, Gemini unvollständig, Advisor) – Bericht `docs/reviews/2026-11-24-paket-p-protokoll.md`, Merge.
+- **Lehren:** Vibe-Spezifikationen mit großen Testdaten: „Tests nur lesen, nicht nachbauen“ (erster Lauf hing in einer
+  Simulation); Vibes Smart-Approve verweigert Änderungen an `.claude/settings.json` (auch der Vorlage) → solche Einträge
+  setzt Claude; agy schafft 410 Diff-Zeilen + Codebereiche nicht in 9 min → Doku-Gruppe teilen; Testdateien direkt starten
+  schrieb ins echte Protokoll (behoben: jede Testdatei setzt `NORMEN_PROTOKOLL`).
+- **Erste Auswertung offen:** Im echten Protokoll stehen ≈ 245 Einträge (davon ≈ 235 Testeinträge vom 24.11., Entscheidung
+  der Inhaberin: stehen lassen) ohne Marke → `--faellig` meldet sich bei jedem Sitzungsstart, bis einmal
+  `normen.py protokoll --gelesen` läuft (in claude-tools, Claude wertet aus).
 
 ### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach P, vor DT)*
 
