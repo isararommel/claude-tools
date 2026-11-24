@@ -49,7 +49,10 @@ Datenschutzzeile zu Forschungsdaten von Hand anpassen (siehe unten).
 - Gemessen (23.11., interaktiv): ein Hook-`ask` erreicht die Inhaberin auch im Auto-Modus; nach Freigabe folgt PostToolUse mit
   gleicher `tool_use_id`. **Ungemessen:** Ablehnung – erwartet kein Post-Ereignis, die Auswertung zeigt dann „kein Beleg“
   (abgelehnt, abgebrochen oder Sitzung beendet; „abgelehnt“ wird nicht behauptet).
-- Ein `fragen`-Eintrag, auf den mehr als 200 Protokollzeilen folgen, bevor das Werkzeug fertig ist, bekommt keinen Ausgang.
+- Ein `fragen`-Eintrag, auf den mehr als 200 Protokollzeilen oder mehr als 64 KiB folgen, bevor das Werkzeug fertig ist,
+  bekommt keinen Ausgang.
+- Geschwärzt wird nur, was ein Muster trifft (Token-Formen, `token = "…"`, E-Mail, IBAN, Telefon, gesperrte Pfade); ein
+  Passwort in anderer Form (z. B. `-pGeheim`) bleibt sichtbar. Das Protokoll ist deshalb privat (Rechte 600, außerhalb der Repos).
 - Keine Rotation des Protokolls.
 
 ---

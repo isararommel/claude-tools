@@ -224,6 +224,22 @@ def test_hook_nach(t):
                          ("kaputtes JSON", prot, "{kein json"), ("Ordner", t / "nach", '{"tool_use_id": "toolu_a"}')):
         r = normen(repo, p, "hook-nach", "--werkzeug", "claude", eingabe=ein)
         check(f"hook-nach {name}: Exit 0, keine Ausgabe", r.returncode == 0 and r.stdout == "", r.stdout + r.stderr)
+    # Review v18 (Gemini Nr. 1): noch kein Protokoll → auch keine Fehlermeldung (lief sonst nach jedem Werkzeugaufruf)
+    r = normen(repo, t / "nach" / "gibt-es-nicht.jsonl", "hook-nach", "--werkzeug", "claude",
+               eingabe=json.dumps({"hook_event_name": "PostToolUse", "tool_use_id": "toolu_x", "session_id": "s-1"}))
+    check("hook-nach ohne Protokoll: still", r.returncode == 0 and r.stdout == "" and r.stderr == "", r.stdout + r.stderr)
+    # Review v18 (Gemini Nr. 2): mcp-Werkzeug → inhalt ist der Tool-Name, nie die Argumente
+    pt = repo / "normen" / "projekt.toml"
+    alt = pt.read_text(encoding="utf-8")
+    pt.write_text(alt.replace("[mcp]\n", "[mcp]\nnein = [\"mcp__*__loeschen\"]\n", 1).replace("\nnein = []\n", "\n", 1),
+                  encoding="utf-8")
+    e, _ = hook(repo, prot, {"tool_name": "mcp__server__loeschen", "tool_input": {"id": "ARGUMENT-GEHEIM"},
+                             "cwd": str(repo), "tool_use_id": "toolu_m"})
+    pt.write_text(alt, encoding="utf-8")
+    z = zeilen(prot)
+    check("mcp: gesperrt", e == "nein")
+    check("mcp: inhalt = Tool-Name", z and z[-1].get("inhalt") == "mcp__server__loeschen"
+          and "ARGUMENT-GEHEIM" not in json.dumps(z[-1]), str(z[-1:]))
 
 
 def test_auswertung(t):

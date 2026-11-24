@@ -2534,7 +2534,7 @@ def _protokoll_eintrag(cfg, rolle: str, werkzeug: str, data: dict, tool: str, ei
     alles geschwärzt, dann gekürzt."""
     e = eingabe if isinstance(eingabe, dict) else {}
     if tool.startswith("mcp__"):
-        inhalt = ""
+        inhalt = tool  # nur der Tool-Name, nie die Argumente
     elif "command" in e or "cmd" in e:
         inhalt = str(e.get("command") or e.get("cmd") or "")
     else:
@@ -2615,6 +2615,8 @@ def cmd_hook_nach(a) -> int:
         if event not in ("PostToolUse", "PostToolUseFailure") or not tid:
             return 0
         pfad = _protokoll_pfad()
+        if not pfad.exists():  # noch kein Eintrag → nichts nachzutragen (kein Fehler bei jedem Werkzeugaufruf)
+            return 0
         with open(pfad, "rb") as f:
             f.seek(0, 2)
             n = f.tell()
