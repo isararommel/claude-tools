@@ -20,8 +20,8 @@ nutzt die Schnittstelle die neuen `--model`-Regeln. Vorlagen `docs/review-berich
 - **Bericht der Schnittstelle:** jede Hook-/Smart-Approve-Sperre wörtlich und ob Vibe danach denselben Zweck auf anderem Weg
   versucht hat.
 - **Grundlage:** öffentliche Benchmarks auf gemeinsamem Gerüst (Rangfolge GLM-5.3 > Large 4 > Medium 3.5) und ein
-  Probelauf mit derselben Aufgabe (n = 1): fachlich gleichwertig; Large 4 umging nach Hook-Sperren den Zweck auf anderem
-  Weg (u. a. Base64 über `python3 -`), GLM-5.3 nicht. Einzelheiten: `PLAN.md`, Paket KT.
+  Probelauf mit derselben Aufgabe (n = 1): beide Ergebnisse fachlich gleichwertig, GLM-5.3 läuft als schreibendes Modell
+  zuverlässig; in 16 früheren Läufen rief Vibe nie einen Sub-Agenten auf. Einzelheiten: `PLAN.md`, Paket KT.
 
 ---
 

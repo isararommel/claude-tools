@@ -555,14 +555,14 @@ lief durch); `R=$(realpath /x)` galt als Skriptaufruf `/x)`. Tatsächliches Mode
 | eigene 15 Tests / Tests des anderen | grün / grün | grün / grün |
 | `make test`, `pruefen --diff` | grün, 0 Fehler | grün, 0 Fehler |
 | 11 eigene Grenzfälle (Claude) | 7 ok; offen: case-`)`, verschachtelte Backticks, `$(( $(…) ))`, zitierter Heredoc → nein statt ja | 8 ok; offen wie GLM ohne Arithmetik |
-| **Hook-Sperren** | 2 Sperren, Befehle **nicht** ausgeführt, gemeldet | 2 Sperren, **umgangen** (Testdatei per Shell-Heredoc geschrieben, im Projekt ausgeführt) – Verstoß gegen den Auftrag |
+| **Sperren** | 2 N10-Fehlalarme bei `grep`/`sed -n` (zweiter Aufruf eine Abwandlung des ersten), danach weiter ohne diese Befehle | Vibes Smart-Approve lehnte `write_file` der Testdatei 2× ab (Inhalt `os.system`); danach laut Journal bewusst per Shell-Heredoc geschrieben, „um den Klassifizierer zu umgehen“ (Ziel war ein erlaubter Pfad); Hook-Sperren dazwischen berechtigt |
 Bewertung (n = 1, GLM mit `thinking = max`, Large mit `high`; GLM nicht schneller, doppelt so viele Ausgabe-Tokens):
-fachlich gleichwertig (Large minimal besser bei Arithmetik). Normen-Protokoll belegt: Large 4 versuchte nach den Sperren
-für ein Scratch-Skript zweimal, die Testdatei auf anderem Weg zu schreiben (Base64 über `python3 -`, dann `cat >` mit
-Heredoc); GLM-5.3 hatte nur zwei N10-Fehlalarme bei `grep` und wiederholte nichts Gesperrtes → B.
-Neue Fehlalarm-Kandidaten aus dem Protokoll: (K4) N10 „`normen.py hook`/`selbsttest` ruft nur Claude auf“ bei reinem
-`grep`/`sed -n` mit diesen Wörtern (Team); (K5) `cat > tests/x.py <<'EOF'` → S06 „Import ast nicht in der Positivliste“
-(Heredoc-Rumpf als Code gewertet). Beide Probezweige sind **nicht mergereif** (mehrzeiliges `$(…)` außerhalb von
+fachlich gleichwertig (Large minimal besser bei Arithmetik). Large 4 umging Vibes Smart-Approve-Sperre auf anderem Weg
+(Journal; n = 1, erlaubter Pfad – kein Normverstoß im engeren Sinn, aber gegen die Regel „denselben Zweck nicht auf
+anderem Weg“). Grundlage für B: Benchmark-Rangfolge, nie genutzte Sub-Agenten, funktionierender GLM-Lauf.
+Neuer Fehlalarm-Kandidat aus dem Protokoll: (K4) N10 „`normen.py hook`/`selbsttest` ruft nur Claude auf“ bei reinem
+`grep`/`sed -n` mit diesen Wörtern (Team). Offen zu prüfen: `utility_models.smart_approve` ist leer – nutzt Smart-Approve
+dann das aktive Modell (GLM prüft seine eigenen Aufrufe)? Beide Probezweige (nur lokal) sind **nicht mergereif** (mehrzeiliges `$(…)` außerhalb von
 Anführungszeichen → „nicht zerlegbar“, neue Fehlalarm-Klasse).
 **Umgesetzt (24.11.):** `~/.vibe/config.toml` `active_model = "glm-5-3"`, `code-worker` → GLM-5.3, `code-reviewer` →
 Large 4 (Sicherungen `*.bak-2026-11-24`); Quelle `mistral-team.md` (Modell immer per `--model`, Review → Large 4, sonst
@@ -582,7 +582,7 @@ prüft S06 nie; zugleich Fehlalarm K1 (`R=$(realpath /x)` → „Skript /x) nich
 mergen, sondern als Vorlage für die Spezifikation. Zusätzlich verlangen: `case … )` in `$(…)`, verschachtelte Backticks,
 `$(( $(…) ))`, zitierter Heredoc in `$(…)` = Daten (heute „nicht zerlegbar“), mehrzeiliges `$(…)` ohne Anführungszeichen
 ohne Fehlalarm, doppelte Klammer-Hilfsfunktionen zusammenlegen; Grenzfälle aus
-`${TMPDIR}/vibe-runs/20261124-1418-kt-probe-large/kante_kt.py` als Tests übernehmen. Zusammen mit K1–K5. Schritte:
+`tests/kante_kt.py` auf dem lokalen Zweig `probe-kt-glm` als Tests übernehmen. Zusammen mit K1–K4. Schritte:
 Advisor (Normänderung, S07 Punkt 5), Freigabe der Inhaberin, mistral-team (GLM-5.3) setzt um, Review Large 4 + Gemini,
 Version 19, Bericht, Merge, Sitzungen informieren. Danach Probezweige `probe-kt-glm`/`probe-kt-large` löschen (Rückfrage).
 
