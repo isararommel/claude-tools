@@ -30,6 +30,10 @@ Datenschutzzeile zu Forschungsdaten von Hand anpassen (siehe unten).
   claude-tools durch Claude selbst (nie an `gemini-analyst`, nie ins Repository, nie als Issue); Kandidaten neutralisiert in
   `PLAN.md`.
 
+- **`einrichten-hier.sh`:** einzelnes Skript zum Kopieren in ein neues Projekt; richtet den Ordner ein, in dem es liegt
+  (ruft `einrichten.sh` aus `$CLAUDE_TOOLS` bzw. `~/Documents/Projekte/claude-tools` auf, fragt ohne `--test` nach Testbefehl
+  und Sperrpfaden, bietet `git init` an).
+
 ### Geändert
 - **`normen.py review`: Forschungsdaten nur noch aus dem Gemini-Diff** (Entscheidung der Inhaberin 23.11.). Sperrpfade und
   Geheimnisse bleiben für beide Teams gefiltert; der strengste Grund gewinnt, auch über Umbenennungspaare und den Blob-Abgleich
