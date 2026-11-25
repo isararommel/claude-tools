@@ -4,6 +4,63 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v19 – Befehlsersetzungen in der S06-Prüfung, Fehlalarme K1/K3/K4 – 2026-11-25
+
+**Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (nur `normen.py` und `normen.toml`; kein neuer Normtext,
+keine Änderung an Hooks oder Einstellungen).
+
+### Behoben (Lücke)
+- **Befehle in Ersetzungen und Gruppen werden geprüft (S06):** `$(…)`, Backticks (auch verschachtelt, wie in der Shell
+  entschärft), Prozess-Ersetzungen `<(…)`/`>(…)`, zsh `=(…)`, Subshells `( … )` und Befehle hinter `case`-Mustern liefen
+  bisher ungeprüft (`echo $(python3 /außen/boese.py)` → erlaubt). Neu zerlegt `_ersetzungen` (Zeichen-Scanner mit eigenem
+  Zustand je Ebene: Anführungszeichen, `$'…'`, Escapes, Heredocs, `case`, `$((…))` nur als Arithmetik bei direkt folgendem
+  `))`) den **ganzen Befehl** vor der Zerlegung in Teilbefehle und vor dem Entfernen von Text-/Heredoc-Daten; `_s06_text`
+  prüft jede Ebene rekursiv mit Basisordner und Zuweisungen von unmittelbar vor dem Teilbefehl (Änderungen innen wirken
+  nicht nach außen), ab der vierten Ebene `fragen`. Damit sind auch geprüft: `$(…)` in einer Commit-Nachricht
+  (`-m "Text $(…)"`) und im Rumpf eines unzitierten Heredocs (`cat > f <<EOF`), `X=$(agy -p "$(cat P)")` (Prompt-Prüfung G5
+  sieht den Originaltext). Zitierte Heredocs bleiben Daten; ein `cat`-Heredoc innerhalb einer Ersetzung ist Daten, solange
+  er nicht in eine Pipe weitergibt. Nicht zerlegbar (unbalanciert, offenes Zitat) und Hunderte Ebenen → `fragen`.
+  `time ( … )` und `coproc ( … )` gelten als Subshell.
+- `_skript_im_befehl` trennt den Text der Ebene (Pipe davor, Heredoc-Rumpf) vom ganzen Befehl („im selben Befehl geschrieben“).
+
+### Behoben (Fehlalarme aus dem Normen-Protokoll)
+- **K1:** `R=$(realpath "$RUN")`, `D=$(dirname …)`, `` R=`…` `` galten als Skriptaufruf `…)` („nicht gefunden“) → erlaubt.
+- **K3:** `for f in tests/test_*.py; do python3 "$f"; done` → je Wert geprüft statt „unaufgelöste Variable“. Nur wenn die
+  Variable allein von dieser Schleife belegt wird, die Wörter schlicht sind (siehe Grenzen), vor der Schleife nur `cd` oder
+  Zuweisungen stehen, der Befehl nichts außer `/dev/…` schreibt (der Glob gilt zur Hook-Zeit) und höchstens 50 Werte
+  entstehen; sonst wie bisher `fragen`.
+- **K4:** Teams: reines Lesen auf `normen.py` (`grep`, `egrep`, `fgrep`, `head`, `tail`, `cat`, `wc`, `ls`, `cd`,
+  `sed -n 'N,Mp'`/`'$p'`/`'/Muster/p'`, ohne Präfixe, Umleitungen außer `/dev/null`, Heredocs oder Ersetzungen) löst den
+  N10-Rückfall nicht mehr aus (bis v18 Grenze „`grep merge normen/normen.py` sperrt auch“). `rg` (`--pre`), `xargs`, `sh`,
+  `awk`, `find`, `sed -i`/`e`/`w` bleiben im Rückfall.
+- **K2** (`S=<pfad>; bash "$S/x.sh"`) ließ sich nicht nachstellen; Regressionstests ergänzt.
+
+### Tests
+- Neu `tests/test_ersetzung.py` (107 Fälle, vorher 41 von 79 rot; Abnahme vom Orchestrator, Review-Fälle ergänzt); `tests/test_review_tor.py`:
+  `grep -n merge normen/normen.py` für Teams jetzt `ja` (K4). Vergleich alter gegen neuen Hook über 1500 echte Befehle:
+  nur erwartete Änderungen (geschlossene Lücke, K1).
+
+### Grenzen
+- Kommentare erkennt der Zerleger nur bei der Ende-Suche einer Ersetzung oder Subshell (`#` nach Leerraum, `;`, `&`, `|`
+  oder Zeilenanfang, nicht nach `\`-Zeilenfortsetzung): eine `)` darin schließt nichts, `$(…)`, Backticks und `<(…)` darin
+  werden trotzdem geprüft; das Innere prüft S06 danach als eigene Ebene vollständig. Oben und in case-Zweigen gibt es keinen
+  Kommentar-Modus. Ein case-Muster über mehrere Zeilen gilt als nicht zerlegbar (`fragen`).
+- Mehr als 12 verschachtelte `$(`/`$((` → `fragen` („zu tief verschachtelt“): eine gescheiterte Arithmetik-Probe durchläuft
+  den Inhalt zweimal, die Laufzeit verdoppelt sich je Ebene (gemessen: 16 Ebenen 0,7 s).
+- K4 (`_nur_lesen`) nur ohne unzitierte Klammern, `$` oder Backticks (zsh-Glob-Qualifier `*(e:'…':)` führt Code aus).
+- Älter als v19, nicht behoben: Funktionsdefinitionen `f() { …; }` und anonyme zsh-Funktionen `() { … }` prüft S06 nicht
+  als Befehle; Schreiben eines Teams
+  innerhalb von `"$(…)"` (Umleitung in Anführungszeichen) sieht die N06-Auftragsprüfung nicht (`pruefen --diff` nach dem Lauf
+  findet Änderungen im Projekt).
+- Schreiben über `tar -x`, `git checkout`, `curl -o`, `unzip` u. Ä. sieht die Prüfung „im selben Befehl geschrieben“ nicht
+  (älter als v19). K3 gilt deshalb nur auf oberster Ebene und nur, wenn vor der Schleife lediglich `cd` oder Zuweisungen
+  stehen; Wortlisten nur aus schlichten Wörtern (keine Shell-Klammerausdrücke `[…]`, kein `**`, keine zsh-Muster), Werte
+  ohne Leerraum oder Glob-Zeichen.
+- Arithmetik `$((…))` wird als Ersetzung herausgelöst und ihr Inhalt wie ein Befehl geprüft (nur Fehlalarm-Richtung).
+- Array-Zuweisung `a=(…)` innerhalb von `$(…)` beendet die Ersetzung zu früh; der Rest wird außen geprüft (sichere Richtung).
+- Älter als v19, nicht behoben: Der Hook braucht bei manchen sehr langen Befehlen über 60 s; ein überlanges Wort führt zu
+  `OSError: File name too long` in der N03-Prüfung (Hook sperrt, fail-closed).
+
 ## Multi-KI: Coding-Team neu (Paket KT, ohne neue Normen-Version) – 2026-11-24
 
 **Aktualisieren nötig:** `multi-ki/benutzer/agents/mistral-team.md` nach `~/.claude/agents/` kopieren (vorher sichern;

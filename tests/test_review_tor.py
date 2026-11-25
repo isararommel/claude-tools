@@ -272,11 +272,15 @@ def test_merge_cli(t):
                    "timeout 60 python3 normen/normen.py auftrag --ende",
                    "echo auftrag --ende | xargs python3 normen/normen.py",
                    "python3 -m cProfile normen/normen.py auftrag --ende",
-                   "python3 -c \"import sys; sys.argv=['n','auftrag','--ende']; from normen import normen; normen.main()\"",
-                   # Preis der Wortprüfung (Grenze im CHANGELOG): Lesen mit einem Unterbefehl als Suchwort
-                   "grep -n merge normen/normen.py"):
+                   "python3 -c \"import sys; sys.argv=['n','auftrag','--ende']; from normen import normen; normen.main()\""):
         check(f"hook: vibe `{befehl}` nein", hook(repo, "mistral-team", "vibe", V(befehl)) == "nein")
         check(f"hook: agy `{befehl}` nein", hook(repo, "gemini-analyst", "gemini", G(befehl)) == "nein")
+    # v19 (S06-ERS, K4): reines Lesen mit einem Unterbefehl als Suchwort ist kein Aufruf mehr (bis v18 Grenze „sperrt auch“);
+    # Negativfälle (xargs, | sh, sed e/w, rg --pre, $(…)) in tests/test_ersetzung.py
+    check("hook: vibe `grep -n merge normen/normen.py` ja (K4)",
+          hook(repo, "mistral-team", "vibe", V("grep -n merge normen/normen.py")) == "ja")
+    check("hook: agy `grep -n merge normen/normen.py` ja (K4)",
+          hook(repo, "gemini-analyst", "gemini", G("grep -n merge normen/normen.py")) == "ja")
     (repo / "tests").mkdir(exist_ok=True)
     (repo / "tests" / "test_normen.py").write_text("print('ok')\n")  # sonst sperrt S06 („Skript nicht gefunden“)
     hilfe = sh(sys.executable, "normen/normen.py", "-h", cwd=repo).stdout
