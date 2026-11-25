@@ -4,9 +4,9 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 25.11.2026 (v18 auf main; **S06-ERS / v19** auf Branch `paket-s06-ers` fertig, Review-Bericht `Mergereif: ja`,
-Kopie eingespielt, zwei Advisor-Prüfungen, Historie auf Wunsch zu einem Commit zusammengefasst; offen: Merge, Sitzungen informieren);
-danach **HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
+*Stand: 25.11.2026 (**v19 auf main** nach Merge von PR #49 (S06-ERS: Befehlsersetzungen in S06, Fehlalarme K1/K3/K4;
+Historie zusammengefasst, Probezweige gelöscht, Sitzungen informiert); nächstes Paket auf Branch `paket-ht`:
+**HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
 (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
@@ -596,7 +596,7 @@ Projekt mit `[werkzeuge].vertraut` bleibt es ja – Testfall ergänzt), 5× frag
 K2 nicht im Protokoll, nicht nachstellbar → Regressionstests. **Befunde älter als v19 (beide Fassungen, späteres Paket):**
 (a) Hook braucht bei manchen langen Befehlen (`make build …; grep …; T=$(mktemp …)`) > 60 s; (b) sehr langes Wort (Heredoc-
 Text) → `OSError: File name too long` in der N03-Wortschleife (`Path.exists()`) → Hook sperrt (fail-closed).
-**Stand 25.11. abends:** Lauf 2 (K3/K4, GLM-5.3, 53 Schritte, finished) umgesetzt; `test_review_tor.py` K4-Fall auf ja
+✅ **Gemergt 25.11. (PR #49, main dbd3801).** **Stand 25.11. abends:** Lauf 2 (K3/K4, GLM-5.3, 53 Schritte, finished) umgesetzt; `test_review_tor.py` K4-Fall auf ja
 (bewusste Lockerung); Makefile, Version 19, CHANGELOG. Eigene Korrekturen: zsh-`**`, Werte mit Leerraum/Glob-Zeichen.
 Review: Large 4 in zwei Teilen (A Zerleger, B Prüflogik) – 5 Befunde bestätigt und behoben (Kommentar-`)`, `time`/`coproc (…)`,
 RecursionError, K3 nur Ebene 0 nach `cd`/Zuweisung, nur schlichte Wörter); Gemini zweimal abgebrochen (Timeout, auto-denied).
