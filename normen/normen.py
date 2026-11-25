@@ -20,6 +20,7 @@ Regelwerk: normen.toml · Rollen: rollen.toml · Projektwerte: projekt.toml (all
 import argparse
 import ast
 import fnmatch
+import glob
 import hashlib
 import importlib.machinery
 import json
@@ -35,6 +36,7 @@ import tomllib
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 
 def _echt(pfad) -> Path:
@@ -351,14 +353,26 @@ def _ist_operator(token: str) -> bool:
 _UNSICHER = "$__NORMEN_UNSICHER__"  # Platzhalter: Wert nicht sicher bekannt – bleibt unaufgelöst (nie in der Umgebung)
 
 
-def _unsichere_namen(cmd: str) -> set[str]:
-    """Variablen, deren Wert der Hook nicht sicher kennt: mehr als eine Zuweisung im ganzen Befehl (auch in if/for/read/local,
-    die der Teilbefehl-Zähler nicht als Zuweisung sieht)."""
+def _zuweisungs_zaehler(cmd: str) -> Counter[str]:
+    """Zähler aller Zuweisungen im Befehl (auch in if/for/read/local, die der Teilbefehl-Zähler nicht
+    als Zuweisung sieht) – Grundlage für _unsichere_namen und _zuweisungs_namen. v19 (S06-ERS)."""
     zaehler: Counter[str] = Counter(m.group(2) for m in re.finditer(
         r"(^|[\s;&|(`])(?:local\s+|export\s+|readonly\s+|declare\s+(?:-\w+\s+)*)?([A-Za-z_]\w*)\+?=", cmd))
     for m in re.finditer(r"\b(?:for|select)\s+([A-Za-z_]\w*)\s+in\b|\bread\s+(?:-\w+\s+)*([A-Za-z_]\w*)", cmd):
         zaehler[m.group(1) or m.group(2)] += 2
-    return {k for k, n in zaehler.items() if n > 1}
+    return zaehler
+
+
+def _unsichere_namen(cmd: str) -> set[str]:
+    """Variablen, deren Wert der Hook nicht sicher kennt: mehr als eine Zuweisung im ganzen Befehl (auch in if/for/read/local,
+    die der Teilbefehl-Zähler nicht als Zuweisung sieht)."""
+    return {k for k, n in _zuweisungs_zaehler(cmd).items() if n > 1}
+
+
+def _zuweisungs_namen(cmd: str) -> set[str]:
+    """Alle im Befehl zugewiesenen Variablen (v19, S06-ERS): für die Prüfung einer Ersetzung, deren
+    Platzhalter aus dem zu prüfenden Text entfernt wurde – keiner ihrer Werte ist dann bekannt."""
+    return set(_zuweisungs_zaehler(cmd))
 
 
 def _sichere_zuweisung(name: str, wert: str, unsicher: set[str]) -> str:
@@ -622,10 +636,13 @@ def _heredocs(z: str) -> list[str]:
     return aus
 
 
-def _ist_datenzeile(z: str) -> bool:
+def _ist_datenzeile(z: str, in_ersetzung: bool = False) -> bool:
     """Aufrufzeile, deren Heredoc-Rumpf nur Daten sind: der Teilbefehl mit dem Heredoc ist `tee` oder `cat` mit
     Ausgabe-Umleitung und gibt nicht in eine Pipe weiter (`cat <<EOF | bash`, `|&`). Ketten davor/danach (`cd x && cat > f <<EOF`)
-    ändern daran nichts. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft."""
+    ändern daran nichts. Alles andere (Interpreter, psql, timeout bash …) bleibt zeilenweise geprüft.
+    v19 (S06-ERS): in_ersetzung=True (Text einer Ersetzung/Gruppe): auch ein cat/tee-Heredoc ohne
+    Ausgabe-Umleitung ist Daten, solange er nicht in eine Pipe weitergibt – die Ausgabe wird nur der
+    Wert der Ersetzung."""
     mz = _maskiert(z)
     for p, s in _segmente_pos(z):
         if "<<" not in _maskiert(s):
@@ -639,13 +656,15 @@ def _ist_datenzeile(z: str) -> bool:
             return False
         i = _praefixe_ueberspringen(w)
         prog = w[i].rsplit("/", 1)[-1] if i < len(w) else ""
-        return prog == "tee" or (prog == "cat" and bool(_AUSGABE_UMLEITUNG.search(_maskiert(s))))
+        return prog == "tee" or (prog == "cat" and (in_ersetzung or bool(_AUSGABE_UMLEITUNG.search(_maskiert(s)))))
     return False
 
 
-def _ohne_heredoc_daten(cmd: str) -> str:
+def _ohne_heredoc_daten(cmd: str, in_ersetzung: bool = False) -> str:
     """Entfernt Heredoc-Rümpfe von `cat > datei <<EOF` / `tee datei <<EOF` (reine Daten); Aufrufzeile und Endmarke
-    bleiben. Andere Rümpfe bleiben unverändert (Zeilenprüfung, Python per AST). Ohne Endmarke wird nichts entfernt."""
+    bleiben. Andere Rümpfe bleiben unverändert (Zeilenprüfung, Python per AST). Ohne Endmarke wird nichts entfernt.
+    v19 (S06-ERS): Schalter in_ersetzung (siehe _ist_datenzeile) – innerhalb einer Ersetzung ist auch die
+    Ausgabe von `cat <<EOF` nur der Wert der Ersetzung."""
     zeilen, aus, i = cmd.split("\n"), [], 0
     while i < len(zeilen):
         z = zeilen[i]
@@ -657,7 +676,7 @@ def _ohne_heredoc_daten(cmd: str) -> str:
         ende = next((k for k in range(i, len(zeilen)) if zeilen[k].strip() == marken[0]), None)
         if ende is None:
             continue
-        if not _ist_datenzeile(z):
+        if not _ist_datenzeile(z, in_ersetzung):
             aus.extend(zeilen[i:ende])  # Rumpf bleibt, wird aber nicht als neue Heredoc-Aufrufzeile gelesen
         i = ende
     return "\n".join(aus)
@@ -746,6 +765,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
     befehle: list[str] = []
     pfade: list[str] = []
     _sammeln(eingabe, {"command", "cmd", "script"}, befehle)
+    roh_befehle = list(befehle)  # v19 (S06-ERS): Originale für _s06_text (Ersetzungen laufen in Text/Heredoc-Daten)
     befehle = [_ohne_heredoc_daten(_ohne_textdaten(c)) for c in befehle]
     _sammeln(eingabe, {"file_path", "path", "absolute_path", "filePath", "notebook_path", "paths", "target_file", "file"}, pfade)
     art = _art(tool, befehle)
@@ -765,7 +785,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         if e != "ja":
             gruende.append((e, f"{text} [Fähigkeit {faehigkeit}: {e} für Rolle {rolle}]"))
 
-    for cmd in befehle:
+    for roh, cmd in zip(roh_befehle, befehle):
         if KOEDER_RX.search(cmd):  # Selbsttest-Köder: gilt für alle Rollen, auch inhaberin, unabhängig von Fähigkeiten
             gruende.append(("nein", "SELBSTTEST-KOEDER: Köder des Selbsttests – absichtlich gesperrt (normen.py selbsttest)"))
         if (q := _bash_schreibt_extern(cmd, cwd, _lesbar_extern(cfg))) is not None:
@@ -806,11 +826,12 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             # Teams dürfen ihre Auftragsliste (und deren Prüfsumme) weder schreiben noch per Shell verändern.
             gruende.append(("nein", "N06-NUR-ERLAUBTE-PFADE: .normen-auftrag vergibt nur Claude"))
         flach = re.sub(r"[\"'\\]", "", cmd)
-        if rinfo.get("auftrag_pflicht") and _NORMEN_PFAD_RX.search(flach):
-            # v17: Teams rufen von normen.py nur pruefen/kurz auf (Hauptprüfung in _skript_im_befehl: aufgelöster
-            # Skriptpfad + Unterbefehl). Rückfall für alles, was der Hook nicht als Befehlswort zerlegt (Subshell, case,
-            # xargs, $(…), exec – Review/Advisor 23.11.): steht normen.py als Pfadwort im Befehl, sperrt jedes Wort, das ein
-            # anderer Unterbefehl ist. Preis: `grep merge normen/normen.py` sperrt auch (Grenze, sichere Richtung).
+        if rinfo.get("auftrag_pflicht") and _NORMEN_PFAD_RX.search(flach) and not _nur_lesen(roh):
+            # v19 (K4): reines Lesen auf normen.py (grep, sed -n, cat, head …) sperrt nicht mehr – _nur_lesen
+            # prüft den Originalbefehl, im Zweifel greift der Rückfall weiter. v17: Teams rufen von normen.py
+            # nur pruefen/kurz auf (Hauptprüfung in _skript_im_befehl: aufgelöster Skriptpfad + Unterbefehl).
+            # `$(…)` zerlegt jetzt S06 (v19); der Rückfall bleibt für Subshell-, xargs- und exec-Formen: steht
+            # normen.py als Pfadwort im Befehl, sperrt jedes Wort, das ein anderer Unterbefehl ist.
             for u in sorted((set(re.findall(r"[A-Za-z_-]+", flach)) & NORMEN_UNTERBEFEHLE) - TEAM_NORMEN_ERLAUBT):
                 gruende.append(("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {u}` ruft nur Claude auf"))
         for norm in cfg["normen"]:
@@ -836,34 +857,12 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
         for s in pf.get("gesperrt", []):
             if s and s.casefold() in cmd.casefold():  # v16: ohne Groß-/Kleinschreibung (#74)
                 pruefe("sperrpfade-lesen", f"N06-NUR-ERLAUBTE-PFADE: gesperrter Pfad {s}")
-        if rolle != "skript":  # S06: Skripte und Inline-Code außerhalb des Projekts vor dem Lauf prüfen (keine Rekursion)
-            basis: str | None = cwd  # Basis für relative Skriptpfade (nach cd im selben Befehl dieser Ordner)
+        if rolle != "skript":  # S06: Skripte und Inline-Code vor dem Lauf prüfen (keine Rekursion über Skripte)
             unsicher = _unsichere_namen(cmd)  # v11: mehrfach zugewiesene Namen nie auflösen (if/for/read …)
-            zuweisungen: dict[str, str] = {n: _UNSICHER for n in unsicher}  # G5: Zuweisungen aus vorangehenden Teilbefehlen
-            # V15b: für `cd "$D"` nur Zuweisungen, die sicher laufen – eigener Teilbefehl nach Anfang/;/Zeilenumbruch, nicht in
-            # einer Pipeline oder im Hintergrund, keine Steuerstrukturen/Subshells/Heredocs im Befehl und nichts, was Variablen
-            # ohne NAME= ändert (unset, eval, source/., read, printf -v …); sonst bleibt der Basisordner unbekannt
-            segs = _segmente_pos(cmd)
-            trenner = [""] + [cmd[p + len(s):segs[k + 1][0]].strip() for k, (p, s) in enumerate(segs[:-1])] + [""]
-            schlicht = not re.search(
-                r"\b(if|then|else|elif|fi|while|until|do|done|case|esac|for|select|function|unset|eval|source|read|"
-                r"readarray|mapfile|printf|declare|typeset|local|let|getopts|exec)\b|[(){}`]|<<|(^|[;&|\n])\s*\.(\s|$)",
-                _maskiert(re.sub(r"\$\{[A-Za-z_]\w*\}", "$V", cmd)))  # ${NAME} ist keine Klammer-Struktur
-            cd_zuw: dict[str, str] = dict(zuweisungen)
-            for k, (pos, seg) in enumerate(segs):  # Trenner in Anführungszeichen bleiben im Teilbefehl
-                # V15b: $PWD/$OLDPWD gelten an dieser Stelle (nach cd), nicht aus der Umgebung des Hooks
-                zuweisungen.update(PWD=basis if basis is not None else _UNSICHER, OLDPWD=_UNSICHER)
-                cd_zuw.update(PWD=zuweisungen["PWD"], OLDPWD=_UNSICHER)
-                gruende.extend(_skript_im_befehl(cfg, seg, pos, cmd, cwd, rolle, _tiefe, basis, zuweisungen))
-                gruende.extend(_team_prompt(cfg, seg, cmd, cwd, basis, zuweisungen))  # G5: Datenschutz vor vibe/agy
-                # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
-                roh = _zuweisungen_aus_seg(seg)
-                zuweisungen.update({n: _sichere_zuweisung(n, _var_ersetzen(v, zuweisungen), unsicher) for n, v in roh.items()})
-                # für cd nur aus sicher bekannten Werten auflösen (`false && X=/p; D=$X` → D unbekannt)
-                sicher = schlicht and trenner[k] in ("", ";") and trenner[k + 1] not in ("|", "&")
-                cd_zuw.update({n: _sichere_zuweisung(n, _var_ersetzen(v, cd_zuw), unsicher) if sicher else _UNSICHER
-                               for n, v in roh.items()})
-                basis = _cd_basis(seg, basis, cd_zuw)
+            # v19 (S06-ERS): Befehlsersetzungen/Subshells/case am Originalbefehl zerlegen und je Ebene prüfen;
+            # Zuweisungen und cd gelten innerhalb einer Ebene wie bisher (G5-Schritt vor jedem Teilbefehl)
+            gruende.extend(_s06_text(cfg, roh, cmd, cwd, rolle, _tiefe, 0, cwd,
+                                     {n: _UNSICHER for n in unsicher}, unsicher))
 
     for p in pfade:
         rel = _rel(p, cwd)
@@ -1097,6 +1096,48 @@ def _team_normen(cfg: dict, rolle: str, unter: str | None) -> list[tuple[str, st
     if "$" in unter or "`" in unter or unter not in TEAM_NORMEN_ERLAUBT:
         return [("nein", f"N10-KEIN-COMMIT-DURCH-TEAMS: `normen.py {unter}` ruft nur Claude auf")]
     return []
+
+
+def _nur_lesen(roh: str) -> bool:
+    """v19 (S06-ERS, K4): True, wenn der Originalbefehl nachweislich nur liest – dann greift der N10-Rückfall
+    für Teams auf normen.py nicht. Im Zweifel False (fail-closed): keine Befehlsersetzung, Backtick, Subshell,
+    Prozess-Ersetzung, Arithmetik oder case (unveränderter äußerer Text), kein Heredoc, kein `>` im maskierten
+    Text außer `2>&1` und Zielen /dev/null; jeder Teilbefehl mit shlex zerlegbar, nicht leer und ohne Präfixe
+    (env, NAME=, time, nice … machen ihn falsch), erstes Wort cd/grep/egrep/fgrep/head/tail/cat/wc/ls oder sed
+    nur mit Optionen `-n` und einem Druck-Skript (Ziffernp-Form „1,5p“, $p oder /Muster/p) ohne weitere
+    Optionen danach – rg (--pre führt Befehle aus), xargs, sh, find, awk, sed -i/e/w sind nicht erlaubt."""
+    aussen, ers, befunde = _ersetzungen(roh)
+    if befunde or ers or aussen != roh:
+        return False
+    maske = _maskiert(aussen)
+    if "<<" in maske or ">" in re.sub(r"2>&1|\d?>>?\s*/dev/null", "", maske):
+        return False
+    if re.search(r"[(){}$`]", maske):  # Review v19 (Advisor): zsh-Glob-Qualifier `*(e:'…':)` führt Code aus; Klammern nur zitiert
+        return False
+    for _, seg in _segmente_pos(roh):
+        try:
+            w = shlex.split(seg)
+        except ValueError:
+            return False
+        if not w or _praefixe_ueberspringen(w) != 0:  # Präfixe und Shell-Schlüssel machen ihn falsch
+            return False
+        b = w[0]
+        if b in ("cd", "grep", "egrep", "fgrep", "head", "tail", "cat", "wc", "ls"):
+            continue
+        if b != "sed":
+            return False
+        rest = w[1:]
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):  # alle Optionen sind genau -n
+            if rest[i] != "-n":
+                return False
+            i += 1
+        if i >= len(rest) or not re.fullmatch(r"\d+(,\d+)?p|\$p|/[^/]*/p", rest[i]):
+            return False
+        if any(a.startswith("-") for a in rest[i + 1:]):  # keine Optionen nach dem Skript
+            return False
+    return True
+
 PYTHON = re.compile(r"python3?(\.\d+)?$")
 
 
@@ -1755,14 +1796,19 @@ def _vertraut_bewerten(cfg, w: list[str], i: int, cmd: str, cwd: str, basis: str
     return [g] if g else []
 
 
-def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, tiefe: int = 0,
-                       basis: str | None = None, zuweisungen: dict[str, str] | None = None) -> list[tuple[str, str]]:
-    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus dem ganzen Befehl cmd), nur für
+def _skript_im_befehl(cfg, seg: str, pos: int, text: str, cwd: str, rolle: str, tiefe: int = 0,
+                       basis: str | None = None, zuweisungen: dict[str, str] | None = None,
+                       voll: str | None = None) -> list[tuple[str, str]]:
+    """Inline-Code und Skriptdateien im Teilbefehl seg (Heredoc-Rumpf aus text), nur für
     Dateien außerhalb des Projekts und außerhalb von [pfade].lesbar_extern: `python3 … <datei>` (mit und ohne
     .py-Endung, per AST), `python3 -c CODE`, `python3 - <<HEREDOC` (Rumpf per AST), `bash|sh|zsh -c CODE`
     (rekursiv bewertet), `bash|sh|zsh|source|. <datei>` (Inhalt als ein Befehl), `node|perl|ruby <datei>`
     (fragen) und direkte Pfadaufrufe (`/tmp/x.sh`, `./x.sh`: Shebang-Interpreter bzw. Textdatei als Skript).
+    text ist der Befehlstext der Ebene, in dem pos gilt (nur aus_pipe und _heredoc_rumpf); voll der
+    ganze Befehl für alles, was im selben Befehl geschrieben wird – v19 (S06-ERS).
     Liefert Befunde (stufe, grund)."""
+    if voll is None:
+        voll = text
     try:
         w = shlex.split(seg)
     except ValueError:  # z. B. `python3 x.py "a|b"`: unbalanciertes Zitat – nie ungeprüft durchlassen
@@ -1777,7 +1823,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
         if "$" in wort:
             return [("fragen", f"S06-CODE-MODE: Befehl über unaufgelöste Variable ({w[i]}) – nicht prüfbar")]
         w = w[:i] + [wort] + w[i + 1:]
-    if (v := _vertraut_bewerten(cfg, w, i, cmd, cwd, basis, zuweisungen)) is not None:
+    if (v := _vertraut_bewerten(cfg, w, i, voll, cwd, basis, zuweisungen)) is not None:
         if rolle != "claude":  # V15b (Punkt 10, Entscheidung der Inhaberin 22.11.): Freigabe gilt nur Claude
             return [("nein", f"S06-CODE-MODE: vertrautes Werkzeug {w[i]} ist nur für die Rolle claude freigegeben")]
         return v
@@ -1796,7 +1842,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
     rest = w[i + 1:]
     if prog.casefold() == "normen.py" and (t := _team_normen(cfg, rolle, variablen(rest[0], None) if rest else None)):
         return t  # v17: `./normen/normen.py auftrag` durch ein Team
-    vorher = _maskiert(cmd)[:pos].rstrip()
+    vorher = _maskiert(text)[:pos].rstrip()
     aus_pipe = (vorher.endswith("|") and not vorher.endswith("||")) or vorher.endswith("|&")  # auch zsh/bash `|&`
 
     def stdin(j: int) -> list[tuple[str, str]] | None:
@@ -1821,12 +1867,12 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             if not isinstance(ordner, list):  # V15b: ohne Suchpfad keine Schatten-Prüfung – wie bei -m nicht prüfbar
                 if koepfe:
                     aus.append(("fragen", f"S06-CODE-MODE: {prog} {art} mit Import: {ordner} – nicht prüfbar"))
-            elif g := _py_kandidat_geschrieben(cfg, koepfe, ordner, cmd, cwd):  # V15b (Nr. 1): im selben Befehl geschrieben
+            elif g := _py_kandidat_geschrieben(cfg, koepfe, ordner, voll, cwd):  # V15b (Nr. 1): im selben Befehl geschrieben
                 aus.append(g)
             return aus
 
         def heredoc(art: str) -> list[tuple[str, str]]:
-            rumpf = _heredoc_rumpf(cmd, pos)
+            rumpf = _heredoc_rumpf(text, pos)
             if rumpf is None:
                 return [("fragen", "S06-CODE-MODE: Heredoc-Rumpf nicht eindeutig erkennbar – nicht prüfbar")]
             return inline(rumpf, art)
@@ -1853,7 +1899,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
                             return t
                     if not re.fullmatch(r"[A-Za-z_][\w.]*", modul):
                         return [("fragen", f"S06-CODE-MODE: python3 -m mit unklarem Modulnamen ({modul or 'leer'}) – nicht prüfbar")]
-                    return _python_m(cfg, modul, cmd, cwd, basis, zuw)
+                    return _python_m(cfg, modul, voll, cwd, basis, zuw)
                 if c == "c":
                     code = a[k + 1:] or (rest[j + 1] if j + 1 < len(rest) else None)
                     if code is None:
@@ -1877,7 +1923,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
         if variablen(rest[j], None).rsplit("/", 1)[-1].casefold() == "normen.py":  # v17: Team ruft normen.py auf
             if t := _team_normen(cfg, rolle, variablen(rest[j + 1], None) if j + 1 < len(rest) else None):
                 return t
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "python", zuw=zuweisungen)
+        return _skript_datei_arg(cfg, rest[j], voll, cwd, rolle, tiefe, basis, "python", zuw=zuweisungen)
     if prog in ("bash", "sh", "zsh"):
         j, mit_c = 0, False  # Optionen vor Code/Datei: -c, -lc, -e -c, -o name …
         while j < len(rest) and rest[j].startswith("-") and rest[j] not in ("-", "--"):
@@ -1899,13 +1945,13 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return []  # `bash <<EOF`: Rumpf bleibt im Befehl und wird zeilenweise geprüft
         if (b := stdin(j)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
+        return _skript_datei_arg(cfg, rest[j], voll, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("source", "."):
         if rest and rest[0].startswith("-") and rest[0] != "-":
             return []
         if (b := stdin(0)) is not None:
             return b
-        return _skript_datei_arg(cfg, rest[0], cmd, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
+        return _skript_datei_arg(cfg, rest[0], voll, cwd, rolle, tiefe, basis, "shell", zuw=zuweisungen)
     if prog in ("node", "perl", "ruby"):
         j = 0  # Optionen; -e/-p CODE ist Inline-Code ohne Parser → fragen
         while j < len(rest) and rest[j].startswith("-") and rest[j] != "-":
@@ -1917,19 +1963,19 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             return [("fragen", f"S06-CODE-MODE: {prog} liest Code von stdin oder Heredoc – nicht prüfbar")]
         if b is not None:
             return []  # interaktiv ohne Eingabe
-        return _skript_datei_arg(cfg, rest[j], cmd, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuweisungen)
+        return _skript_datei_arg(cfg, rest[j], voll, cwd, rolle, tiefe, basis, "fragen", prog, zuw=zuweisungen)
     if "/" in w[i]:  # direkter Aufruf über einen Pfad: /tmp/x.sh, ./x.sh, $RUN/x …
-        voll = os.path.expanduser(w[i])
-        if os.path.isabs(voll) and os.path.dirname(os.path.normpath(voll)) in {
+        expandiert = os.path.expanduser(w[i])  # v19 (S06-ERS): umbenannt – `voll` ist jetzt der ganze Befehl
+        if os.path.isabs(expandiert) and os.path.dirname(os.path.normpath(expandiert)) in {
                 os.path.normpath(d) for d in os.environ.get("PATH", "").split(os.pathsep) if os.path.isabs(d)}:
             return []  # installiertes Werkzeug aus $PATH (/opt/homebrew/bin/brew) – wie der Aufruf ohne Pfad
         datei, grund = _skript_pfad(w[i], basis, zuweisungen)
         if grund:
             return [("fragen", grund)]
-        gate = _skript_gate(cfg, datei, w[i], cmd)
+        gate = _skript_gate(cfg, datei, w[i], voll)
         if gate is not None:
             return gate
-        g = _skript_geschrieben(w[i], datei, cmd, cwd)
+        g = _skript_geschrieben(w[i], datei, voll, cwd)
         if g:
             return [g]
         try:
@@ -1940,10 +1986,10 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
         if not kopf.startswith(b"#!"):
             if b"\x00" in kopf:
                 return []  # Binärdatei (z. B. /usr/bin/git, /bin/ls) – wie bisher
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)  # Text ohne Shebang: sh-Skript
+            return _shell_datei_bewerten(cfg, datei, w[i], voll, cwd, rolle, tiefe, basis)  # Text ohne Shebang: sh-Skript
         worte = kopf.split(b"\n", 1)[0][2:].decode("utf-8", "replace").split()
         if not worte:
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
+            return _shell_datei_bewerten(cfg, datei, w[i], voll, cwd, rolle, tiefe, basis)
         interp = worte[0].rsplit("/", 1)[-1]
         if interp == "env" and len(worte) > 1:  # #!/usr/bin/env python3 …: nächses Wort ist der Interpreter
             interp = worte[1].rsplit("/", 1)[-1]
@@ -1951,7 +1997,7 @@ def _skript_im_befehl(cfg, seg: str, pos: int, cmd: str, cwd: str, rolle: str, t
             stufe, gruende = skript_pruefen(cfg, datei, cwd)
             return [] if stufe == "ja" else [(stufe, g) for g in gruende]
         if interp in ("bash", "sh", "zsh"):
-            return _shell_datei_bewerten(cfg, datei, w[i], cmd, cwd, rolle, tiefe, basis)
+            return _shell_datei_bewerten(cfg, datei, w[i], voll, cwd, rolle, tiefe, basis)
         return [("fragen", f"S06-CODE-MODE: {interp}-Skript außerhalb des Projekts – nicht prüfbar")]
     return []
 
@@ -2137,6 +2183,783 @@ def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
     except (OSError, UnicodeDecodeError, ValueError) as e:
         return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht lesbar ({type(e).__name__}: {e})")]
     return _prompt_inhalt_pruefen(cfg, prog, "\n".join(texte), basis)
+
+
+# ---------------------------------------------------------------- S06-ERS: Befehlsersetzungen am ganzen Befehl (v19)
+class Ersetzung(NamedTuple):
+    """Eine herausgelöste Befehlsersetzung oder Subshell (v19, S06-ERS)."""
+    art: str          # "ersetzung" ($(…), `…`, <(…), >(…), =(…)) | "gruppe" (Subshell ( … ))
+    platzhalter: str  # Text, der im äußeren Befehl an ihrer Stelle steht
+    innen: str        # innerer Befehlstext (bei Backticks wie in der Shell entschärft)
+    roh: str          # Originaltext samt Begrenzern, z. B. '$(cat "$RUN/prompt.md")'
+
+
+_SHELL_ANFANG_RX = re.compile(r"(then|do|else|elif|if|while|until|time|coproc|!|\{)(?=[ \t\n])")  # Review v19: time/coproc ( … )
+
+
+_DOLLAR_TIEFE = 12  # höchstens so viele verschachtelte $( / $(( im Zerleger (Review v19: Laufzeit verdoppelt sich je Ebene)
+
+
+class _Zerleger:
+    """Zeichen-für-Zeichen-Scanner mit eigenem Zustand je Ebene: löst Befehlsersetzungen ($(…),
+    Backticks, <(…)/>(…)/=(…), Arithmetik $((…)), Subshells ( … ) und case-Muster am ganzen Befehl
+    heraus. Für den Inhalt eines Konstrukts gilt derselbe Scanner noch einmal (eigene Anführungszeichen,
+    eigene Heredocs, eigene Ersetzungen, eigene Subshell-Klammern, eigene case-Muster – eine `)` nach
+    einem case-Muster schließt nichts). Ersetzungen der eigenen Ebene zeichnet er auf und setzt
+    Platzhalter in den äußeren Text; im Inhalt eines Konstrukts sucht er nur das Ende. kaputt: kein
+    Ende gefunden (unbalanciert, offenes Zitat im Konstrukt, Heredoc ohne Endmarke in einer Ersetzung).
+    v19 (S06-ERS)."""
+
+    def __init__(self, text: str):
+        self.t = text
+        self.ers: list[Ersetzung] = []
+        self.nr = 0
+        self.kaputt = False
+        self.tiefe = 0        # verschachtelte $( / $(( (Review v19: Laufzeit)
+        self.zutief = False
+
+    def ganze(self) -> tuple[str, bool]:
+        """Vollständige Zerlegung des eigenen Textes: (äußerer Text mit Platzhaltern, kaputt)."""
+        _, aussen, _ = self._gehe(0, "ende", True)
+        return aussen, self.kaputt
+
+    def _aufzeichnen(self, art: str, innen: str, roh: str) -> str:
+        """Ersetzung der eigenen Ebene aufzeichnen; liefert den Platzhalter für den äußeren Text
+        (n zählt über den ganzen Aufruf eindeutig)."""
+        self.nr += 1
+        platzhalter = f"$(__NORMEN_ERS_{self.nr}__)" if art == "ersetzung" else f"__NORMEN_GRUPPE_{self.nr}__"
+        self.ers.append(Ersetzung(art, platzhalter, innen, roh))
+        return platzhalter
+
+    def _leer(self, j: int, aus: list[str]) -> int:
+        """Leerraum bleibt im äußeren Text stehen."""
+        while j < len(self.t) and self.t[j] in " \t\n":
+            aus.append(self.t[j])
+            j += 1
+        return j
+
+    def _wort_da(self, i: int, wort: str) -> bool:
+        """Wort steht (unzitiert) an Position i, gefolgt von einer Wortgrenze."""
+        j = i + len(wort)
+        return self.t.startswith(wort, i) and (j >= len(self.t) or not (self.t[j].isalnum() or self.t[j] == "_"))
+
+    def _zitat_doppelt(self, j: int, auf: bool) -> int:
+        """"…" ab j überspringen – $(…) und Backticks darin laufen mit (Ausgabe verworfen)."""
+        t, n = self.t, len(self.t)
+        k = j + 1
+        while k < n and not self.kaputt:
+            c = t[k]
+            if c == "\\" and k + 1 < n:
+                k += 2
+            elif c == '"':
+                return k + 1
+            elif c == "$" and k + 1 < n and t[k + 1] == "(":
+                k = self._dollarklammer(k, auf)[0]
+            elif c == "`":
+                k = self._backtick(k, auf)[0]
+            else:
+                k += 1
+        return n
+
+    def _backtick(self, i: int, auf: bool) -> tuple[int, str]:
+        """`…` ab i: Ende ist der nächste unescapte Backtick. Der Inhalt wird vor der Rekursion
+        wie in der Shell entschärft (\\\\ → \\, \\` → `, \\$ → $)."""
+        t, n = self.t, len(self.t)
+        j = i + 1
+        while j < n:
+            if t[j] == "\\" and j + 1 < n:
+                j += 2
+            elif t[j] == "`":
+                break
+            else:
+                j += 1
+        if j >= n:
+            self.kaputt = True
+            return n, ""
+        stueck, k = [], i + 1
+        while k < j:
+            if t[k] == "\\" and k + 1 < j and t[k + 1] in "\\`$":
+                stueck.append(t[k + 1])
+                k += 2
+            else:
+                stueck.append(t[k])
+                k += 1
+        roh = t[i:j + 1]
+        return j + 1, self._aufzeichnen("ersetzung", "".join(stueck), roh) if auf else roh
+
+    def _dollarklammer(self, i: int, auf: bool) -> tuple[int, str]:
+        """$(…) ab i. `$((`: Arithmetik, wenn die passende schließende Klammer ein direkt folgendes
+        `))` ist – sonst ist es `$(` mit einer Subshell als Inhalt (`$((x) )` → innen `(x) `). Im
+        Inhalt echter Arithmetik werden beim Ende-Suchen nur `$(…)`/Backticks beachtet, der Rest
+        bleibt wörtlich. Review v19 (Advisor): scheitert die Arithmetik-Probe, wird der Inhalt zweimal durchlaufen –
+        verschachtelt verdoppelt sich die Zeit je Ebene; ab _DOLLAR_TIEFE Ebenen daher „zu tief“ (kaputt + zutief)."""
+        t, n = self.t, len(self.t)
+        if self.tiefe >= _DOLLAR_TIEFE:
+            self.zutief = self.kaputt = True
+            return n, ""
+        self.tiefe += 1
+        try:
+            if t.startswith("((", i + 1):
+                kandidat = self._arith_scan(i + 3)
+                if not self.kaputt and kandidat is not None and t.startswith("))", kandidat):
+                    j = kandidat + 2
+                    roh = t[i:j]
+                    return j, self._aufzeichnen("ersetzung", t[i + 3:kandidat], roh) if auf else roh
+            j, _, _ = self._gehe(i + 2, "klammer", False)
+            if self.kaputt or j >= n:
+                self.kaputt = True
+                return n, ""
+            roh = t[i:j + 1]
+            return j + 1, self._aufzeichnen("ersetzung", t[i + 2:j], roh) if auf else roh
+        finally:
+            self.tiefe -= 1
+
+    def _ersatz_klammer(self, i: int, auf: bool) -> tuple[int, str]:
+        """<(…), >(…) oder =(…) ab i – der Platzhalter ersetzt den ganzen Ausdruck (mit <, > bzw. =)."""
+        n = len(self.t)
+        j, _, _ = self._gehe(i + 2, "klammer", False)
+        if self.kaputt or j >= n:
+            self.kaputt = True
+            return n, ""
+        roh = self.t[i:j + 1]
+        return j + 1, self._aufzeichnen("ersetzung", self.t[i + 2:j], roh) if auf else roh
+
+    def _gruppe(self, i: int, auf: bool) -> tuple[int, str]:
+        """Subshell ( … ) ab Befehlsanfang: bis zur passenden `)`."""
+        n = len(self.t)
+        j, _, _ = self._gehe(i + 1, "klammer", False)
+        if self.kaputt or j >= n:
+            self.kaputt = True
+            return n, ""
+        roh = self.t[i:j + 1]
+        return j + 1, self._aufzeichnen("gruppe", self.t[i + 1:j], roh) if auf else roh
+
+    def _arith_scan(self, i: int) -> int | None:
+        """Arithmetik-Inhalt ab i nach der passenden Klammer suchen: Position der ersten `)` auf
+        Klammertiefe 0 (None = kein Ende); `$(…)` und Backticks darin werden übersprungen."""
+        t, n = self.t, len(self.t)
+        j, tiefe = i, 0
+        while j < n and not self.kaputt:
+            c = t[j]
+            if c == "$" and j + 1 < n and t[j + 1] == "(":
+                j = self._dollarklammer(j, False)[0]
+            elif c == "`":
+                j = self._backtick(j, False)[0]
+            elif c == "(":
+                tiefe += 1
+                j += 1
+            elif c == ")":
+                if tiefe == 0:
+                    return j
+                tiefe -= 1
+                j += 1
+            else:
+                j += 1
+        self.kaputt = True
+        return None
+
+    def _arith_befehl(self, i: int, auf: bool) -> tuple[int, str]:
+        """`((…))` am Befehlsanfang (Arithmetik-Befehl): bleibt im äußeren Befehl stehen; nur `$(…)` und
+        Backticks darin werden herausgelöst (Platzhalter mitten im Ausdruck). Kein `))` → kaputt."""
+        t, n = self.t, len(self.t)
+        aus: list[str] = [t[i:i + 2]]
+        j, tiefe = i + 2, 0
+        while j < n and not self.kaputt:
+            c = t[j]
+            if c == "$" and j + 1 < n and t[j + 1] == "(":
+                j, s = self._dollarklammer(j, auf)
+                aus.append(s)
+            elif c == "`":
+                j, s = self._backtick(j, auf)
+                aus.append(s)
+            elif c == "(":
+                tiefe += 1
+                aus.append(c)
+                j += 1
+            elif c == ")" and tiefe == 0 and t.startswith("))", j):
+                aus.append(t[j:j + 2])
+                return j + 2, "".join(aus)
+            else:
+                if c == ")":
+                    tiefe -= 1
+                aus.append(c)
+                j += 1
+        self.kaputt = True
+        return n, "".join(aus)
+
+    def _muster(self, i: int, auf: bool) -> tuple[int, str]:
+        """Ein case-Muster ab i bis zur `)` auf Klammertiefe 0 (führende `(` gehört zum Muster): im
+        äußeren Text ein Leerzeichen; Ersetzungen darin laufen trotzdem mit (ihr Platzhalter entfällt
+        mit dem Muster – die Prüfung greift dann auf den Restweg zurück)."""
+        t, n = self.t, len(self.t)
+        j = i + 1 if i < n and t[i] == "(" else i
+        tiefe = 0
+        while j < n and not self.kaputt:
+            c = t[j]
+            if c == "\\":
+                j += 2 if j + 1 < n else 1
+            elif c == "$" and j + 1 < n and t[j + 1] == "(":
+                j = self._dollarklammer(j, auf)[0]
+            elif c == "`":
+                j = self._backtick(j, auf)[0]
+            elif c == "'":
+                k = t.find("'", j + 1)
+                j = k + 1 if k >= 0 else n
+            elif c == '"':
+                j = self._zitat_doppelt(j, auf)
+            elif c == "\n":  # Review v19: ein Muster über mehrere Zeilen versteckt Code im ersetzten Mustertext
+                self.kaputt = True
+            elif c == "(":
+                tiefe += 1
+                j += 1
+            elif c == ")":
+                if tiefe == 0:
+                    return j + 1, " "
+                tiefe -= 1
+                j += 1
+            else:
+                j += 1
+        self.kaputt = True
+        return n, ""
+
+    def _rumpf(self, i: int, marke: str, zitiert: bool, auf: bool) -> tuple[int, str]:
+        """Heredoc-Rumpf ab i (Zeile nach der Operator-Zeile): endet an der Zeile, die genau die Marke
+        enthält (bei `<<-` mit führenden Tabs; Vergleich wie _ohne_heredoc_daten mit .strip()). Zitierte
+        Marke: Rumpf wörtlich, nichts darin ist aktiv (auch `)`, `'`, Backticks, `$(` nicht). Unzitierte
+        Marke: nur `\\`-Escapes, `$(…)` und Backticks sind aktiv (Anführungszeichen sind dort Text) und
+        werden herausgelöst. Ende fehlt: innerhalb einer Ersetzung kaputt, sonst bleibt der Rest Rumpf."""
+        t, n = self.t, len(self.t)
+        aus: list[str] = []
+        while i < n and not self.kaputt:
+            stueck: list[str] = []
+            j = i
+            while j < n and not self.kaputt:
+                c = t[j]
+                if c == "\\":
+                    stueck.append(t[j:j + 2])
+                    j += 2 if j + 1 < n else 1
+                elif not zitiert and c == "$" and j + 1 < n and t[j + 1] == "(":
+                    j, s = self._dollarklammer(j, auf)
+                    stueck.append(s)
+                elif not zitiert and c == "`":
+                    j, s = self._backtick(j, auf)
+                    stueck.append(s)
+                elif c == "\n":
+                    break
+                else:
+                    stueck.append(c)
+                    j += 1
+            if self.kaputt:
+                break
+            if j < n and t[i:j].strip() == marke:  # Endmarke: Zeile bleibt im äußeren Text stehen
+                aus.append(t[i:j + 1])
+                return j + 1, "".join(aus)
+            if j >= n:  # Textende ohne Endmarke
+                aus.append("".join(stueck))
+                break
+            stueck.append("\n")
+            aus.append("".join(stueck))
+            i = j + 1
+        if not auf:
+            self.kaputt = True
+        return n, "".join(aus)
+
+    def _case(self, i: int, auf: bool) -> tuple[int, str]:
+        """case ab i (Wort `case` am Befehlsanfang): im äußeren Text wird `case WORT in` zu `:;`, jedes
+        Muster samt `)` (und führender `(`) durch ein Leerzeichen, `;;`/`;&`/`;;&` zu `;` und `esac` zu `:`
+        – so zerlegt _segmente_pos die Zweige in normale Teilbefehle (das `;` nach `:` gehört dazu, damit
+        auch der erste Zweig ein eigener Teilbefehl ist). Kein case (zweites Wort nicht `in`): unverändert."""
+        t, n = self.t, len(self.t)
+        stuecke: list[str] = [t[i:i + 4]]
+        j = self._leer(i + 4, stuecke)
+        j, wort, _ = self._gehe(j, "wort", auf)
+        stuecke.append(wort)
+        j = self._leer(j, stuecke)
+        j, zweites, _ = self._gehe(j, "wort", auf)
+        stuecke.append(zweites)
+        if not self.kaputt and zweites == "in":
+            neu: list[str] = [":;"]
+            while not self.kaputt:
+                j = self._leer(j, neu)
+                if j >= n:
+                    self.kaputt = True
+                    break
+                if self._wort_da(j, "esac"):
+                    neu.append(":")
+                    return j + 4, "".join(neu)
+                j, abstand = self._muster(j, auf)
+                neu.append(abstand)
+                j, koerper, art = self._gehe(j, "fall", auf)
+                neu.append(koerper)
+                if self.kaputt or art == "ende":
+                    self.kaputt = True
+                    break
+                if art == "esac":
+                    neu.append(":")
+                    return j + 4, "".join(neu)
+                neu.append(";")
+                j += 3 if art == ";;&" else 2
+            return n, ""
+        if self.kaputt:
+            return n, ""
+        return j, "".join(stuecke)
+
+    def _gehe(self, i: int, stop: str, auf: bool) -> tuple[int, str, str]:
+        """Läuft über den eigenen Text ab Position i im Kontext normal bis zur Stoppbedingung:
+        „ende“ (Textende), „klammer“ (schließende `)` auf Tiefe 0 – sie gehört nicht zum Inhalt),
+        „wort“ (Ende eines Shell-Worts), „fall“ (`;;`/`;&`/`;;&` oder `esac` am Befehlsanfang).
+        Liefert (Position am Stopp, Ausgabe, Art des Stops)."""
+        t, n = self.t, len(self.t)
+        aus: list[str] = []
+        warte: list[tuple[str, bool]] = []  # Heredoc-Operatoren der laufenden Zeile (Marke, zitiert)
+        anf = True  # Befehlsanfang: `(` öffnet Subshell, `case` beginnt ein case
+        while i < n and not self.kaputt:
+            c = t[i]
+            if stop == "klammer" and c == ")":
+                return i, "".join(aus), "klammer"
+            if stop == "wort" and c in " \t\n;&|()<>":
+                return i, "".join(aus), "wort"
+            if stop == "fall":
+                art = (";;&" if t.startswith(";;&", i) else ";;" if t.startswith(";;", i)
+                       else ";&" if t.startswith(";&", i) else "")
+                if art:
+                    return i, "".join(aus), art
+                if anf and self._wort_da(i, "esac"):
+                    return i, "".join(aus), "esac"
+            if c in " \t":
+                aus.append(c)
+                i += 1
+                continue
+            if (stop == "klammer" and c == "#" and (i == 0 or t[i - 1] in " \t\n;&|")
+                    and not t.endswith("\\\n", 0, i)):  # Review v19: Kommentar bis Zeilenende – nur bei der Ende-Suche
+                # einer Ersetzung/Gruppe (deren Inneres prüft _s06_text danach als eigene Ebene vollständig; oben und in
+                # case-Zweigen gibt es keinen Kommentar-Modus, ein falsch erkannter Kommentar versteckt dort nichts)
+                # Klammern und Zitate darin zählen nicht (eine `)` schließt nichts); `$(…)` und Backticks werden trotzdem
+                # herausgelöst – so ist ein fälschlich erkannter Kommentar in beide Richtungen sicher (Advisor)
+                while i < n and t[i] != "\n" and not self.kaputt:
+                    if t[i] == "$" and i + 1 < n and t[i + 1] == "(":
+                        i, s = self._dollarklammer(i, auf)
+                    elif t[i] == "`":
+                        i, s = self._backtick(i, auf)
+                    elif t[i] in "<>=" and i + 1 < n and t[i + 1] == "(":  # auch Prozess-Ersetzungen (Review v19)
+                        i, s = self._ersatz_klammer(i, auf)
+                    else:
+                        s = t[i]
+                        i += 1
+                    aus.append(s)
+                continue
+            if c == "\n":
+                aus.append(c)
+                anf = True
+                i += 1
+                if len(warte) == 1:  # genau ein Heredoc-Operator in der Zeile: der Rumpf beginnt jetzt
+                    marke, zitiert = warte[0]
+                    i, rumpf = self._rumpf(i, marke, zitiert, auf)
+                    aus.append(rumpf)
+                warte = []  # mehr als einer: keine Rumpf-Behandlung (wie _heredocs: nur einer je Zeile)
+                continue
+            if c in ";&|":
+                aus.append(c)
+                anf = True
+                i += 1
+                continue
+            if anf:
+                if self._wort_da(i, "case"):
+                    i, text = self._case(i, auf)
+                    aus.append(text)
+                    anf = False
+                    continue
+                m = _SHELL_ANFANG_RX.match(t, i)
+                if m:  # then do else elif if while until ! { – danach ist wieder Befehlsanfang
+                    aus.append(m.group(1))
+                    i = m.end()
+                    continue
+            if c == "\\":
+                aus.append(t[i:i + 2])
+                i += 2
+                anf = False
+                continue
+            if c == "'" or (c == "$" and i + 1 < n and t[i + 1] == "'"):
+                anfuer = c == "'"
+                if not anfuer:
+                    j = i + 2  # hinter $'  # $'…': wie '…', aber \' escapet
+                    while j < n:
+                        if t[j] == "\\" and j + 1 < n and t[j + 1] == "'":
+                            j += 2
+                        elif t[j] == "'":
+                            j += 1
+                            break
+                        else:
+                            j += 1
+                else:  # einfache Anführungszeichen: nichts ist aktiv
+                    k = t.find("'", i + 1)
+                    j = n if k < 0 else k + 1
+                aus.append(t[i:j])
+                if j >= n and stop != "ende":  # offenes Zitat im Konstrukt
+                    self.kaputt = True
+                i = j
+                anf = False
+                continue
+            if c == "$" and i + 1 < n and t[i + 1] == "(":
+                i, s = self._dollarklammer(i, auf)
+                aus.append(s)
+                anf = False
+                continue
+            if c == '"':
+                stueck = [c]
+                j, zu = i + 1, False
+                while j < n and not self.kaputt:
+                    d = t[j]
+                    if d == "\\" and j + 1 < n:  # Escape \x überspringt zwei Zeichen
+                        stueck.append(t[j:j + 2])
+                        j += 2
+                    elif d == '"':
+                        stueck.append('"')
+                        j += 1
+                        zu = True
+                        break
+                    elif d == "$" and j + 1 < n and t[j + 1] == "(":
+                        j, s = self._dollarklammer(j, auf)
+                        stueck.append(s)
+                    elif d == "`":
+                        j, s = self._backtick(j, auf)
+                        stueck.append(s)
+                    else:
+                        stueck.append(d)
+                        j += 1
+                if not zu:
+                    stueck.append(t[j:])
+                    if stop != "ende":  # offenes Zitat im Konstrukt
+                        self.kaputt = True
+                aus.append("".join(stueck))
+                i = j
+                anf = False
+                continue
+            if c == "`":
+                i, s = self._backtick(i, auf)
+                aus.append(s)
+                anf = False
+                continue
+            if c == "<":
+                if i + 1 < n and t[i + 1] == "(":
+                    i, s = self._ersatz_klammer(i, auf)
+                    aus.append(s)
+                    anf = False
+                    continue
+                if (t.startswith("<<", i) and not t.startswith("<<<", i)
+                        and (i == 0 or not (t[i - 1].isalnum() or t[i - 1] in "<$("))):
+                    m = _HEREDOC_AUF.match(t, i)
+                    if m:
+                        warte.append((m.group(2), m.group(1) != ""))
+                        aus.append(t[i:m.end()])
+                        i = m.end()
+                        anf = False
+                        continue
+                    aus.append(t[i:i + 2])  # << ohne gültige Marke (z. B. <<5): wörtlich
+                    i += 2
+                    anf = False
+                    continue
+                aus.append(c)
+                i += 1
+                anf = False
+                continue
+            if c == ">" and i + 1 < n and t[i + 1] == "(":
+                i, s = self._ersatz_klammer(i, auf)
+                aus.append(s)
+                anf = False
+                continue
+            if (c == "=" and i + 1 < n and t[i + 1] == "("
+                    and (i == 0 or t[i - 1] in " \t\n;&|(")):  # zsh =(…) nur am Wortanfang
+                i, s = self._ersatz_klammer(i, auf)
+                aus.append(s)
+                anf = False
+                continue
+            if c == "(" and anf:
+                if t.startswith("((", i):
+                    i, s = self._arith_befehl(i, auf)
+                else:
+                    i, s = self._gruppe(i, auf)
+                aus.append(s)
+                anf = False
+                continue
+            aus.append(c)
+            anf = False
+            i += 1
+        return n, "".join(aus), "ende"
+
+
+def _ersetzungen(text: str) -> tuple[str, list[Ersetzung], list[tuple[str, str]]]:
+    """Löst Befehlsersetzungen ($(…), Backticks, <(…)/>(…)/=(…), Arithmetik $((…))), Subshells ( … )
+    und case-Muster am ganzen Befehl heraus: (äußerer Text mit Platzhaltern, Ersetzungen der obersten
+    Ebene, Befunde). Befunde ≠ [] → nicht zerlegbar (fragen). v19 (S06-ERS)."""
+    zer = _Zerleger(text)
+    try:
+        aussen, kaputt = zer.ganze()
+    except RecursionError:  # Review v19: Hunderte Ebenen – als Befund melden statt Hook-Fehler
+        return text, [], [("fragen", "S06-CODE-MODE: Befehlsersetzung zu tief verschachtelt – nicht prüfbar")]
+    if zer.zutief:
+        return text, [], [("fragen", "S06-CODE-MODE: Befehlsersetzung zu tief verschachtelt – nicht prüfbar")]
+    if kaputt:
+        return text, [], [("fragen", "S06-CODE-MODE: Befehlsersetzung nicht zerlegbar – nicht prüfbar")]
+    return aussen, zer.ers, []
+
+
+def _platzhalter_zurueck(seg: str, ers: list[Ersetzung]) -> str:
+    """Platzhalter der Ersetzungen im Teilbefehl durch deren Originaltext zurückersetzen, rekursiv
+    bis kein Platzhalter mehr bleibt – _team_prompt erwartet wörtlich `$(cat pfad)`. v19 (S06-ERS)."""
+    roh = {e.platzhalter: e.roh for e in ers}
+    aus = seg
+    for _ in range(len(roh) + 1):  # begrenzt: Selbstbezüge in erfundenen Platzhaltern
+        neu = aus
+        for platzhalter, rohtext in roh.items():
+            neu = neu.replace(platzhalter, rohtext)
+        if neu == aus:
+            break
+        aus = neu
+    return aus
+
+
+_FOR_RX = re.compile(r"\s*(?:(?:do|then|else)[\s\n]+)?for\s+([A-Za-z_]\w*)\s+in\s+(.*)$", re.S)
+_FOR_DO_RX = re.compile(r"\s*do\b")
+_GLOB_ZEICHEN = "*?["
+
+
+def _for_werte(seg: str, naechster: str, trennung: str, zaehler: Counter[str], basis: str | None,
+               schreibfrei: bool) -> tuple[str, list[str]] | None:
+    """v19 (S06-ERS, K3): Werte der for-Variable einer `for NAME in WÖRTER; do`-Klausel, die am Anfang dieses
+    Teilbefehls steht (naechster/trennung: folgender Teilbefehl und Trenner dazwischen, "" = Zeilenumbruch).
+    Nur wenn alle Bedingungen gelten: NAME im ganzen Befehl nur diese eine Schleife (zaehler == 2, kein read,
+    keine zweite Zuweisung); shlex zerlegt WÖRTER, kein Wort mit $, Backtick, runder/geschweifter Klammer oder
+    Platzhalter; kein Schreibziel im ganzen Befehl außer /dev/ (schreibfrei – sonst wäre eine im selben Befehl
+    geschriebene Datei nie geprüft, der Glob gilt ja zur Hook-Zeit); relative Globs nur bei bekanntem
+    Basisordner, ohne Treffer das Wort selbst (wie bash); Wörter ohne Glob-Zeichen unverändert (~ expandiert
+    zu Hause); höchstens 50 Werte. None, wenn eine Bedingung fehlschlägt – die Variable bleibt unaufgelöst."""
+    m = _FOR_RX.match(_maskiert(seg))
+    if m is None or trennung not in (";", "") or not _FOR_DO_RX.match(_maskiert(naechster)):
+        return None
+    name = m.group(1)
+    if zaehler[name] != 2 or not schreibfrei:
+        return None
+    try:
+        woerter = shlex.split(seg[m.start(2):m.end(2)], posix=True)
+    except ValueError:
+        return None
+    werte: list[str] = []
+    for wort in woerter:
+        if not re.fullmatch(r"(~/)?[\w./*?@%+,:=-]+", wort) or "__NORMEN_" in wort:
+            return None  # nur schlichte Wörter: kein $, Backtick, Klammern, [ ] (Shell-Klammerausdrücke ≠ fnmatch), zsh-<…>/^/#
+        if "**" in wort:  # zsh (und bash mit globstar): ** sucht rekursiv, glob.glob ohne recursive nicht – Werte unbekannt
+            return None
+        if not any(c in wort for c in _GLOB_ZEICHEN):
+            werte.append(os.path.expanduser(wort))
+            continue
+        muster = os.path.expanduser(wort)
+        if os.path.isabs(muster):
+            treffer = sorted(glob.glob(muster))
+        elif basis is not None:  # relativer Glob: gilt an der for-Stelle
+            treffer = sorted(glob.glob(muster, root_dir=basis))
+        else:
+            return None
+        werte.extend(treffer if treffer else [wort])  # kein Treffer: das Wort selbst (wie bash)
+    if not werte or len(werte) > 50:
+        return None
+    if any(re.search(r"[\s*?\[]", w) for w in werte):  # unzitiertes $f trennt an Leerraum und globbt erneut – Werte unbekannt
+        return None
+    return name, werte
+
+
+def _nur_vorbereitung(seg: str) -> bool:
+    """v19 (S06-ERS, K3, Review): Teilbefehl vor einer for-Schleife, der keine Datei schreiben kann – `cd ORDNER` oder
+    reine Zuweisungen ohne Ersetzung. Alles andere (auch Unbekanntes) → False."""
+    try:
+        w = shlex.split(seg)
+    except ValueError:
+        return False
+    if not w or "__NORMEN_" in seg or re.search(r"[<>&|]", _maskiert(seg)):  # Review v19: `cd 2>f`, `X=1>f` schreiben
+        return False
+    return (w[0] == "cd" and len(w) <= 2) or all(_PRAEFIX_ZUWEISUNG.fullmatch(t) for t in w)
+
+
+def _referenzen_ganz(seg: str, name: str) -> bool:
+    """v19 (S06-ERS, K3): True, wenn $NAME/${NAME} im Teilbefehl nur als eigenes Wort steht (zitiert erlaubt,
+    in einfachen Anführungszeichen gibt es keine Referenz) – nirgends in ein größeres Wort eingebettet wie
+    `print($n)` in Inline-Code: eingebettete Referenzen bleiben unaufgelöst (v11: Code mit unsicherer
+    Variable fragt weiter)."""
+    i, end, zitat, inhalt = 0, len(seg), "", False
+    while i < end:
+        c = seg[i]
+        m = _VAR_RX.match(seg, i) if c == "$" and zitat != "'" else None
+        if m is not None and (m.group(1) or m.group(2)) == name:
+            if inhalt:  # vor der Referenz steht schon Wortinhalt
+                return False
+            i = m.end()
+            while i < end:  # Wort endet mit der Referenz? Nur Zitatgrenzen dürfen folgen.
+                d = seg[i]
+                if zitat == '"' and d == '"':
+                    zitat = ""
+                elif zitat == '"':  # mehr Inhalt innerhalb des Zitats
+                    return False
+                elif d.isspace():
+                    break
+                elif d in "\"'":
+                    zitat = d
+                else:  # Wort läuft hinter der Referenz weiter (auch Verkettung wie "$f"x)
+                    return False
+                i += 1
+            continue
+        if zitat == "'":
+            if c == "'":
+                zitat = ""
+            else:
+                inhalt = True
+        elif zitat == '"':
+            if c == '"':
+                zitat = ""
+            else:
+                if c == "\\":
+                    i += 1
+                inhalt = True  # Inhalt vor einer späteren Referenz innerhalb des Zitats
+        elif c == "\\":
+            i += 1
+            inhalt = True
+        elif c in "\"'":
+            zitat = c
+        elif c.isspace():
+            inhalt = False
+        else:
+            inhalt = True
+        i += 1
+    return True
+
+
+def _wert_saetze(seg: str, werte: dict[str, list[str]]) -> list[dict[str, str]] | None:
+    """v19 (S06-ERS, K3): Wertbelegungen der for-Variablen mit bekannten Werten, die dieser Teilbefehl als
+    eigenes Wort benutzt ($NAME/${NAME}) – je Belegung läuft die Skriptprüfung einmal. None, wenn keine
+    benutzte Variable bekannte Werte hat oder mehr als 50 Kombinationen möglich sind (dann unaufgelöst wie
+    bisher → fragen)."""
+    namen = [n for n in dict.fromkeys(m.group(1) or m.group(2) for m in _VAR_RX.finditer(seg))
+             if n in werte and _referenzen_ganz(seg, n)]
+    anzahl = 1
+    for n in namen:
+        anzahl *= len(werte[n])
+    if not namen or anzahl > 50:
+        return None
+    saetze = [{}]
+    for n in namen:
+        saetze = [{**s, n: w} for s in saetze for w in werte[n]]
+    return saetze
+
+
+def _wert_einsetzen(seg: str, satz: dict[str, str]) -> str:
+    """v19 (S06-ERS, K3): $NAME/${NAME} der for-Variablen wortgetreu durch ihre Werte ersetzen – ein Wert
+    bleibt ein Wort (innerhalb doppelter Anführungszeichen passend maskiert, sonst einfach zitiert; in
+    einfachen Anführungszeichen gibt es keinen Ersatz). So prüft der Hook jeden Wert wie den zugehörigen
+    wörtlichen Aufruf, z. B. ein Wortlisten-Muster ohne Glob-Treffer als Skriptpfad."""
+    doppelt = {n: w.replace("\\", "\\\\").replace('"', '\\"') for n, w in satz.items()}
+    aus: list[str] = []
+    i, end, zitat = 0, len(seg), ""
+    while i < end:
+        c = seg[i]
+        m = _VAR_RX.match(seg, i) if c == "$" and zitat != "'" else None
+        if m is not None and (name := m.group(1) or m.group(2)) in satz:
+            aus.append(doppelt[name] if zitat else "'" + satz[name].replace("'", "'\\''") + "'")
+            i = m.end()
+            continue
+        if zitat == "'":
+            if c == "'":
+                zitat = ""
+        elif c == "\\" and i + 1 < end:
+            aus.append(seg[i:i + 2])
+            i += 2
+            continue
+        elif c in "\"'":
+            zitat = c
+        aus.append(c)
+        i += 1
+    return "".join(aus)
+
+
+def _s06_text(cfg, text: str, voll: str, cwd: str, rolle: str, tiefe: int, ebene: int,
+              basis: str | None, zuweisungen: dict[str, str], unsicher: set[str]) -> list[tuple[str, str]]:
+    """S06-Prüfung einer Ebene (v19, S06-ERS): text ist der Befehlstext dieser Ebene – oben der
+    Originalbefehl, vor _ohne_textdaten/_ohne_heredoc_daten, denn eine Commit-Nachricht
+    `-m "Text $(python3 x)"` und ein unzitierter Heredoc-Rumpf führen `$(…)` aus. voll ist der ganze
+    Befehl für alle Prüfungen „im selben Befehl geschrieben“; ebene 0 ist die oberste. Befehlsersetzungen
+    zerlegt _ersetzungen; jede Ersetzung/Gruppe prüft diese Funktion rekursiv (ebene + 1, ab 4 zu tief),
+    mit dem Basisordner und den Zuweisungen unmittelbar vor dem Teilbefehl, in dem ihr Platzhalter steht
+    – Änderungen im Inneren wirken nicht nach außen. for-Schleifen mit wörtlicher Wortliste prüft die
+    Funktion je Wert der Schleifenvariablen (v19, S06-ERS, K3). """
+    if ebene >= 4:
+        return [("fragen", "S06-CODE-MODE: Befehlsersetzung zu tief verschachtelt – nicht prüfbar")]
+    aussen, ers, befunde = _ersetzungen(text)
+    if befunde:
+        return befunde
+    aussen = _ohne_heredoc_daten(_ohne_textdaten(aussen), in_ersetzung=ebene > 0)
+    gruende: list[tuple[str, str]] = []
+    # V15b: für `cd "$D"` nur Zuweisungen, die sicher laufen – eigener Teilbefehl nach Anfang/;/Zeilenumbruch, nicht in
+    # einer Pipeline oder im Hintergrund, keine Steuerstrukturen/Subshells/Heredocs im Befehl und nichts, was Variablen
+    # ohne NAME= ändert (unset, eval, source/., read, printf -v …); sonst bleibt der Basisordner unbekannt
+    segs = _segmente_pos(aussen)
+    trenner = [""] + [aussen[p + len(s):segs[k + 1][0]].strip() for k, (p, s) in enumerate(segs[:-1])] + [""]
+    schlicht = not re.search(
+        r"\b(if|then|else|elif|fi|while|until|do|done|case|esac|for|select|function|unset|eval|source|read|"
+        r"readarray|mapfile|printf|declare|typeset|local|let|getopts|exec)\b|[(){}`]|<<|(^|[;&|\n])\s*\.(\s|$)",
+        _maskiert(re.sub(r"\$\{[A-Za-z_]\w*\}", "$V", text)))  # ${NAME} ist keine Klammer-Struktur; Originaltext der Ebene
+    cd_zuw: dict[str, str] = dict(zuweisungen)
+    gesehen: set[int] = set()
+    # K3 (v19, S06-ERS): Werte bekannter for-Variablen – nur wenn ein `for … in` auf dieser Ebene vorkommt
+    zaehler = _zuweisungs_zaehler(voll) if re.search(r"\bfor\s+[A-Za-z_]\w*\s+in\b", _maskiert(aussen)) else None
+    schreibfrei = zaehler is not None and all(
+        z is not None and str(z).startswith("/dev/") for z in _schreibziele(voll, cwd))
+    for_werte: dict[str, list[str]] = {}
+    for k, (pos, seg) in enumerate(segs):  # Trenner in Anführungszeichen bleiben im Teilbefehl
+        # V15b: $PWD/$OLDPWD gelten an dieser Stelle (nach cd), nicht aus der Umgebung des Hooks
+        zuweisungen.update(PWD=basis if basis is not None else _UNSICHER, OLDPWD=_UNSICHER)
+        cd_zuw.update(PWD=zuweisungen["PWD"], OLDPWD=_UNSICHER)
+        # K3 nur auf oberster Ebene und nur, wenn vor der Schleife lediglich cd/Zuweisungen laufen (Review v19: tar -x,
+        # git checkout, curl -o … schreiben, ohne dass _schreibziele es sieht – der Glob gilt aber zur Hook-Zeit)
+        if zaehler is not None and ebene == 0 and k + 1 < len(segs) and all(
+                _nur_vorbereitung(s) for _, s in segs[:k]):
+            if (w := _for_werte(seg, segs[k + 1][1], trenner[k + 1], zaehler, basis, schreibfrei)) is not None:
+                for_werte[w[0]] = w[1]
+
+        def teil_pruefen(satz: dict[str, str] | None = None, seg=seg, pos=pos) -> list[tuple[str, str]]:
+            """Ersetzungen und Skriptprüfung dieses Teilbefehls; satz: K3-Belegung – Werte in einer Kopie der
+            Zuweisungen und wortgetreu im Teilbefehl (so prüft der Hook jeden Wert wie den wörtlichen Aufruf)."""
+            z = zuweisungen if satz is None else {**zuweisungen, **satz}
+            s = seg if satz is None else _wert_einsetzen(seg, satz)
+            aus: list[tuple[str, str]] = []
+            for nr, e in enumerate(ers):  # Ersetzungen dieses Teilbefehls: Zustand unmittelbar davor
+                if e.platzhalter in seg:
+                    gesehen.add(nr)
+                    aus.extend(_s06_text(cfg, e.innen, voll, cwd, rolle, tiefe, ebene + 1,
+                                         basis, dict(z), unsicher))
+            return aus + _skript_im_befehl(cfg, s, pos, aussen, cwd, rolle, tiefe, basis, z, voll)
+
+        saetze = _wert_saetze(seg, for_werte)
+        if saetze is None:  # K3: keine benutzte Variable mit bekannten Werten (oder >50 Kombinationen) – einmal wie bisher
+            gruende.extend(teil_pruefen())
+        else:  # K3: einmal je Wert(-Kombination); gleiche Befunde mehrerer Werte nicht doppelt
+            ausgegeben: set[tuple[str, str]] = set()
+            for satz in saetze:
+                for b in teil_pruefen(satz):
+                    if b not in ausgegeben:
+                        ausgegeben.add(b)
+                        gruende.append(b)
+        gruende.extend(_team_prompt(cfg, _platzhalter_zurueck(seg, ers), voll, cwd, basis, zuweisungen))
+        # Werte mit früheren Zuweisungen auflösen (G=/x; RUN="$G/lauf")
+        werte = _zuweisungen_aus_seg(seg)
+        zuweisungen.update({n: _sichere_zuweisung(n, _var_ersetzen(v, zuweisungen), unsicher) for n, v in werte.items()})
+        # für cd nur aus sicher bekannten Werten auflösen (`false && X=/p; D=$X` → D unbekannt)
+        sicher = schlicht and trenner[k] in ("", ";") and trenner[k + 1] not in ("|", "&")
+        cd_zuw.update({n: _sichere_zuweisung(n, _var_ersetzen(v, cd_zuw), unsicher) if sicher else _UNSICHER
+                       for n, v in werte.items()})
+        basis = _cd_basis(seg, basis, cd_zuw)
+    for nr, e in enumerate(ers):  # Platzhalter (z. B. als Text-/Heredoc-Daten) entfernt: trotzdem prüfen
+        if nr not in gesehen:
+            z2 = {n: _UNSICHER for n in (set(unsicher) | _zuweisungs_namen(text))}
+            gruende.extend(_s06_text(cfg, e.innen, voll, cwd, rolle, tiefe, ebene + 1, None, z2, unsicher))
+    return gruende
 
 
 def cmd_skript(a) -> int:

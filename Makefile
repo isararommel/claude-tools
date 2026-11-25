@@ -13,5 +13,6 @@ test:
 	python3 tests/test_v15b2.py
 	python3 tests/test_review_tor.py
 	python3 tests/test_protokoll.py
+	python3 tests/test_ersetzung.py
 
 .PHONY: test

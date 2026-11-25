@@ -4,10 +4,9 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 24.11.2026 (v18 auf main nach Merge von Paket **P** (Normen-Protokoll, Forschungsdaten in Mistral-Reviews,
-`lesbar_extern` je Teilbefehl, `einrichten-hier.sh`); erste Protokoll-Auswertung erledigt (Fehlalarm-Kandidaten K1–K3 unter
-P); **KT** erledigt (Coding-Team: Umsetzung GLM-5.3, Reviews Large 4); nächstes Paket: **S06-ERS** (Lücke `$(…)` in S06,
-Normen v19, Freigabe der Inhaberin nötig), dann **VL**
+*Stand: 25.11.2026 (v18 auf main; **S06-ERS / v19** auf Branch `paket-s06-ers` fertig, Review-Bericht `Mergereif: ja`,
+Kopie eingespielt, zwei Advisor-Prüfungen, Historie auf Wunsch zu einem Commit zusammengefasst; offen: Merge, Sitzungen informieren);
+danach **HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
 (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
@@ -585,6 +584,75 @@ ohne Fehlalarm, doppelte Klammer-Hilfsfunktionen zusammenlegen; Grenzfälle aus
 `tests/kante_kt.py` auf dem lokalen Zweig `probe-kt-glm` als Tests übernehmen. Zusammen mit K1–K4. Schritte:
 Advisor (Normänderung, S07 Punkt 5), Freigabe der Inhaberin, mistral-team (GLM-5.3) setzt um, Review Large 4 + Gemini,
 Version 19, Bericht, Merge, Sitzungen informieren. Danach Probezweige `probe-kt-glm`/`probe-kt-large` löschen (Rückfrage).
+**Stand 25.11. (Branch `paket-s06-ers`, Freigabe der Inhaberin 24.11.):** Advisor-Plan eingearbeitet (Zerlegen am ganzen
+Befehl vor `_segmente_pos` und vor `_ohne_textdaten`/`_ohne_heredoc_daten`; `text`/`voll` in `_skript_im_befehl` getrennt;
+`_team_prompt` mit Originaltext; Subshell, `case`, `<(…)`/`>(…)`/zsh `=(…)` mit gemessen – alle vier waren auch auf oberster
+Ebene bzw. im unzitierten `cat > f <<EOF`-Rumpf Lücken). Abnahmetest `tests/test_ersetzung.py` von Claude (vorher rot
+41/79, committet), noch **nicht im Makefile** (erst nach K3/K4, sonst Stop-Hook rot). Lauf 1 (GLM-5.3, Kern) endete am
+`turn_limit` 60 ohne Bericht, Code aber vollständig: alle Fälle außer K3/K4 grün, `make test` grün, `pruefen --diff` 0 Fehler,
+Diff gelesen (`_Zerleger`, `_ersetzungen`, `_s06_text`, `_platzhalter_zurueck`). **Vergleich alt/neu** über 1500 echte
+Befehle (Protokoll + Transkripte, Skript nur im Scratchpad): 24× ja→nein = `s=$(<vertrautes-werkzeug> status)` (geschlossene Lücke; im
+Projekt mit `[werkzeuge].vertraut` bleibt es ja – Testfall ergänzt), 5× fragen→ja (K1), 1× nein→fragen (alter Zerlegungsfehler).
+K2 nicht im Protokoll, nicht nachstellbar → Regressionstests. **Befunde älter als v19 (beide Fassungen, späteres Paket):**
+(a) Hook braucht bei manchen langen Befehlen (`make build …; grep …; T=$(mktemp …)`) > 60 s; (b) sehr langes Wort (Heredoc-
+Text) → `OSError: File name too long` in der N03-Wortschleife (`Path.exists()`) → Hook sperrt (fail-closed).
+**Stand 25.11. abends:** Lauf 2 (K3/K4, GLM-5.3, 53 Schritte, finished) umgesetzt; `test_review_tor.py` K4-Fall auf ja
+(bewusste Lockerung); Makefile, Version 19, CHANGELOG. Eigene Korrekturen: zsh-`**`, Werte mit Leerraum/Glob-Zeichen.
+Review: Large 4 in zwei Teilen (A Zerleger, B Prüflogik) – 5 Befunde bestätigt und behoben (Kommentar-`)`, `time`/`coproc (…)`,
+RecursionError, K3 nur Ebene 0 nach `cd`/Zuweisung, nur schlichte Wörter); Gemini zweimal abgebrochen (Timeout, auto-denied).
+`test_ersetzung.py` 93/93, `make test` grün, Vergleich alt/neu ohne Rückschritt. Bericht `docs/reviews/2026-11-25-paket-s06-ers.md`.
+Kopie eingespielt (`cmp` gleich). **Offen:** Advisor vor Merge, PR (Label nicht nötig – neue Version), `normen.py merge`,
+Sitzungen informieren (Probezweige gelöscht 25.11.). Zurückgestellt: weitere Testfälle
+(Review Nr. 8), „im selben Befehl geschrieben“ über `tar`/`git checkout`/`curl -o`, Hook > 60 s, `OSError` überlange Wörter.
+
+### HT. Hook-Zeitlimit: fail-open schließen *(vordringlich, vor QS; Befund 25.11., älter als v19)*
+
+Doku (code.claude.com/docs/en/hooks, über claude-code-guide, Zitat aus Zusammenfassung – im Original gegenprüfen):
+command-Hooks haben standardmäßig `timeout` 600 s; „On `PreToolUse`, a timed-out `command` … hook doesn't block the tool
+call … To block the call when the hook times out, set `onFailure: "block"`.“ Unser PreToolUse-Hook hat kein `timeout` und
+kein `onFailure` → ein Befehl, für den `normen.py hook` länger als 600 s braucht, läuft ungeprüft durch den normalen
+Freigabeweg. Gemessen (Vergleichsskript, 25.11.): mehrere lange Befehle (`make build …; grep …; T=$(mktemp …)`) brauchen im
+Hook > 60 s, in alter und neuer Fassung – Dauer bis Ende nicht gemessen. Schritte: (1) Dauer dieser Befehle messen und
+Ursache finden (Profil), (2) `onFailure` im Original der Doku und mit der installierten Version prüfen (S04), (3) mit Freigabe
+der Inhaberin (Einstellungen) `"onFailure": "block"` und ein knappes `timeout` in `agenten-normen/projekt/.claude/settings.json`
+(auch PostToolUse/Vibe-Hooks prüfen), (4) Hook beschleunigen, Test, Version, einspielen. Zusammen mit dem `OSError` bei
+überlangen Wörtern. **Freigabe der Inhaberin 25.11.:** ja, HT vor QS (Option vorher an der Original-Doku belegen).
+Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (alle älter als v19): Vor-Zuweisungen mit
+Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
+anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.
+
+### QS. Abteilung Qualitätssicherung: Gutachter-Büros *(Auftrag der Inhaberin 25.11., nach S06-ERS)*
+
+Ziel: kritische, möglichst kontextfreie Gutachter, je in einer eigenen Claude-Sitzung (Terminal im Büro-Ordner) und
+zusätzlich als Sub-Agent für die Geschäftsführung (diese Sitzung) aufrufbar. Bild: Bürokomplex – Geschäftsführung, darunter
+Produktivteams, daneben die Abteilung QS; Arbeiten werden ins Büro eingereicht, dort (auch mit Sub-Agenten) begutachtet und
+zurückgereicht. Rollen: (1) **Senior Lead Designer** (größere Designagentur): gestaltet Content und kritisiert Gestaltungen,
+Kern: Fehler im Designansatz finden, zügige Verbesserungsvorschläge. (2) **Lead UX Designer** (praxisorientierter Tester):
+Personas, Nutzungsszenarien entwerfen (Vorlage für den Designer), fertige Oberflächen szenarienbasiert auf Benutzbarkeit
+testen und kritisch durchleuchten. (3) **Softwarearchitekt Sicherheit und Ressourcen**: Code auf Cybersicherheit sowie auf
+Schlankheit/Effizienz/Last prüfen („könnte die App schmaler sein?“). Weitere Gutachter später möglich.
+**Entschieden (Inhaberin 25.11.):** ein eigenes privates QS-Projekt (Pfad nur lokal) mit einem Büro-Ordner je Gutachter
+(Eingang/Ausgang je Büro); Rollen-Vorlagen (CLAUDE.md, Agent-Definitionen, Einstellungen) als Quelle in claude-tools
+(öffentlich, neutral); Start erst nach S06-ERS.
+**Doku-Befunde (25.11., code.claude.com, über claude-code-guide):** Start in einem Unterordner lädt `CLAUDE.md` aller
+Elternordner und immer `~/.claude/CLAUDE.md` (Orchestrierungsrolle!) → nicht kontextfrei ohne Gegenmaßnahme. `claudeMdExcludes`
+(Glob-Liste, jede Einstellungsebene, nicht für verwaltete CLAUDE.md) schließt Dateien aus. Sub-Agenten bekommen CLAUDE.md,
+außer `omitClaudeMd: true`; Gesprächsverlauf nie. `--system-prompt(-file)`/`--append-system-prompt(-file)` wirken auch
+interaktiv; `--agent <name>` für die Sitzung. `additionalDirectories` ist nicht nur lesend; `permissions.blockWritesOutsideWorkingDirectories`
+sperrt Datei-Werkzeuge außerhalb (nicht Shell/MCP) – Shell über Normen-Hooks (eigene Rolle `gutachter`: nur im Büro schreiben).
+**Schritte:** (1) Probe: Büro-Unterordner mit `.claude/settings.json` (`claudeMdExcludes` für Eltern- und Benutzer-CLAUDE.md)
+– messen, ob die Sitzung sie wirklich nicht lädt und ob Projekt-Einstellungen aus dem Büro-Ordner (nicht der git-Wurzel)
+gelten; sonst ein git-Repository je Büro. (2) Advisor zu Plan/Schnittstellen (Einreichformat `eingang/<datum>-<titel>/auftrag.md`
++ Verweis auf das Projekt nur lesend, Gutachten `ausgang/<…>/gutachten.md` mit festem Aufbau: Befund, Schwere, Beleg,
+Vorschlag). (3) Rollen-Texte (gemini-analyst entwirft, Claude prüft), Agent-Definitionen mit `omitClaudeMd: true`.
+(4) Einrichten, Probegutachten je Büro an einem echten Stand, Abnahme mit der Inhaberin.
+
+### Rückmeldungen 25.11. (privates Rückmelde-Repository, noch nicht eingeplant)
+
+- #135 (Ablauf, mittel): `aktualisieren`/`einrichten.sh` hängt in fremden Repositorys Zeilen an die getrackte `.gitignore`
+  an, bei der Ersteinrichtung wurde eine vorhandene `.gitignore` ersetzt. Vorschlag: `.git/info/exclude` bzw. lokaler Modus.
+- #136 (zu streng, niedrig, S06): Testskripte mit Loopback-Testserver (signal/time/urllib, Schreibziel aus
+  `Path(__file__).parent`) werden gesperrt. Getrennt von S06-ERS bewerten.
 
 ### VL. Eine Quelle `vorlage/` – Projektbaum zum Kopieren *(Entscheidung der Inhaberin 24.11., nach KT, vor DT)*
 
