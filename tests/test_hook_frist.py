@@ -106,7 +106,7 @@ import normen
 normen.FRIST_S = 1
 def langsam(*a, **k):
     try:
-        time.sleep(6)
+        time.sleep(30)
     except Exception:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Attrappe: eine Frist, die von Exception erbt, würde hier verschluckt
         pass
     return 'ja', []
@@ -121,11 +121,12 @@ print('REST-ALARM', signal.alarm(0))
         dauer = time.monotonic() - t0
         check(f"Frist {werkzeug}: Entscheidung {soll}", soll in r.stdout, r.stdout[-300:] + r.stderr[-300:])
         check(f"Frist {werkzeug}: Grund nennt die Frist", "Frist" in r.stdout, r.stdout[-300:])
-        check(f"Frist {werkzeug}: abgebrochen statt ausgesessen", dauer < 5, f"{dauer:.1f}s")
+        # Attrappe schläft 30 s, Frist 1 s: Grenze 15 s lässt auch unter Rechnerlast Reserve (Advisor HT)
+        check(f"Frist {werkzeug}: abgebrochen statt ausgesessen", dauer < 15, f"{dauer:.1f}s")
         check(f"Frist {werkzeug}: Alarm danach gelöscht", "REST-ALARM 0" in r.stdout, r.stdout[-200:])
 
     # Andere Ausnahme in bewerten: gesperrt (wie bisher) und Alarm danach gelöscht (Review HT, Mistral Nr. 5c)
-    KAPUTT = LANGSAM.replace("time.sleep(6)", "raise ValueError('kaputt')").replace(
+    KAPUTT = LANGSAM.replace("time.sleep(30)", "raise ValueError('kaputt')").replace(
         "    except Exception:", "    except KeyError:")
     r = sh(sys.executable, "-c", KAPUTT, "claude", "claude", cwd=repo)
     check("andere Ausnahme: gesperrt", '"deny"' in r.stdout and "ValueError" in r.stdout, r.stdout[-300:] + r.stderr[-300:])

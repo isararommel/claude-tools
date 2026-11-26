@@ -660,6 +660,21 @@ Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (all
 Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
 anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.
 
+### HD. Skriptdateien wie Befehle zerlegen (Zitate, `$(…)`, Heredocs) *(Folgepaket aus HT, 26.11.; Reihenfolge: Inhaberin)*
+
+Ziel: `bash -n`/`bash x.sh` auf große Skriptdateien (370 KB, base64-Heredoc) in < 2 s und ohne Scheingründe prüfen.
+Befund (HT): `_maskiert`/`_segmente_pos` kennen `$(…)` in `"…"` nicht (`V="$(curl … | sed -n 's/.*"versi…'`), ein
+Teilbefehl umfasst dann 4754 Zeilen; `shlex.read_token` ist bei langen Token quadratisch; Heredoc-Rümpfe der Datei
+werden zeilenweise als Befehle gelesen (3004 Gründe „Skript H4sI… nicht gefunden“). Heute 20–50 s → Frist → `nein`
+(Ergebnis wie vorher, aber Fehlalarme bei harmlosen großen Skripten möglich).
+Schritte: (1) Advisor zu Plan/Schnittstellen; (2) `_shell_datei_bewerten` auf den `_Zerleger` aus v19 umstellen (Zitate,
+`$(…)`, Heredoc-Rümpfe als Daten), `_maskiert` nur noch für einzelne Teilbefehle; (3) Abnahmetest vorher rot (Skript
+mit `"$(… '"' …)"` und base64-Heredoc: Dauer-Verhältnis, keine Scheingründe, echte Befunde bleiben); (4) Alt/Neu-Vergleich
+über Transkript-Befehle (Skripte `code-mode-runs/ht/vergleich.py`, `klassen.py` als Muster, nur Scratchpad) – Abweichungen
+einzeln begründen, da Entscheidungen sich ändern; (5) Version, einspielen, Sitzungen informieren.
+Offen mitnehmen: Vibe-Timeout mit `strict = true` messen (Probe-Hook `sleep` > `timeout` in Scratchpad-Projekt, `vibe -p`);
+Beobachtung `fragen` im Auto-Modus (ein `ask` des Hooks lief ohne Eingabe der Inhaberin durch – nicht nachgestellt).
+
 ### QS. Abteilung Qualitätssicherung: Gutachter-Büros *(Auftrag der Inhaberin 25.11., nach S06-ERS)*
 
 Ziel: kritische, möglichst kontextfreie Gutachter, je in einer eigenen Claude-Sitzung (Terminal im Büro-Ordner) und
