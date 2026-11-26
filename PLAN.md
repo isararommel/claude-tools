@@ -617,6 +617,32 @@ Ursache finden (Profil), (2) `onFailure` im Original der Doku und mit der instal
 der Inhaberin (Einstellungen) `"onFailure": "block"` und ein knappes `timeout` in `agenten-normen/projekt/.claude/settings.json`
 (auch PostToolUse/Vibe-Hooks prüfen), (4) Hook beschleunigen, Test, Version, einspielen. Zusammen mit dem `OSError` bei
 überlangen Wörtern. **Freigabe der Inhaberin 25.11.:** ja, HT vor QS (Option vorher an der Original-Doku belegen).
+**Befunde 26.11. (Messskripte nur im Scratchpad `code-mode-runs/ht/`):** 38 echte Befehle mit `mktemp` und `;` aus
+Transkripten, 2 davon > 30 s, beide mit `bash -n $S` auf eine 358-KB-Skriptdatei (`dist/…-update.sh`, 4708 Zeilen, base64-Heredoc)
+→ `_shell_datei_bewerten` bewertet die Datei; Stack: `_skript_im_befehl` → `vorher = _maskiert(text)[:pos]` je Teilbefehl über
+den ganzen Text (quadratisch). Mit `lru_cache` auf `_maskiert` (nur Monkeypatch): 7 s, Stufe `nein`; Rest im Profil: shlex
+`read_token`, `_schreibziele` (10 Aufrufe, 11 s unter cProfile). Nebenbefund (eigenes Paket, ändert Entscheidungen): Heredoc-
+Rumpf in der Skriptdatei wird zeilenweise als Befehle gelesen → 3004 Gründe („Skript H4sI… nicht gefunden“). Claude Code:
+`onFailure` (`continue`/`block`) im Schema der installierten 2.1.332, Doku-Tabelle wörtlich „Requires Claude Code v2.1.295 or
+later“; Standard-`timeout` 600 s. Vibe: `timeout` Standard 60 s (`vibe/core/hooks/models.py`), `strict = true`; ob ein
+Timeout als Fehler (= Ablehnung) zählt, steht nicht im Python-Quelltext (Ausführung im Backend) – ungemessen.
+Plan (Advisor 26.11.): interne Frist in `cmd_hook` (Ausnahme von `BaseException`, Ergebnis „fragen“ – Entscheidung der
+Inhaberin offen) als Hauptmechanismus, `timeout` + `onFailure: block` als äußere Sicherung (vorher per `claude -p`-Probe
+messen: Timeout-Arm, Kontrollarm ohne `onFailure`, `exit 1`-Arm); Beschleunigung nur entscheidungsneutral (Alt/Neu-Vergleich,
+null Abweichungen, Frist aus gemessener Höchstdauer); `OSError` erst reproduzieren, alle Dateisystem-Proben; Tests ohne
+Wanduhr-Grenzen; nach Einspielen `selbsttest`. Hinweis für den Bericht: mit `block` sperrt ein defektes `normen.py` alles.
+**Stand 26.11. (Zwischencommit, v20 eingespielt, `make test` grün, `pruefen --diff` 0 Fehler):** Doku wörtlich belegt
+(„Each of these counts as a failure: Timeout“; PreToolUse ohne `onFailure` „doesn't block the tool call“). Probe `claude -p`
+(2.1.332, Scratchpad): Timeout ohne `onFailure` → ausgeführt, mit `block` → gesperrt; `exit 1` mit `block` → gesperrt, ohne →
+ausgeführt (Absturz von normen.py war fail-open). Umgesetzt: Vorlage `"timeout": 30, "onFailure": "block"`; `einrichten.sh`
+ergänzt fehlende Hook-Felder bei gleichem Befehl (sonst bekämen bestehende Projekte sie nie); `FRIST_S` = 20 in `cmd_hook`
+(`_Frist(BaseException)`, Ergebnis `fragen`, Teams `nein`); Caches `_maskiert`, `_schreibziele` (Tupel); Platzhaltersuche per
+Regex; `_vorhanden` (nur ENAMETOOLONG → nicht vorhanden) an 12 Stellen. Test `tests/test_hook_frist.py` (49, vorher rot 30).
+Alt/Neu über 13 537 Transkript-Befehle: 126 Abweichungen, alle erklärt (50 alter OSError → bewertet, 25 alte Zeitüberschreitung
+→ `nein`, 51 N11 durch Branchwechsel eines anderen Projekts zwischen den Läufen). **Offen:** 9 Befehle (`bash -n` auf
+370-KB-`dist/`-Skripte mit base64-Heredoc) brauchen weiter 21–54 s (verrauscht) → mit Frist `fragen` statt heute `nein`.
+Ursache: `shlex.read_token` baut Token per Verkettung (quadratisch, 200 KB-Token 2,3 s; mehrere Aufrufe je Befehl).
+Entscheidung offen: Frist-Ergebnis `fragen` oder `nein`; shlex-Ersatz/Heredoc-Rumpf in Skriptdateien als Daten (eigenes Paket?).
 Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (alle älter als v19): Vor-Zuweisungen mit
 Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
 anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.

@@ -19,7 +19,9 @@ Regelwerk: normen.toml · Rollen: rollen.toml · Projektwerte: projekt.toml (all
 """
 import argparse
 import ast
+import errno
 import fnmatch
+import functools
 import glob
 import hashlib
 import importlib.machinery
@@ -28,6 +30,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -59,6 +62,18 @@ def _echt(pfad) -> Path:
             teil = next((n for n in namen if n.casefold() == teil.casefold()), teil)
         ergebnis = ergebnis / teil
     return ergebnis
+
+
+def _vorhanden(p: Path, art: str = "exists") -> bool:
+    """Path.exists/is_file/is_dir für Pfade aus Befehlen und Werkzeug-Eingaben (v20, HT): ein überlanger Name
+    (ENAMETOOLONG, z. B. ein Heredoc-Wort mit 300 Zeichen) gilt als nicht vorhanden – vorher sperrte der Hook mit
+    „Normen-Hook fehlerhaft“. Andere Fehler bleiben Fehler (der Hook sperrt dann wie bisher)."""
+    try:
+        return getattr(p, art)()
+    except OSError as e:
+        if e.errno != errno.ENAMETOOLONG:
+            raise
+        return False
 
 
 HIER = _echt(Path(__file__)).parent
@@ -288,10 +303,12 @@ _ALLE_ARGUMENTE = {"rm", "rmdir", "touch", "truncate", "chmod", "chown", "mkdir"
 _LETZTES_ARGUMENT = {"cp", "ln", "install", "rsync"}
 
 
+@functools.lru_cache(maxsize=64)
 def _maskiert(seg: str) -> str:
     """Ersetzt jedes Zeichen in Anführungszeichen und jedes escapte Zeichen durch \\x00. So trennt shlex mit
     punctuation_chars einen zitierten Operator (z. B. '>' in grep '>') nicht als eigenes Token – nur echte
-    Operatoren bleiben reine Interpunktions-Token."""
+    Operatoren bleiben reine Interpunktions-Token. Zwischengespeichert (v20, HT): _skript_im_befehl maskiert je
+    Teilbefehl den ganzen Text – bei einer 358-KB-Skriptdatei quadratisch (164 s im Hook)."""
     out = []
     quote = ""
     i = 0
@@ -380,10 +397,12 @@ def _sichere_zuweisung(name: str, wert: str, unsicher: set[str]) -> str:
     return _UNSICHER if name in unsicher or "`" in wert or "$(" in wert else wert
 
 
-def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
+@functools.lru_cache(maxsize=64)
+def _schreibziele(cmd: str, cwd: str) -> tuple[Path | None, ...]:
     """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
     None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
-    install, rsync; Basisordner je Kette über cd."""
+    install, rsync; Basisordner je Kette über cd. Zwischengespeichert (v20, HT): hängt nur von Text, cwd und Umgebung
+    ab (im Hook-Lauf fest); S06 fragt je Teilbefehl mit dem ganzen Befehl – bei großen Skriptdateien 11× je 5 s."""
     segmente = _segmente(cmd)
     zuweisungen: dict[str, str] = {}
     unsicher = _unsichere_namen(cmd)
@@ -508,7 +527,7 @@ def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
             if r == "/dev/null":
                 continue
             ziele.append(auflösen(r))
-    return ziele
+    return tuple(ziele)
 
 
 def _loeschbar(cfg) -> list[tuple[Path, bool]]:
@@ -851,7 +870,7 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
             if not wort:
                 continue
             name = wort.rstrip("/").rsplit("/", 1)[-1]
-            ist_datei = "/" in wort or (Path(cwd) / os.path.expanduser(wort)).exists()
+            ist_datei = "/" in wort or _vorhanden(Path(cwd) / os.path.expanduser(wort))
             if ist_datei and _geheim(name, pf):
                 pruefe("geheimnisse-lesen", f"N03-KEINE-GEHEIMNISSE: Befehl berührt {name}")
         for s in pf.get("gesperrt", []):
@@ -894,13 +913,24 @@ def bewerten(cfg: dict, rolle: str, tool: str, eingabe: dict, cwd: str, _tiefe: 
                 gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: kein .normen-auftrag – Rolle {rolle} darf nichts schreiben"))
             elif not any(passt(rel, g) for g in globs):
                 gruende.append(("nein", f"N06-NUR-ERLAUBTE-PFADE: {rel} steht nicht in .normen-auftrag"))
-        if (ROOT / rel).exists() and any(passt(rel, g) for g in pf.get("tests", [])):
+        if _vorhanden(ROOT / rel) and any(passt(rel, g) for g in pf.get("tests", [])):
             pruefe("tests-aendern", f"N02-TESTS-SIND-TABU: bestehender Test {rel}")
 
     if not gruende:
         return "ja", []
     stufe = max((g[0] for g in gruende), key=lambda x: RANG[x])
     return stufe, [g[1] for g in gruende]
+
+
+FRIST_S = 20  # v20 (HT): kleiner als das timeout des PreToolUse-Hooks (Vorlage 30 s) und der Vibe-Standard (60 s)
+
+
+class _Frist(BaseException):
+    """Frist der Hook-Prüfung abgelaufen – von BaseException, damit kein `except Exception` in bewerten sie verschluckt."""
+
+
+def _frist_abgelaufen(signum, frame):
+    raise _Frist()
 
 
 def cmd_hook(a) -> int:
@@ -916,7 +946,17 @@ def cmd_hook(a) -> int:
                 eingabe = json.loads(eingabe)
             except json.JSONDecodeError:
                 eingabe = {"command": eingabe}
-        entscheid, gruende = bewerten(cfg, a.rolle, tool, eingabe, str(data.get("cwd") or os.getcwd()))
+        # v20 (HT): eigene Frist, denn ein abgebrochener Hook gibt keine Entscheidung (Claude Code ohne onFailure:
+        # fail-open, gemessen 26.11.) – nach FRIST_S fragen (Teams: nein, s. u.) mit lesbarem Grund
+        signal.signal(signal.SIGALRM, _frist_abgelaufen)
+        signal.alarm(FRIST_S)
+        try:
+            entscheid, gruende = bewerten(cfg, a.rolle, tool, eingabe, str(data.get("cwd") or os.getcwd()))
+        except _Frist:
+            entscheid, gruende = "fragen", [f"Normen-Hook: Prüfung nach der Frist von {FRIST_S} s abgebrochen – "
+                                            "Befehl nicht geprüft"]
+        finally:
+            signal.alarm(0)
         if a.werkzeug == "claude" and data.get("session_id") and any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
             # v16 (#66): Beleg für `selbsttest --sitzung` – diese Sitzung hat aktive Hooks (Fehler → gesperrt, s. u.)
             probe = ROOT / SITZUNGSPROBE
@@ -1550,14 +1590,14 @@ def _skript_gate(cfg, datei: Path, wort: str, cmd: str) -> list[tuple[str, str]]
     """None → Datei ist prüf-relevant (außerhalb des Projekts und von lesbar_extern, vorhanden); sonst
     Befunde: im Projekt und unter [pfade].lesbar_extern keine, nicht vorhanden → fragen."""
     if datei == ROOT or ROOT in datei.parents:
-        if not datei.exists() and (wort.endswith(".py") or _CD_RX.search(_maskiert(cmd))):
+        if not _vorhanden(datei) and (wort.endswith(".py") or _CD_RX.search(_maskiert(cmd))):
             # z. B. `pushd <anderswo> && ./x.sh`: relativ zur Basis falsch aufgelöst – nie als Projektskript durchlassen
             # (ohne cd im Befehl: z. B. `python3 -m venv .venv && .venv/bin/pip …` legt das Ziel erst an)
             return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden (cd im Befehl?) – nicht prüfbar")]
         return []  # Projektskripte wie bisher
     if any(datei == q or q in datei.parents for q in _lesbar_extern(cfg)):
         return []
-    if not datei.exists():
+    if not _vorhanden(datei):
         return [("fragen", f"S06-CODE-MODE: Skript {wort} nicht gefunden – nicht prüfbar")]
     return None
 
@@ -1606,24 +1646,24 @@ def _py_finde(name: str, suchpfad: list, intern) -> tuple[str, Path | None, list
     portionen: list[Path] = []
     for d in suchpfad:
         dp = Path(d)
-        if dp.is_file():
+        if _vorhanden(dp, "is_file"):
             if intern(dp):
                 continue
             return "fehlt", None, [], f"Eintrag {d} im Suchpfad ist eine Datei (zip/pyz)"
-        if not dp.is_dir():
+        if not _vorhanden(dp, "is_dir"):
             continue
         p = dp / name
-        if p.is_dir():
-            anders = [p / ("__init__" + s) for s in _PY_ANDERE if (p / ("__init__" + s)).is_file()]
+        if _vorhanden(p, "is_dir"):
+            anders = [p / ("__init__" + s) for s in _PY_ANDERE if _vorhanden(p / ("__init__" + s), "is_file")]
             if anders and not intern(anders[0]):
                 return "fehlt", None, [], f"Paket {p} mit {anders[0].name} (nur .py prüfbar)"
-            if (p / "__init__.py").is_file():
+            if _vorhanden(p / "__init__.py", "is_file"):
                 return "paket", p / "__init__.py", [p], None
             portionen.append(p)
-        anders = [dp / (name + s) for s in _PY_ANDERE if (dp / (name + s)).is_file()]
+        anders = [dp / (name + s) for s in _PY_ANDERE if _vorhanden(dp / (name + s), "is_file")]
         if anders and not intern(anders[0]):
             return "fehlt", None, [], f"Modul {anders[0]} (nur .py prüfbar)"
-        if (dp / (name + ".py")).is_file():
+        if _vorhanden(dp / (name + ".py"), "is_file"):
             return "modul", dp / (name + ".py"), [], None
     return ("namespace" if portionen else "fehlt"), None, portionen, None
 
@@ -2167,7 +2207,7 @@ def _team_prompt(cfg: dict, seg: str, cmd: str, cwd: str, basis: str | None,
             return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei {wert} relativ, aber Basisordner unbekannt (cd) – nicht prüfbar")]
         p = Path(basis) / p
     p = Path(os.path.realpath(p))
-    if not p.is_file():
+    if not _vorhanden(p, "is_file"):
         return [("nein", f"N06-NUR-ERLAUBTE-PFADE (Auftrag an Team): Prompt-Datei nicht gefunden ({p})")]
     for z in _schreibziele(cmd, cwd):
         if z is None:
@@ -2704,15 +2744,17 @@ def _ersetzungen(text: str) -> tuple[str, list[Ersetzung], list[tuple[str, str]]
     return aussen, zer.ers, []
 
 
+_PLATZHALTER_RX = re.compile(r"\$\(__NORMEN_ERS_\d+__\)|__NORMEN_GRUPPE_\d+__")  # Formen aus _Zerleger
+
+
 def _platzhalter_zurueck(seg: str, ers: list[Ersetzung]) -> str:
     """Platzhalter der Ersetzungen im Teilbefehl durch deren Originaltext zurückersetzen, rekursiv
     bis kein Platzhalter mehr bleibt – _team_prompt erwartet wörtlich `$(cat pfad)`. v19 (S06-ERS)."""
     roh = {e.platzhalter: e.roh for e in ers}
     aus = seg
     for _ in range(len(roh) + 1):  # begrenzt: Selbstbezüge in erfundenen Platzhaltern
-        neu = aus
-        for platzhalter, rohtext in roh.items():
-            neu = neu.replace(platzhalter, rohtext)
+        # v20 (HT): nur die Platzhalter im Teilbefehl suchen statt alle des Textes je Teilbefehl (quadratisch)
+        neu = _PLATZHALTER_RX.sub(lambda m: roh.get(m.group(0), m.group(0)), aus)
         if neu == aus:
             break
         aus = neu
@@ -2907,6 +2949,7 @@ def _s06_text(cfg, text: str, voll: str, cwd: str, rolle: str, tiefe: int, ebene
         _maskiert(re.sub(r"\$\{[A-Za-z_]\w*\}", "$V", text)))  # ${NAME} ist keine Klammer-Struktur; Originaltext der Ebene
     cd_zuw: dict[str, str] = dict(zuweisungen)
     gesehen: set[int] = set()
+    ers_nr = {e.platzhalter: nr for nr, e in enumerate(ers)}
     # K3 (v19, S06-ERS): Werte bekannter for-Variablen – nur wenn ein `for … in` auf dieser Ebene vorkommt
     zaehler = _zuweisungs_zaehler(voll) if re.search(r"\bfor\s+[A-Za-z_]\w*\s+in\b", _maskiert(aussen)) else None
     schreibfrei = zaehler is not None and all(
@@ -2929,11 +2972,12 @@ def _s06_text(cfg, text: str, voll: str, cwd: str, rolle: str, tiefe: int, ebene
             z = zuweisungen if satz is None else {**zuweisungen, **satz}
             s = seg if satz is None else _wert_einsetzen(seg, satz)
             aus: list[tuple[str, str]] = []
-            for nr, e in enumerate(ers):  # Ersetzungen dieses Teilbefehls: Zustand unmittelbar davor
-                if e.platzhalter in seg:
-                    gesehen.add(nr)
-                    aus.extend(_s06_text(cfg, e.innen, voll, cwd, rolle, tiefe, ebene + 1,
-                                         basis, dict(z), unsicher))
+            # Ersetzungen dieses Teilbefehls: Zustand unmittelbar davor; v20 (HT): Platzhalter im Teilbefehl suchen statt
+            # alle Ersetzungen je Teilbefehl zu prüfen (quadratisch), Reihenfolge wie bisher nach Nummer
+            for nr in sorted({ers_nr[m.group(0)] for m in _PLATZHALTER_RX.finditer(seg) if m.group(0) in ers_nr}):
+                gesehen.add(nr)
+                aus.extend(_s06_text(cfg, ers[nr].innen, voll, cwd, rolle, tiefe, ebene + 1,
+                                     basis, dict(z), unsicher))
             return aus + _skript_im_befehl(cfg, s, pos, aussen, cwd, rolle, tiefe, basis, z, voll)
 
         saetze = _wert_saetze(seg, for_werte)

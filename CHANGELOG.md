@@ -4,6 +4,40 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
 
 ---
 
+## v20 – Hook-Zeitlimit fail-closed, Beschleunigung, überlange Wörter – 2026-11-26
+
+**Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (`normen.py`, `normen.toml` und
+`.claude/settings.json`: PreToolUse-Hook mit `timeout` und `onFailure`). Voraussetzung: Claude Code ab v2.1.295.
+
+### Behoben (Lücke)
+- **Zeitüberschreitung und Absturz des PreToolUse-Hooks ließen den Befehl durch.** Claude Code bricht einen Hook nach
+  seinem `timeout` ab (Standard 600 s) und führt den Aufruf dann über den normalen Freigabeweg aus; ebenso, wenn
+  `normen.py` mit einem Fehler endet (z. B. Syntax- oder Importfehler). Gemessen 26.11. mit `claude -p` (2.1.332):
+  `sleep` über `timeout` und `exit 1` ohne `onFailure` → ausgeführt, mit `"onFailure": "block"` → gesperrt.
+  Die Vorlage setzt jetzt `"timeout": 30, "onFailure": "block"` am PreToolUse-Hook.
+- **Eigene Frist in `normen.py hook`:** Nach `FRIST_S` = 20 s bricht die Prüfung ab und meldet `fragen` mit Grund
+  („Prüfung nach der Frist … abgebrochen“), für Teams `nein`. Die Frist löst eine Ausnahme von `BaseException` aus, damit
+  kein `except Exception` in der Prüfung sie verschluckt. Gilt für Claude, Vibe (Standard-`timeout` 60 s) und Gemini gleich.
+
+### Behoben (Laufzeit)
+- `bash -n <Skript>` auf eine 358-KB-Skriptdatei brauchte im Hook 164 s: `_maskiert` maskierte je Teilbefehl den ganzen
+  Text, `_platzhalter_zurueck` und die Ersetzungssuche gingen je Teilbefehl alle Platzhalter durch (beides quadratisch).
+  Jetzt Zwischenspeicher für `_maskiert` und Suche nur nach den Platzhaltern im Teilbefehl; Entscheidungen unverändert
+  (Vergleich alt/neu über alle Bash-Befehle der Transkripte).
+
+### Behoben (Fehlalarm)
+- Ein Wort über 255 Zeichen (z. B. Heredoc-Text, `echo` mit langer Zeichenkette) oder ein überlanger Pfad in Write
+  führte zu `OSError: File name too long` → „Normen-Hook fehlerhaft“ (gesperrt). `_vorhanden` wertet nur ENAMETOOLONG
+  als „nicht vorhanden“; andere Dateisystemfehler sperren weiter. Namensmuster wie `*.secret` greifen weiterhin.
+
+### Hinweis
+- Mit `onFailure: block` sperrt ein defektes `normen.py` alle geprüften Werkzeuge (Bash, Edit, Write, Read, MCP).
+  Ausweg für die Inhaberin: im Terminal außerhalb von Claude Code reparieren (getrackte Fassung zurückholen mit
+  `git checkout -- normen/normen.py` oder Quelle neu einspielen mit `bash <claude-tools>/agenten-normen/einrichten.sh
+  <projekt>`), oder den Hook in `.claude/settings.json` vorübergehend entfernen.
+
+---
+
 ## v19 – Befehlsersetzungen in der S06-Prüfung, Fehlalarme K1/K3/K4 – 2026-11-25
 
 **Aktualisieren nötig:** `python3 normen/normen.py aktualisieren` (nur `normen.py` und `normen.toml`; kein neuer Normtext,

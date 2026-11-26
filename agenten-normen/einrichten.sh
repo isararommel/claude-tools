@@ -100,6 +100,11 @@ for ereignis, eintraege in b.get("hooks", {}).items():
             if "matcher" in e and "matcher" in x:
                 teile = x["matcher"].split("|")
                 x["matcher"] = "|".join(teile + [m for m in e["matcher"].split("|") if m not in teile])
+            for hk in x.get("hooks", []):  # v20: fehlende Felder der Vorlage (timeout, onFailure) ergänzen, vorhandene bleiben
+                for vk in e.get("hooks", []):
+                    if vk.get("command") == hk.get("command"):
+                        for feld, wert in vk.items():
+                            hk.setdefault(feld, wert)
 for k, v in b.items():  # weitere Schlüssel (enableAllProjectMcpServers …) nur setzen, wenn sie fehlen
     if k not in ("permissions", "hooks"):
         a.setdefault(k, v)
