@@ -65,6 +65,19 @@ with tempfile.TemporaryDirectory() as t:
     check("v19-Hook ergänzt: onFailure block", all(h.get("onFailure") == "block" for h in treffer), str(treffer))
     check("v19-Hook ergänzt: timeout", all(h.get("timeout") == pre[0].get("timeout") for h in treffer), str(treffer))
 
+# Eigener Wert eines Projekts (timeout 45) bleibt beim Ergänzen erhalten (Review HT, Mistral Nr. 5a)
+with tempfile.TemporaryDirectory() as t:
+    eigen = Path(t) / "eigen"
+    (eigen / ".claude").mkdir(parents=True)
+    sh("git", "init", "-q", cwd=eigen)
+    (eigen / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": befehl, "timeout": 45}]}]}}), encoding="utf-8")
+    sh("bash", str(VORLAGE / "einrichten.sh"), str(eigen), "--test", "make test")
+    neu = json.loads((eigen / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    treffer = [h for e in neu["hooks"]["PreToolUse"] for h in e["hooks"] if h.get("command") == befehl]
+    check("eigenes timeout bleibt", [h.get("timeout") for h in treffer] == [45], str(treffer))
+    check("eigenes timeout: onFailure ergänzt", all(h.get("onFailure") == "block" for h in treffer), str(treffer))
+
 with tempfile.TemporaryDirectory() as t, tempfile.TemporaryDirectory() as skripte:
     repo = Path(t) / "projekt"
     repo.mkdir()
@@ -85,7 +98,7 @@ with tempfile.TemporaryDirectory() as t, tempfile.TemporaryDirectory() as skript
         check("FRIST_S kleiner als timeout", all(frist < h.get("timeout", 0) for h in pre), f"{frist} {pre}")
         check("FRIST_S kleiner als Vibe-Standard 60 s", frist < 60, str(frist))
 
-    # ------------------------------------------------------------ Frist: langsames bewerten → fragen (Teams: nein)
+    # ------------------------------------------------------------ Frist: langsames bewerten → nein (alle Rollen)
     LANGSAM = r"""
 import argparse, io, json, signal, sys, time
 sys.path.insert(0, 'normen')
@@ -111,6 +124,13 @@ print('REST-ALARM', signal.alarm(0))
         check(f"Frist {werkzeug}: abgebrochen statt ausgesessen", dauer < 5, f"{dauer:.1f}s")
         check(f"Frist {werkzeug}: Alarm danach gelöscht", "REST-ALARM 0" in r.stdout, r.stdout[-200:])
 
+    # Andere Ausnahme in bewerten: gesperrt (wie bisher) und Alarm danach gelöscht (Review HT, Mistral Nr. 5c)
+    KAPUTT = LANGSAM.replace("time.sleep(6)", "raise ValueError('kaputt')").replace(
+        "    except Exception:", "    except KeyError:")
+    r = sh(sys.executable, "-c", KAPUTT, "claude", "claude", cwd=repo)
+    check("andere Ausnahme: gesperrt", '"deny"' in r.stdout and "ValueError" in r.stdout, r.stdout[-300:] + r.stderr[-300:])
+    check("andere Ausnahme: Alarm danach gelöscht", "REST-ALARM 0" in r.stdout, r.stdout[-200:])
+
     # ------------------------------------------------------------ ENAMETOOLONG: kein Hook-Fehler, Geheimnis-Muster greift
     for n in (300, 1100, 5000):
         w = "a" * n
@@ -119,7 +139,7 @@ print('REST-ALARM', signal.alarm(0))
                 (f"echo zitiert {n}", "Bash", {"command": f"echo '{w}' | wc -c"}, "ja"),
                 (f"Heredoc {n}", "Bash", {"command": f"cat <<'E'\n{w}\nE"}, "ja"),
                 (f"Geheimnis mit / {n}", "Bash", {"command": f"cat x/{w}.secret"}, "nein"),
-                (f"Write langer Pfad {n}", "Write", {"file_path": f"x/{w}", "content": "1"}, None)):
+                (f"Write langer Pfad {n}", "Write", {"file_path": f"x/{w}", "content": "1"}, "ja")):  # Projektpfad wie jeder andere
             stufe, grund = hook(repo, tool, ein)
             check(f"{name}: kein Hook-Fehler", "fehlerhaft" not in grund, grund[:300])
             if soll:

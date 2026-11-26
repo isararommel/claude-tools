@@ -19,13 +19,17 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
   mit Grund („Prüfung nach der Frist … abgebrochen – Befehl nicht geprüft, gesperrt“) – wie jeder andere Hook-Fehler.
   Nicht `fragen`: alle gemessenen Befehle über 2 s ergaben ohnehin `nein`, und die Dauer ist über die Größe einer
   geprüften Datei von außen steuerbar. Die Frist löst eine Ausnahme von `BaseException` aus, damit kein `except Exception`
-  in der Prüfung sie verschluckt. Gilt für Claude, Vibe (Standard-`timeout` 60 s) und Gemini gleich.
+  in der Prüfung sie verschluckt. Die Frist gilt für Claude, Vibe (Standard-`timeout` 60 s) und Gemini gleich; der Schutz
+  gegen einen **Absturz** von `normen.py` (`onFailure: block`) nur für Claude Code. Vibe-Hooks haben `strict = true`
+  (Fehler gelten laut Vibe als Ablehnung); ob Vibe einen Timeout ebenso wertet, ist ungemessen. Ohne `signal.SIGALRM`
+  (Windows) sperrt der Hook jeden Aufruf (fail-closed) – die Normen laufen auf macOS und Linux.
 
 ### Verbessert (Laufzeit, teilweise)
 - `bash -n <Skript>` auf eine 358-KB-Skriptdatei brauchte im Hook 164 s: `_maskiert` maskierte je Teilbefehl den ganzen
   Text, `_platzhalter_zurueck` und die Ersetzungssuche gingen je Teilbefehl alle Platzhalter durch (beides quadratisch).
   Jetzt Zwischenspeicher für `_maskiert` und Suche nur nach den Platzhaltern im Teilbefehl (Faktor bei vierfacher
-  Skriptlänge 14 → etwa 4). Entscheidungen unverändert: Vergleich alt/neu über 13 537 Bash-Befehle der Transkripte,
+  Skriptlänge 14 → etwa 4). Entscheidungen unverändert (interne Messung, Skript nicht eingecheckt – enthält private
+  Transkripte): Vergleich alt/neu über 13 537 Bash-Befehle der Transkripte,
   alle 126 Abweichungen erklärt (früherer `OSError` oder Zeitüberschreitung jetzt bewertet; N11 durch Branchwechsel).
 - **Noch offen:** Einzelne Befehle auf sehr große Skriptdateien (`dist/…`, 370 KB, base64-Heredoc) brauchen weiter
   20–50 s und laufen in die Frist (Ergebnis wie bisher `nein`). Ursache: `$(…)` mit inneren Anführungszeichen in `"…"`

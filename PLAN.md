@@ -651,6 +651,11 @@ gemessene Aufweichung und über Dateigröße steuerbar; `ask` ging im Auto-Modus
 ein Teilbefehl umfasst dann 4754 Zeilen (362 KB, inkl. base64-Heredoc) → `shlex` quadratisch und die 3004 Scheingründe.
 Folgepaket: `_maskiert`/`_segmente_pos` für Skriptdateien mit dem `_Zerleger` aus v19 (Zitate, `$(…)`, Heredocs) statt
 eigener Zitatlogik; Heredoc-Rümpfe als Daten; eigener Alt/Neu-Vergleich.
+**Review 26.11.:** `selbsttest` mit eingespielten Einstellungen bestanden (5/5 gesperrt; erster Lauf „unklar (Zeitlimit)“,
+weil der Stop-Hook bei uncommittetem Baum `make test` unter Rechnerlast > 300 s fuhr). Mistral Large 4 und Gemini: Bericht
+`docs/reviews/2026-11-26-paket-ht.md` (15 Einträge; behoben: Tests eigenes `timeout`/Alarm bei anderer Ausnahme/Write-Stufe,
+CHANGELOG präzisiert), `Mergereif: ja`. `make test` grün (`test_hook_frist` 56). **Offen:** Advisor vor Merge, PR,
+`normen.py merge`, Sitzungen informieren (neue Version, `aktualisieren` ändert `.claude/settings.json`).
 Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (alle älter als v19): Vor-Zuweisungen mit
 Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
 anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.
