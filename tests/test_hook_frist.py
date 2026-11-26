@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Tests für Paket HT (Hook-Zeitlimit fail-open schließen): interne Frist in `normen.py hook` (Ergebnis fragen, für
-Teams nein – auch wenn `bewerten` Exception abfängt), `onFailure: block` mit knappem `timeout` am PreToolUse-Hook der
+"""Tests für Paket HT (Hook-Zeitlimit fail-open schließen): interne Frist in `normen.py hook` (Ergebnis nein für
+alle Rollen – auch wenn `bewerten` Exception abfängt), `onFailure: block` mit knappem `timeout` am PreToolUse-Hook der
 Vorlage, überlange Wörter/Pfade (ENAMETOOLONG) ohne Hook-Fehler und Laufzeit, die mit der Größe einer geprüften
 Skriptdatei nicht mehr quadratisch wächst. Vom Orchestrator als Abnahme geschrieben (vor der Umsetzung rot)."""
 import json
@@ -94,7 +94,7 @@ normen.FRIST_S = 1
 def langsam(*a, **k):
     try:
         time.sleep(6)
-    except Exception:  # eine Frist, die von Exception erbt, würde hier verschluckt
+    except Exception:  # normen-ausnahme: N08-KEINE-ALTLASTEN – Attrappe: eine Frist, die von Exception erbt, würde hier verschluckt
         pass
     return 'ja', []
 normen.bewerten = langsam
@@ -102,7 +102,7 @@ sys.stdin = io.StringIO(json.dumps({'tool_name': 'Bash', 'tool_input': {'command
 normen.cmd_hook(argparse.Namespace(rolle=sys.argv[1], werkzeug=sys.argv[2]))
 print('REST-ALARM', signal.alarm(0))
 """
-    for rolle, werkzeug, soll in (("claude", "claude", '"ask"'), ("mistral-team", "vibe", '"deny"')):
+    for rolle, werkzeug, soll in (("claude", "claude", '"deny"'), ("mistral-team", "vibe", '"deny"')):
         t0 = time.monotonic()
         r = sh(sys.executable, "-c", LANGSAM, rolle, werkzeug, cwd=repo)
         dauer = time.monotonic() - t0
@@ -131,9 +131,12 @@ print('REST-ALARM', signal.alarm(0))
     for n in (300, 1200):
         s = Path(skripte) / f"s{n}.sh"
         s.write_text("".join(f'echo "zeile {i}" | grep -c zeile; x{i}=$(date +%s)\n' for i in range(n)), encoding="utf-8")
-        t0 = time.monotonic()
-        stufe, grund = hook(repo, "Bash", {"command": f"bash -n {s}"})
-        dauern[n] = time.monotonic() - t0
+        laeufe = []
+        for _ in range(3):  # Minimum aus drei Läufen: robust gegen Last auf dem Rechner (Stop-Hook)
+            t0 = time.monotonic()
+            stufe, grund = hook(repo, "Bash", {"command": f"bash -n {s}"})
+            laeufe.append(time.monotonic() - t0)
+        dauern[n] = min(laeufe)
         check(f"Skript {n} Zeilen → ja", stufe == "ja", f"({stufe}) {grund[:300]}")
     check("Skript 4× länger: Dauer < 8×", dauern[1200] < 8 * dauern[300], f"{dauern}")
 

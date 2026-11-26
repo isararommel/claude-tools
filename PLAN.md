@@ -643,6 +643,14 @@ Alt/Neu über 13 537 Transkript-Befehle: 126 Abweichungen, alle erklärt (50 alt
 370-KB-`dist/`-Skripte mit base64-Heredoc) brauchen weiter 21–54 s (verrauscht) → mit Frist `fragen` statt heute `nein`.
 Ursache: `shlex.read_token` baut Token per Verkettung (quadratisch, 200 KB-Token 2,3 s; mehrere Aufrufe je Befehl).
 Entscheidung offen: Frist-Ergebnis `fragen` oder `nein`; shlex-Ersatz/Heredoc-Rumpf in Skriptdateien als Daten (eigenes Paket?).
+**Nach Advisor (26.11.):** Frist ergibt `nein` (alle Befehle über 2 s in `neu.jsonl` sind `nein`, 0 Fehler; `fragen` wäre
+gemessene Aufweichung und über Dateigröße steuerbar; `ask` ging im Auto-Modus ohne Eingabe der Inhaberin durch). Cache auf
+`_schreibziele` wieder entfernt (wirkungslos: 5 verschiedene Aufrufe je ~10 s). Skalierungstest: Minimum aus drei Läufen.
+**Wurzel der Restlaufzeit (Folgepaket HD, ändert Entscheidungen):** In `dist/…-einrichten.sh` Zeile 36
+`V="$(curl … | sed -n 's/.*"versi…'` – `_maskiert` kennt `$(…)` in `"…"` nicht, das innere `"` beendet scheinbar das Zitat,
+ein Teilbefehl umfasst dann 4754 Zeilen (362 KB, inkl. base64-Heredoc) → `shlex` quadratisch und die 3004 Scheingründe.
+Folgepaket: `_maskiert`/`_segmente_pos` für Skriptdateien mit dem `_Zerleger` aus v19 (Zitate, `$(…)`, Heredocs) statt
+eigener Zitatlogik; Heredoc-Rümpfe als Daten; eigener Alt/Neu-Vergleich.
 Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (alle älter als v19): Vor-Zuweisungen mit
 Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
 anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.

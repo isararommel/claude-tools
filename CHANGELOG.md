@@ -15,15 +15,21 @@ Alle wesentlichen Änderungen an `claude-tools` (Agenten-Normen, Multi-KI-Ablauf
   `normen.py` mit einem Fehler endet (z. B. Syntax- oder Importfehler). Gemessen 26.11. mit `claude -p` (2.1.332):
   `sleep` über `timeout` und `exit 1` ohne `onFailure` → ausgeführt, mit `"onFailure": "block"` → gesperrt.
   Die Vorlage setzt jetzt `"timeout": 30, "onFailure": "block"` am PreToolUse-Hook.
-- **Eigene Frist in `normen.py hook`:** Nach `FRIST_S` = 20 s bricht die Prüfung ab und meldet `fragen` mit Grund
-  („Prüfung nach der Frist … abgebrochen“), für Teams `nein`. Die Frist löst eine Ausnahme von `BaseException` aus, damit
-  kein `except Exception` in der Prüfung sie verschluckt. Gilt für Claude, Vibe (Standard-`timeout` 60 s) und Gemini gleich.
+- **Eigene Frist in `normen.py hook`:** Nach `FRIST_S` = 20 s bricht die Prüfung ab und sperrt (`nein`, für alle Rollen)
+  mit Grund („Prüfung nach der Frist … abgebrochen – Befehl nicht geprüft, gesperrt“) – wie jeder andere Hook-Fehler.
+  Nicht `fragen`: alle gemessenen Befehle über 2 s ergaben ohnehin `nein`, und die Dauer ist über die Größe einer
+  geprüften Datei von außen steuerbar. Die Frist löst eine Ausnahme von `BaseException` aus, damit kein `except Exception`
+  in der Prüfung sie verschluckt. Gilt für Claude, Vibe (Standard-`timeout` 60 s) und Gemini gleich.
 
-### Behoben (Laufzeit)
+### Verbessert (Laufzeit, teilweise)
 - `bash -n <Skript>` auf eine 358-KB-Skriptdatei brauchte im Hook 164 s: `_maskiert` maskierte je Teilbefehl den ganzen
   Text, `_platzhalter_zurueck` und die Ersetzungssuche gingen je Teilbefehl alle Platzhalter durch (beides quadratisch).
-  Jetzt Zwischenspeicher für `_maskiert` und Suche nur nach den Platzhaltern im Teilbefehl; Entscheidungen unverändert
-  (Vergleich alt/neu über alle Bash-Befehle der Transkripte).
+  Jetzt Zwischenspeicher für `_maskiert` und Suche nur nach den Platzhaltern im Teilbefehl (Faktor bei vierfacher
+  Skriptlänge 14 → etwa 4). Entscheidungen unverändert: Vergleich alt/neu über 13 537 Bash-Befehle der Transkripte,
+  alle 126 Abweichungen erklärt (früherer `OSError` oder Zeitüberschreitung jetzt bewertet; N11 durch Branchwechsel).
+- **Noch offen:** Einzelne Befehle auf sehr große Skriptdateien (`dist/…`, 370 KB, base64-Heredoc) brauchen weiter
+  20–50 s und laufen in die Frist (Ergebnis wie bisher `nein`). Ursache: `$(…)` mit inneren Anführungszeichen in `"…"`
+  bringt `_maskiert` aus dem Tritt, ein Teilbefehl umfasst dann 4754 Zeilen, und `shlex` ist bei langen Token quadratisch.
 
 ### Behoben (Fehlalarm)
 - Ein Wort über 255 Zeichen (z. B. Heredoc-Text, `echo` mit langer Zeichenkette) oder ein überlanger Pfad in Write

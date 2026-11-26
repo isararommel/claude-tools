@@ -397,12 +397,10 @@ def _sichere_zuweisung(name: str, wert: str, unsicher: set[str]) -> str:
     return _UNSICHER if name in unsicher or "`" in wert or "$(" in wert else wert
 
 
-@functools.lru_cache(maxsize=64)
-def _schreibziele(cmd: str, cwd: str) -> tuple[Path | None, ...]:
+def _schreibziele(cmd: str, cwd: str) -> list[Path | None]:
     """Schreibziele eines Bash-Befehls als absolute, normalisierte Pfade (os.path.normpath, nicht realpath);
     None = Ziel mit unaufgelöster Variable. Umleitungen (> >> &> 2> …), tee, sed -i/perl -i, rm, mv, cp, ln,
-    install, rsync; Basisordner je Kette über cd. Zwischengespeichert (v20, HT): hängt nur von Text, cwd und Umgebung
-    ab (im Hook-Lauf fest); S06 fragt je Teilbefehl mit dem ganzen Befehl – bei großen Skriptdateien 11× je 5 s."""
+    install, rsync; Basisordner je Kette über cd."""
     segmente = _segmente(cmd)
     zuweisungen: dict[str, str] = {}
     unsicher = _unsichere_namen(cmd)
@@ -527,7 +525,7 @@ def _schreibziele(cmd: str, cwd: str) -> tuple[Path | None, ...]:
             if r == "/dev/null":
                 continue
             ziele.append(auflösen(r))
-    return tuple(ziele)
+    return ziele
 
 
 def _loeschbar(cfg) -> list[tuple[Path, bool]]:
@@ -947,14 +945,15 @@ def cmd_hook(a) -> int:
             except json.JSONDecodeError:
                 eingabe = {"command": eingabe}
         # v20 (HT): eigene Frist, denn ein abgebrochener Hook gibt keine Entscheidung (Claude Code ohne onFailure:
-        # fail-open, gemessen 26.11.) – nach FRIST_S fragen (Teams: nein, s. u.) mit lesbarem Grund
+        # fail-open, gemessen 26.11.) – nach FRIST_S gesperrt wie jeder Hook-Fehler (fail-closed), mit lesbarem Grund.
+        # Nicht „fragen“: alle gemessenen Befehle über 2 s ergaben nein, und die Dauer ist von außen steuerbar.
         signal.signal(signal.SIGALRM, _frist_abgelaufen)
         signal.alarm(FRIST_S)
         try:
             entscheid, gruende = bewerten(cfg, a.rolle, tool, eingabe, str(data.get("cwd") or os.getcwd()))
         except _Frist:
-            entscheid, gruende = "fragen", [f"Normen-Hook: Prüfung nach der Frist von {FRIST_S} s abgebrochen – "
-                                            "Befehl nicht geprüft"]
+            entscheid, gruende = "nein", [f"Normen-Hook: Prüfung nach der Frist von {FRIST_S} s abgebrochen – "
+                                          "Befehl nicht geprüft, gesperrt"]
         finally:
             signal.alarm(0)
         if a.werkzeug == "claude" and data.get("session_id") and any(g.startswith("SELBSTTEST-KOEDER") for g in gruende):
