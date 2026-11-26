@@ -17,7 +17,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook --rolle claude --werkzeug claude"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook --rolle claude --werkzeug claude",
+            "timeout": 30,
+            "onFailure": "block"
           }
         ]
       }

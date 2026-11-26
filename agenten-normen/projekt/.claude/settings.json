@@ -12,7 +12,7 @@
       {
         "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|mcp__.*",
         "hooks": [
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook --rolle claude --werkzeug claude" }
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/normen/normen.py\" hook --rolle claude --werkzeug claude", "timeout": 30, "onFailure": "block" }
         ]
       }
     ],

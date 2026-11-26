@@ -4,9 +4,9 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 25.11.2026 (v18 auf main; **S06-ERS / v19** auf Branch `paket-s06-ers` fertig, Review-Bericht `Mergereif: ja`,
-Kopie eingespielt, zwei Advisor-Prüfungen, Historie auf Wunsch zu einem Commit zusammengefasst; offen: Merge, Sitzungen informieren);
-danach **HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
+*Stand: 25.11.2026 (**v19 auf main** nach Merge von PR #49 (S06-ERS: Befehlsersetzungen in S06, Fehlalarme K1/K3/K4;
+Historie zusammengefasst, Probezweige gelöscht, Sitzungen informiert); nächstes Paket auf Branch `paket-ht`:
+**HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
 (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
@@ -596,7 +596,7 @@ Projekt mit `[werkzeuge].vertraut` bleibt es ja – Testfall ergänzt), 5× frag
 K2 nicht im Protokoll, nicht nachstellbar → Regressionstests. **Befunde älter als v19 (beide Fassungen, späteres Paket):**
 (a) Hook braucht bei manchen langen Befehlen (`make build …; grep …; T=$(mktemp …)`) > 60 s; (b) sehr langes Wort (Heredoc-
 Text) → `OSError: File name too long` in der N03-Wortschleife (`Path.exists()`) → Hook sperrt (fail-closed).
-**Stand 25.11. abends:** Lauf 2 (K3/K4, GLM-5.3, 53 Schritte, finished) umgesetzt; `test_review_tor.py` K4-Fall auf ja
+✅ **Gemergt 25.11. (PR #49, main dbd3801).** **Stand 25.11. abends:** Lauf 2 (K3/K4, GLM-5.3, 53 Schritte, finished) umgesetzt; `test_review_tor.py` K4-Fall auf ja
 (bewusste Lockerung); Makefile, Version 19, CHANGELOG. Eigene Korrekturen: zsh-`**`, Werte mit Leerraum/Glob-Zeichen.
 Review: Large 4 in zwei Teilen (A Zerleger, B Prüflogik) – 5 Befunde bestätigt und behoben (Kommentar-`)`, `time`/`coproc (…)`,
 RecursionError, K3 nur Ebene 0 nach `cd`/Zuweisung, nur schlichte Wörter); Gemini zweimal abgebrochen (Timeout, auto-denied).
@@ -617,9 +617,63 @@ Ursache finden (Profil), (2) `onFailure` im Original der Doku und mit der instal
 der Inhaberin (Einstellungen) `"onFailure": "block"` und ein knappes `timeout` in `agenten-normen/projekt/.claude/settings.json`
 (auch PostToolUse/Vibe-Hooks prüfen), (4) Hook beschleunigen, Test, Version, einspielen. Zusammen mit dem `OSError` bei
 überlangen Wörtern. **Freigabe der Inhaberin 25.11.:** ja, HT vor QS (Option vorher an der Original-Doku belegen).
+**Befunde 26.11. (Messskripte nur im Scratchpad `code-mode-runs/ht/`):** 38 echte Befehle mit `mktemp` und `;` aus
+Transkripten, 2 davon > 30 s, beide mit `bash -n $S` auf eine 358-KB-Skriptdatei (`dist/…-update.sh`, 4708 Zeilen, base64-Heredoc)
+→ `_shell_datei_bewerten` bewertet die Datei; Stack: `_skript_im_befehl` → `vorher = _maskiert(text)[:pos]` je Teilbefehl über
+den ganzen Text (quadratisch). Mit `lru_cache` auf `_maskiert` (nur Monkeypatch): 7 s, Stufe `nein`; Rest im Profil: shlex
+`read_token`, `_schreibziele` (10 Aufrufe, 11 s unter cProfile). Nebenbefund (eigenes Paket, ändert Entscheidungen): Heredoc-
+Rumpf in der Skriptdatei wird zeilenweise als Befehle gelesen → 3004 Gründe („Skript H4sI… nicht gefunden“). Claude Code:
+`onFailure` (`continue`/`block`) im Schema der installierten 2.1.332, Doku-Tabelle wörtlich „Requires Claude Code v2.1.295 or
+later“; Standard-`timeout` 600 s. Vibe: `timeout` Standard 60 s (`vibe/core/hooks/models.py`), `strict = true`; ob ein
+Timeout als Fehler (= Ablehnung) zählt, steht nicht im Python-Quelltext (Ausführung im Backend) – ungemessen.
+Plan (Advisor 26.11.): interne Frist in `cmd_hook` (Ausnahme von `BaseException`, Ergebnis „fragen“ – Entscheidung der
+Inhaberin offen) als Hauptmechanismus, `timeout` + `onFailure: block` als äußere Sicherung (vorher per `claude -p`-Probe
+messen: Timeout-Arm, Kontrollarm ohne `onFailure`, `exit 1`-Arm); Beschleunigung nur entscheidungsneutral (Alt/Neu-Vergleich,
+null Abweichungen, Frist aus gemessener Höchstdauer); `OSError` erst reproduzieren, alle Dateisystem-Proben; Tests ohne
+Wanduhr-Grenzen; nach Einspielen `selbsttest`. Hinweis für den Bericht: mit `block` sperrt ein defektes `normen.py` alles.
+**Stand 26.11. (Zwischencommit, v20 eingespielt, `make test` grün, `pruefen --diff` 0 Fehler):** Doku wörtlich belegt
+(„Each of these counts as a failure: Timeout“; PreToolUse ohne `onFailure` „doesn't block the tool call“). Probe `claude -p`
+(2.1.332, Scratchpad): Timeout ohne `onFailure` → ausgeführt, mit `block` → gesperrt; `exit 1` mit `block` → gesperrt, ohne →
+ausgeführt (Absturz von normen.py war fail-open). Umgesetzt: Vorlage `"timeout": 30, "onFailure": "block"`; `einrichten.sh`
+ergänzt fehlende Hook-Felder bei gleichem Befehl (sonst bekämen bestehende Projekte sie nie); `FRIST_S` = 20 in `cmd_hook`
+(`_Frist(BaseException)`, Ergebnis `fragen`, Teams `nein`); Caches `_maskiert`, `_schreibziele` (Tupel); Platzhaltersuche per
+Regex; `_vorhanden` (nur ENAMETOOLONG → nicht vorhanden) an 12 Stellen. Test `tests/test_hook_frist.py` (49, vorher rot 30).
+Alt/Neu über 13 537 Transkript-Befehle: 126 Abweichungen, alle erklärt (50 alter OSError → bewertet, 25 alte Zeitüberschreitung
+→ `nein`, 51 N11 durch Branchwechsel eines anderen Projekts zwischen den Läufen). **Offen:** 9 Befehle (`bash -n` auf
+370-KB-`dist/`-Skripte mit base64-Heredoc) brauchen weiter 21–54 s (verrauscht) → mit Frist `fragen` statt heute `nein`.
+Ursache: `shlex.read_token` baut Token per Verkettung (quadratisch, 200 KB-Token 2,3 s; mehrere Aufrufe je Befehl).
+Entscheidung offen: Frist-Ergebnis `fragen` oder `nein`; shlex-Ersatz/Heredoc-Rumpf in Skriptdateien als Daten (eigenes Paket?).
+**Nach Advisor (26.11.):** Frist ergibt `nein` (alle Befehle über 2 s in `neu.jsonl` sind `nein`, 0 Fehler; `fragen` wäre
+gemessene Aufweichung und über Dateigröße steuerbar; `ask` ging im Auto-Modus ohne Eingabe der Inhaberin durch). Cache auf
+`_schreibziele` wieder entfernt (wirkungslos: 5 verschiedene Aufrufe je ~10 s). Skalierungstest: Minimum aus drei Läufen.
+**Wurzel der Restlaufzeit (Folgepaket HD, ändert Entscheidungen):** In `dist/…-einrichten.sh` Zeile 36
+`V="$(curl … | sed -n 's/.*"versi…'` – `_maskiert` kennt `$(…)` in `"…"` nicht, das innere `"` beendet scheinbar das Zitat,
+ein Teilbefehl umfasst dann 4754 Zeilen (362 KB, inkl. base64-Heredoc) → `shlex` quadratisch und die 3004 Scheingründe.
+Folgepaket: `_maskiert`/`_segmente_pos` für Skriptdateien mit dem `_Zerleger` aus v19 (Zitate, `$(…)`, Heredocs) statt
+eigener Zitatlogik; Heredoc-Rümpfe als Daten; eigener Alt/Neu-Vergleich.
+**Review 26.11.:** `selbsttest` mit eingespielten Einstellungen bestanden (5/5 gesperrt; erster Lauf „unklar (Zeitlimit)“,
+weil der Stop-Hook bei uncommittetem Baum `make test` unter Rechnerlast > 300 s fuhr). Mistral Large 4 und Gemini: Bericht
+`docs/reviews/2026-11-26-paket-ht.md` (15 Einträge; behoben: Tests eigenes `timeout`/Alarm bei anderer Ausnahme/Write-Stufe,
+CHANGELOG präzisiert), `Mergereif: ja`. `make test` grün (`test_hook_frist` 56). **Offen:** Advisor vor Merge, PR,
+`normen.py merge`, Sitzungen informieren (neue Version, `aktualisieren` ändert `.claude/settings.json`).
 Weitere S06-Befunde aus dem v19-Review für dieses oder ein späteres Paket (alle älter als v19): Vor-Zuweisungen mit
 Code-Wirkung (`BASH_ENV`, `ENV`, `LD_PRELOAD`, `PYTHONSTARTUP` …) laden ungeprüft Code; Funktionsdefinitionen `f() { … }` und
 anonyme zsh-Funktionen; Team-Schreiben in `"$(… > f)"`; „im selben Befehl geschrieben“ über `tar -x`/`git checkout`/`curl -o`.
+
+### HD. Skriptdateien wie Befehle zerlegen (Zitate, `$(…)`, Heredocs) *(Folgepaket aus HT, 26.11.; Reihenfolge: Inhaberin)*
+
+Ziel: `bash -n`/`bash x.sh` auf große Skriptdateien (370 KB, base64-Heredoc) in < 2 s und ohne Scheingründe prüfen.
+Befund (HT): `_maskiert`/`_segmente_pos` kennen `$(…)` in `"…"` nicht (`V="$(curl … | sed -n 's/.*"versi…'`), ein
+Teilbefehl umfasst dann 4754 Zeilen; `shlex.read_token` ist bei langen Token quadratisch; Heredoc-Rümpfe der Datei
+werden zeilenweise als Befehle gelesen (3004 Gründe „Skript H4sI… nicht gefunden“). Heute 20–50 s → Frist → `nein`
+(Ergebnis wie vorher, aber Fehlalarme bei harmlosen großen Skripten möglich).
+Schritte: (1) Advisor zu Plan/Schnittstellen; (2) `_shell_datei_bewerten` auf den `_Zerleger` aus v19 umstellen (Zitate,
+`$(…)`, Heredoc-Rümpfe als Daten), `_maskiert` nur noch für einzelne Teilbefehle; (3) Abnahmetest vorher rot (Skript
+mit `"$(… '"' …)"` und base64-Heredoc: Dauer-Verhältnis, keine Scheingründe, echte Befunde bleiben); (4) Alt/Neu-Vergleich
+über Transkript-Befehle (Skripte `code-mode-runs/ht/vergleich.py`, `klassen.py` als Muster, nur Scratchpad) – Abweichungen
+einzeln begründen, da Entscheidungen sich ändern; (5) Version, einspielen, Sitzungen informieren.
+Offen mitnehmen: Vibe-Timeout mit `strict = true` messen (Probe-Hook `sleep` > `timeout` in Scratchpad-Projekt, `vibe -p`);
+Beobachtung `fragen` im Auto-Modus (ein `ask` des Hooks lief ohne Eingabe der Inhaberin durch – nicht nachgestellt).
 
 ### QS. Abteilung Qualitätssicherung: Gutachter-Büros *(Auftrag der Inhaberin 25.11., nach S06-ERS)*
 
