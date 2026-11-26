@@ -4,10 +4,11 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 25.11.2026 (**v19 auf main** nach Merge von PR #49 (S06-ERS: Befehlsersetzungen in S06, Fehlalarme K1/K3/K4;
-Historie zusammengefasst, Probezweige gelöscht, Sitzungen informiert); nächstes Paket auf Branch `paket-ht`:
-**HT** (Hook-Zeitlimit fail-open, freigegeben 25.11.), dann **QS** (Gutachter-Büros), dann **VL**
-(eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die Inhaberin offen); danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
+*Stand: 26.11.2026 (**v20 auf main** nach Merge von PR #50 (HT: Hook-Zeitlimit fail-closed – `onFailure: block`,
+`timeout` 30, `FRIST_S` 20 → nein, Beschleunigung, ENAMETOOLONG; Sitzungen informiert); nächstes Paket auf Branch
+`paket-qs`: **QS** (Gutachter-Büros), dann **VL** (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die
+Inhaberin offen); **HD** (Skriptdateien wie Befehle zerlegen, Folgepaket aus HT) – Platz in der Reihenfolge entscheidet die
+Inhaberin; danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
 
 ## Verweise
@@ -605,7 +606,7 @@ Kopie eingespielt (`cmp` gleich). **Offen:** Advisor vor Merge, PR (Label nicht 
 Sitzungen informieren (Probezweige gelöscht 25.11.). Zurückgestellt: weitere Testfälle
 (Review Nr. 8), „im selben Befehl geschrieben“ über `tar`/`git checkout`/`curl -o`, Hook > 60 s, `OSError` überlange Wörter.
 
-### HT. Hook-Zeitlimit: fail-open schließen *(vordringlich, vor QS; Befund 25.11., älter als v19)*
+### HT. Hook-Zeitlimit: fail-open schließen ✅ *(gemergt 26.11., PR #50, main 48aeb27)*
 
 Doku (code.claude.com/docs/en/hooks, über claude-code-guide, Zitat aus Zusammenfassung – im Original gegenprüfen):
 command-Hooks haben standardmäßig `timeout` 600 s; „On `PreToolUse`, a timed-out `command` … hook doesn't block the tool
