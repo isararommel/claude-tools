@@ -702,6 +702,12 @@ gelten; sonst ein git-Repository je Büro. (2) Advisor zu Plan/Schnittstellen (E
 Vorschlag). (3) Rollen-Texte (gemini-analyst entwirft, Claude prüft), Agent-Definitionen mit `omitClaudeMd: true`.
 (4) Einrichten, Probegutachten je Büro an einem echten Stand, Abnahme mit der Inhaberin.
 
+### Rückmeldungen 26.11. (aus Projekt-Sitzungen, noch nicht eingeplant)
+
+- Fehlalarm N06 `lesbar_extern` (zu streng): `git -C <claude-tools> merge-base …` und `cd <claude-tools> && git log` werden
+  als „schreibt möglicherweise“ gesperrt, `git -C … diff --stat` geht durch – lesende git-Unterbefehle (`log`, `merge-base`,
+  `show`, `rev-parse`, `status`) in `_bash_schreibt_extern` wie `diff` behandeln. Testfälle aus der Meldung nachstellen.
+
 ### Rückmeldungen 25.11. (privates Rückmelde-Repository, noch nicht eingeplant)
 
 - #135 (Ablauf, mittel): `aktualisieren`/`einrichten.sh` hängt in fremden Repositorys Zeilen an die getrackte `.gitignore`
