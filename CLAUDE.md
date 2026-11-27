@@ -3,7 +3,8 @@
 @normen/kurz.md
 
 Dieses Repository enthält die Werkzeuge, mit denen Claude Code und seine Teams arbeiten: Agenten-Normen
-(`agenten-normen/`), Multi-KI-Ablauf (`multi-ki/`), Anleitung für neue Repositories (`NEUES-REPOSITORY.md`).
+(`agenten-normen/`), Multi-KI-Ablauf (`multi-ki/`), Gutachter-Büros der Qualitätssicherung (`qs/`, eigene Quelle,
+wird nicht in Projekte eingespielt), Anleitung für neue Repositories (`NEUES-REPOSITORY.md`).
 Sprache: **Deutsch**. Konzept: `KONZEPT.md`. Testbefehl: `make test`.
 
 ## Das Repository ist ÖFFENTLICH

@@ -15,5 +15,6 @@ test:
 	python3 tests/test_protokoll.py
 	python3 tests/test_ersetzung.py
 	python3 tests/test_hook_frist.py
+	python3 tests/test_qs.py
 
 .PHONY: test

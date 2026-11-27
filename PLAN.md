@@ -4,9 +4,10 @@
 hier alles, was eine frische Sitzung zum Weiterarbeiten braucht: Stand, nächste Aufgaben mit genug Einzelheiten, offene Fragen.
 Nach jeder erledigten Aufgabe wird diese Datei aktualisiert (abhaken, nächste Aufgabe ausformulieren) und mitcommittet.
 
-*Stand: 26.11.2026 (**v20 auf main** nach Merge von PR #50 (HT: Hook-Zeitlimit fail-closed – `onFailure: block`,
-`timeout` 30, `FRIST_S` 20 → nein, Beschleunigung, ENAMETOOLONG; Sitzungen informiert); nächstes Paket auf Branch
-`paket-qs`: **QS** (Gutachter-Büros), dann **VL** (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die
+*Stand: 27.11.2026 (**v20 auf main** nach Merge von PR #50 (HT: Hook-Zeitlimit fail-closed – `onFailure: block`,
+`timeout` 30, `FRIST_S` 20 → nein, Beschleunigung, ENAMETOOLONG; Sitzungen informiert); Paket auf Branch
+`paket-qs`: **QS** (Gutachter-Büros; umgesetzt und getestet, **wartet auf interaktive Abnahme mit der
+Inhaberin**), dann **VL** (eine Quelle `vorlage/`), dann **DT** (Design-Team, Fragen an die
 Inhaberin offen); **HD** (Skriptdateien wie Befehle zerlegen, Folgepaket aus HT) – Platz in der Reihenfolge entscheidet die
 Inhaberin; danach D2 nach Entscheidung der Inhaberin, sonst E; Kandidat für die nächste Normen-Version: `_cd_basis` folgt
 wirkungslosem `cd` (Befund unter V15b-2) und G9/Sitzungsprobe-Befunde (a)/(b) aus dem Beweislauf unter R; offen: A2 Punkte 4–6, G, H)*
@@ -689,18 +690,99 @@ Schlankheit/Effizienz/Last prüfen („könnte die App schmaler sein?“). Weite
 **Entschieden (Inhaberin 25.11.):** ein eigenes privates QS-Projekt (Pfad nur lokal) mit einem Büro-Ordner je Gutachter
 (Eingang/Ausgang je Büro); Rollen-Vorlagen (CLAUDE.md, Agent-Definitionen, Einstellungen) als Quelle in claude-tools
 (öffentlich, neutral); Start erst nach S06-ERS.
-**Doku-Befunde (25.11., code.claude.com, über claude-code-guide):** Start in einem Unterordner lädt `CLAUDE.md` aller
+**Doku-Befunde (25.11., code.claude.com, über claude-code-guide; Rolle `gutachter` und Shell über Normen-Hooks
+überholt durch Probe 27.11. und Entwurf unten):** Start in einem Unterordner lädt `CLAUDE.md` aller
 Elternordner und immer `~/.claude/CLAUDE.md` (Orchestrierungsrolle!) → nicht kontextfrei ohne Gegenmaßnahme. `claudeMdExcludes`
 (Glob-Liste, jede Einstellungsebene, nicht für verwaltete CLAUDE.md) schließt Dateien aus. Sub-Agenten bekommen CLAUDE.md,
 außer `omitClaudeMd: true`; Gesprächsverlauf nie. `--system-prompt(-file)`/`--append-system-prompt(-file)` wirken auch
 interaktiv; `--agent <name>` für die Sitzung. `additionalDirectories` ist nicht nur lesend; `permissions.blockWritesOutsideWorkingDirectories`
 sperrt Datei-Werkzeuge außerhalb (nicht Shell/MCP) – Shell über Normen-Hooks (eigene Rolle `gutachter`: nur im Büro schreiben).
-**Schritte:** (1) Probe: Büro-Unterordner mit `.claude/settings.json` (`claudeMdExcludes` für Eltern- und Benutzer-CLAUDE.md)
+**Probe (27.11., Claude Code 2.1.332, `claude -p --model haiku`, Verhaltensprobe „Beginne mit WORT“):** ✅
+(a) `claudeMdExcludes` in `<büro>/.claude/settings.json` wirkt: Eltern-CLAUDE.md und `~/.claude/CLAUDE.md` fallen weg,
+die eigene `<büro>/CLAUDE.md` wird geladen. (b) Einstellungen aus dem Büro-Ordner gelten, obwohl die git-Wurzel darüber
+liegt (`env` aus `<büro>/.claude/settings.json` gesetzt) → **kein eigenes Repository je Büro nötig**. (c) Absolute Pfade
+wörtlich (auch `/var/…` hinter Symlink) genügten. (d) Falle: Claude Code lädt **keine CLAUDE.md aus einem Scratchpad**
+(`claude/<projekt>/<sitzung>/scratchpad`, Debug-Log „not loading … is in a session's scratchpad“) – Proben in `${TMPDIR}`.
+(e) Benutzer-Agenten bleiben sichtbar: Agentenliste im Büro nennt `mistral-team`, `gemini-analyst`, `claude` … (gemessen)
+→ `Agent` im Büro sperren oder auf eigene Gutachter begrenzen. **Benutzer-Hooks gibt es keine** (`~/.claude/settings.json`
+ohne `hooks`); Normen-Hooks hängen nur in Projekt-Einstellungen. (f) **`.claude/settings.json` an der git-Wurzel gilt im
+Büro nicht** (env und Hook der Wurzel blieben aus), nur die des Büros; `$CLAUDE_PROJECT_DIR` = Büro-Ordner. Vertrauen
+(trust) hängt dagegen an der git-Wurzel: Ohne einmaliges interaktives Vertrauen werden `permissions.allow`/
+`additionalDirectories` aus den Büro-Einstellungen ignoriert. (g) Sub-Agent mit `omitClaudeMd: true` sieht weder Projekt-
+noch Benutzer-CLAUDE.md; ohne den Schlüssel sieht er beide (gemessen, ZEBRA/APFEL). (h) `claude --agent <name>` im Büro:
+Agententext wirkt, Benutzer-CLAUDE.md bleibt ausgeschlossen, **Büro-CLAUDE.md wird trotz `omitClaudeMd` geladen** → Büro-
+ordnung in die Büro-CLAUDE.md, Rolle und Gutachten-Format in die Agent-Definition (gilt dann für beide Wege).
+(i) **Kopie im `eingang/` lädt deren verschachtelte CLAUDE.md beim Lesen nach** (LIMETTE) → nur Verweis auf das Projekt,
+oder `claudeMdExcludes` um `<büro>/eingang/**` ergänzen. (j) Fremdes Projekt per `--add-dir`/`additionalDirectories`:
+dessen CLAUDE.md (auch Unterordner) wird **nicht** nachgeladen; mit `acceptEdits` darf die Sitzung dort aber **schreiben**.
+Sperre `Edit(//<abs-pfad>/**)` wirkt (deckt Write mit); **`Edit(/<abs-pfad>/**)` mit einem Schrägstrich ist relativ und
+greift nicht**, `Write(…)`-Regeln prüft Claude Code für Dateipfade nicht. (k) **Lesen ohne `--add-dir`** per
+`--allowedTools "Read(//<abs>/**)" "Grep(//…)" "Glob(//…)"` geht; Schreiben dorthin bleibt gesperrt → `--add-dir` entfällt.
+(l) **`tools:` begrenzt wirksam**, beim Sub-Agenten (`tools: Read` → kein Bash/Write) und in der `--agent`-Sitzung (`Read,
+Grep, Glob` → kein Bash/Write/Agent, keine MCP-Werkzeuge). Beide haben trotzdem **`advisor`** (Subagenten dürfen ihn nie
+rufen; `disallowedTools: advisor` wirkt laut Bekannte Grenzen nicht → nur per Anweisung). (m) `claudeMdExcludes`
+`<büro>/eingang/**/CLAUDE.md` wirkt (kein LIMETTE). (n) **`omitClaudeMd` gilt nur beim Start:** Der Sub-Agent lud beim
+Lesen von `sub/datei.txt` die `sub/CLAUDE.md` nach (FEIGE) → Grenze: Gutachten als Sub-Agent in Projekten mit
+verschachtelten CLAUDE.md nicht kontextfrei. (o) **`permissions.blockWritesOutsideWorkingDirectories: true`** (per
+`--settings`) sperrt Write außerhalb des Büros **auch gegen eine ausdrückliche `Edit(//…)`-Erlaubnis**; `ausgang/` geht.
+Alle Sperren liefen per CLI-Schalter, mit `-p` und Haiku → Form aus der Büro-`settings.json` (nach Vertrauen) und eine
+interaktive Sitzung gehören in die Abnahme mit der Inhaberin.
+**Entwurf Schnittstellen (27.11., nach Proben (a)–(o); Advisor geprüft, von der Inhaberin entschieden, umgesetzt):**
+- Quelle (öffentlich, neutral): je Rolle **eine** Datei `rollen/<rolle>.md` (Rollentext + Gutachten-Format + Werkzeuge
+  je Rolle); `einrichten.sh <qs-ziel>` erzeugt daraus (N08: eine Quelle) (a) `<ziel>/buero-<rolle>/.claude/agents/<rolle>.md`
+  (Büro-Sitzung `claude --agent <rolle>`, `tools: Read, Grep, Glob, Write, Edit`) und (b) einen Benutzer-Agenten
+  `gutachter-<rolle>.md` (Sub-Agent, `omitClaudeMd: true`, `tools: Read, Grep, Glob`, gibt das Gutachten als Antwort
+  zurück, „advisor nie aufrufen“ im Text; Installation nach `~/.claude/agents/` nur mit Freigabe). Je Büro `CLAUDE.md`
+  (Büroordnung: Eingang, Ausgang, Format-Verweis; lädt nur die Büro-Sitzung, (h)) und `.claude/settings.json`:
+  `claudeMdExcludes` (Eltern-CLAUDE.md, `~/.claude/CLAUDE.md`, `<büro>/eingang/**/CLAUDE.md`), `permissions.
+  blockWritesOutsideWorkingDirectories: true` (o). Kein Bash (S02), kein Agent, keine MCP (l); UX-Browserweg offen.
+- Büros: `buero-design`, `buero-ux`, `buero-architektur`; je `eingang/`, `ausgang/`. Normen im QS-Projekt nicht nötig
+  (kein Bash, Rechte über `tools:` und Einstellungen); einmal interaktiv vertrauen (trust an der git-Wurzel, (f)).
+- Einreichung `eingang/<JJJJ-MM-TT>-<titel>/auftrag.md`: Gegenstand (absoluter Pfad + Commit **nur als Verweis**, keine
+  Kopie, (i); oder URL/Startbefehl für UX), Fragestellung, Rahmen (Zielgruppe, Grenzen), Einreicher. Start je Auftrag:
+  `claude --agent <rolle> --allowedTools "Read(//<pfad>/**)" "Grep(//<pfad>/**)" "Glob(//<pfad>/**)"` (k) – ohne die
+  Schalter fragt Read außerhalb einmal nach (harmlos).
+- Gutachten `ausgang/<gleich>/gutachten.md`: Kopf (Büro, Datum, Gegenstand, „Arbeitsbaum am <Datum>, Commit laut
+  Auftrag“ – ohne Bash nicht prüfbar), Gesamturteil (1–3 Sätze),
+  Befundtabelle (Nr, Befund, Schwere kritisch/hoch/mittel/niedrig, Beleg – je Rolle Pfad:Zeile, Screenshot oder
+  Szenario-Schritt –, Vorschlag), „Nicht geprüft“; Anlagen (Entwürfe, Screenshots) daneben in `ausgang/<…>/anlagen/`.
+- Keine neue Rolle in `rollen.toml` (S02): Sub-Agenten laufen unter dem Hook mit `--rolle claude`; die Begrenzung trägt
+  `tools:` der Agent-Definition.
+**Fragen an die Inhaberin (gebündelt):** (1) Quelle gleich unter `vorlage/` (VL) oder vorerst `qs/`? (2) Abgrenzung QS-
+Designer ↔ DT-Kritiker (DT entfällt/geht in QS auf?). (3) Auto-Memory im Büro aus (sammelt Kontext über Gutachten)?
+UX-Browserweg: Chrome-Erweiterung arbeitet im angemeldeten Browser der Inhaberin – erlaubt, oder nur Screenshots/
+Startbefehl? (MCP sonst aus, Standard.) (4) Benutzer-Agenten `gutachter-*` nach `~/.claude/agents/` installieren
+(außerhalb des Projekts)?
+**Schritte:** (1) ✅ Probe: Büro-Unterordner mit `.claude/settings.json` (`claudeMdExcludes` für Eltern- und Benutzer-CLAUDE.md)
 – messen, ob die Sitzung sie wirklich nicht lädt und ob Projekt-Einstellungen aus dem Büro-Ordner (nicht der git-Wurzel)
-gelten; sonst ein git-Repository je Büro. (2) Advisor zu Plan/Schnittstellen (Einreichformat `eingang/<datum>-<titel>/auftrag.md`
-+ Verweis auf das Projekt nur lesend, Gutachten `ausgang/<…>/gutachten.md` mit festem Aufbau: Befund, Schwere, Beleg,
-Vorschlag). (3) Rollen-Texte (gemini-analyst entwirft, Claude prüft), Agent-Definitionen mit `omitClaudeMd: true`.
-(4) Einrichten, Probegutachten je Büro an einem echten Stand, Abnahme mit der Inhaberin.
+gelten; sonst ein git-Repository je Büro. (2) ✅ Advisor zu Plan/Schnittstellen (zweimal, 27.11.; Entwurf oben).
+**Antworten der Inhaberin (27.11.):** (1) vorerst `qs/`; (2) DT bleibt eigenes Paket (Produktivteam), QS = unabhängige
+Prüfung; (3) UX darf die Chrome-Erweiterung nutzen, Auto-Memory im Büro aus; (4) `gutachter-*` nach `~/.claude/agents/`
+installieren: ja (`--benutzer-agents`).
+**Stand 27.11.:** ✅ (3) umgesetzt und committet: `qs/{gutachten-format.md, buero/settings.json, rollen/*.md}` (Claude:
+Schnittstellen; Rollentexte, `buero/CLAUDE.md`, `LIES-MICH.md` von Gemini, geprüft und nachgebessert),
+`tests/test_qs.py` (Mistral, 87 ok), `qs/einrichten.sh` (**Claude selbst**: Vibes „Smart approve“ sperrte das Schreiben
+dreimal – Lauf 1 mit `< /dev/null`, Lauf 3 über `!` der Inhaberin; ohne Terminal kann Vibe nicht rückfragen, die
+Wiederholung wird einfach erneut gesperrt; Lauf 2 sperrte der Claude-Auto-Modus beim Start, „Undermining Oversight“ –
+**vermutet**: wegen meines Auftragssatzes „Sperre einmal wiederholen, damit die Rückfrage ankommt“, nicht gemessen).
+**Nächster Schritt (4) – Abnahme mit der Inhaberin (interaktiv):** QS-Projekt anlegen (Pfad wählt die Inhaberin, nur
+lokal), `bash qs/einrichten.sh <qs-ziel> --benutzer-agents`, einmal interaktiv starten und vertrauen; je Büro ein
+Probegutachten an einem echten Stand; dabei messen: (i) Sperren wirken aus der Büro-`settings.json` (nicht nur per
+Schalter), (ii) in `claude --agent ux` kommen die in `tools:` genannten Chrome-Werkzeuge an (ungemessen, (l) zeigte nur,
+dass nicht genannte MCP fehlen), (iii) Sub-Agent `gutachter-architektur` aus einer Projektsitzung, (iv) `autoMemoryEnabled: false` wirkt (nur Schlüsselname geprüft), (v) Wortlaut `gutachter-ux` bestätigen (steuert den angemeldeten Browser, aus jeder Sitzung aufrufbar). Gemessen 27.11. ohne Inhaberin: erzeugte Agent-Dateien laden (Kopf mit „: “ in description ok; Büro-Agent: Read, Write, Edit, Grep, Glob + advisor, globale CLAUDE.md aus, Büroordnung geladen; Sub-Agent: Read, Grep, Glob + advisor). `einrichten.sh` ohne Zweit-Review. Danach Advisor (S07-4),
+PR, `normen.py merge` (keine Normen-Version nötig: nur neue Dateien, keine Normänderung).
+(3) ✅ Rollen-Texte und Agent-Definitionen (siehe Stand).
+(4) Abnahme mit der Inhaberin (siehe nächster Schritt).
+
+### Rückmeldungen 27.11. (noch nicht eingeplant)
+
+- Aus einer Projekt-Sitzung: (1) `gemini-analyst` senkte ein verlangtes `--print-timeout 1500s` eigenmächtig auf 540 s, Lauf brach
+  ab → Agent-Definition: verlangte Zeitgrenze übernehmen. (2) agy liest nur im Lauf-Ordner; Bilder des Auftrags müssen dort
+  liegen, sonst `read_file` abgelehnt (Meldung schlägt `--dangerously-skip-permissions` vor – N07) → Hinweis in Ablauf Abschnitt 7.
+- QS-Lauf: Vibes „Smart approve“ sperrte `write_file` für ein neues `qs/einrichten.sh` (hält ein Einrichtungsskript für
+  destruktiv), auch in einem von der Inhaberin gestarteten Lauf. **Über die Schnittstelle (ohne Terminal) gibt es keine
+  Bestätigung für Smart approve** → Ablauf/Agent-Definition: solche Aufträge an Claude oder Vibe interaktiv im eigenen
+  Terminal der Inhaberin; in Aufträgen nie „Sperre wiederholen“ schreiben (löste vermutlich den Auto-Modus aus).
 
 ### Rückmeldungen 26.11. (aus Projekt-Sitzungen, noch nicht eingeplant)
 

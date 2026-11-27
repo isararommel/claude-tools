@@ -27,6 +27,8 @@ claude-tools/
   agenten-normen/         QUELLE Normen: einrichten.sh, LIES-MICH.md, projekt/ (normen/*.toml, normen.py, Hooks)
   multi-ki/               QUELLE Multi-KI: einrichten.sh, multi-ki-ablauf.md, projekt/ (AGENTS.md, .geminiignore, …),
                           benutzer/agents/ (mistral-team.md, gemini-analyst.md für ~/.claude/agents/)
+  qs/                     QUELLE Abteilung Qualitätssicherung: einrichten.sh (Gutachter-Büros in einem eigenen
+                          QS-Projekt, gutachter-*.md für ~/.claude/agents/), rollen/, buero/, gutachten-format.md
   tests/                  make test
   Makefile, LICENSE (MIT)
   normen/, .claude/, .vibe/, .githooks/, AGENTS.md, docs/   eingespielte KOPIE für dieses Repository selbst

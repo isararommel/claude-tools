@@ -1,0 +1,11 @@
+{
+  "claudeMdExcludes": [@@ELTERN@@
+    "@@HOME@@/.claude/CLAUDE.md",
+    "@@BUERO@@/eingang/**/CLAUDE.md",
+    "@@BUERO@@/ausgang/**/CLAUDE.md"
+  ],
+  "autoMemoryEnabled": false,
+  "permissions": {
+    "blockWritesOutsideWorkingDirectories": true
+  }
+}
